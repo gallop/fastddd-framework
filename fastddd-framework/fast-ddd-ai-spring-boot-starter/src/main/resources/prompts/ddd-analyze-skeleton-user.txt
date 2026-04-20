@@ -1,0 +1,29 @@
+请根据以下产品需求文档（PRD），设计符合DDD规范的数据库表结构概要。
+
+## 最大表数量
+{max_tables}
+
+## PRD 内容
+{prd_content}
+
+---
+
+请按照系统提示中的JSON格式输出你的设计方案，但有以下重要区别：
+
+**不需要为每个表设计详细字段。每个 table 对象的 fields 设为空数组 []。**
+
+你只需要输出：
+1. summary - 设计决策总结
+2. boundedContexts - 限界上下文列表
+3. tables - 每张表的元信息：
+   - tableName（snake_case，如 order_item）
+   - comment（中文注释）
+   - aggregateName（所属聚合名）
+   - dddRole（AGGREGATE_ROOT / ENTITY / VALUE_OBJECT）
+   - domainModelType（RICH / ANEMIC）
+   - reasoning（设计推理过程）
+   - fields：设为空数组 []
+4. relations - 表之间的所有关系（fromTable, toTable, relationType, foreignKeyColumn, comment）
+5. aggregates - 聚合分组（aggregateName, rootTable, memberTables, description）
+
+稍后会逐表请求详细字段定义。请确保表之间的关系和聚合设计完整准确，这是后续字段生成的基础。

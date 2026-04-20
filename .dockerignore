@@ -1,0 +1,68 @@
+# Docker ignore file for FastDDD Framework
+# Author: gallop
+# Created: 2025-01-10
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+.cursor
+*.iml
+*.ipr
+*.iws
+
+# Build outputs
+target/
+*/target/
+build/
+*/build/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js (for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+test-project/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Maven wrapper (keep for build)
+# .mvn/
+# mvnw
+# mvnw.cmd
+
+# TaskMaster
+.taskmaster/
+
+# Trae IDE
+.trae/
+
+# Frontend platform
+fastddd-studio/fastddd-studio-ui/

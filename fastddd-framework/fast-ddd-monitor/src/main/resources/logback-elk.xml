@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback Configuration for ELK Stack Integration
+  FastDDD Framework
+  Author: gallop
+  Created: 2025-01-10
+-->
+<configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="fastddd-app"/>
+    <springProperty scope="context" name="activeProfile" source="spring.profiles.active" defaultValue="dev"/>
+    <springProperty scope="context" name="instanceId" source="spring.application.instance_id" defaultValue="${HOSTNAME}"/>
+
+    <!-- Conversion pattern for JSON fields -->
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
+    <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
+    <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
+
+    <!-- Console Appender with colored output for development -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${appName:-}){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- JSON Logstash Appender for ELK -->
+    <appender name="LOGSTASH" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/application.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/application.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+            <includeStructuredArguments>true</includeStructuredArguments>
+            <includeTags>true</includeTags>
+            <includeCallerData>false</includeCallerData>
+            <customFields>{"app":"${appName}","environment":"${activeProfile}","instance_id":"${instanceId}"}</customFields>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <level>level</level>
+                <levelValue>level_value</levelValue>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <message>message</message>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <!-- SQL Monitoring JSON Appender -->
+    <appender name="SQL_LOGSTASH" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/sql-monitoring.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/sql-monitoring.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+            <includeStructuredArguments>true</includeStructuredArguments>
+            <customFields>{"app":"${appName}","log_type":"sql_monitoring","environment":"${activeProfile}"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Slow Query JSON Appender -->
+    <appender name="SLOW_QUERY_LOGSTASH" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/slow-query.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/slow-query.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+            <customFields>{"app":"${appName}","log_type":"slow_query","environment":"${activeProfile}"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Error-only JSON Appender -->
+    <appender name="ERROR_LOGSTASH" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <file>logs/error.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/error.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+            <includeStructuredArguments>true</includeStructuredArguments>
+            <includeCallerData>true</includeCallerData>
+            <customFields>{"app":"${appName}","log_type":"error","environment":"${activeProfile}"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Async appender for better performance -->
+    <appender name="ASYNC_LOGSTASH" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="LOGSTASH"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+        <neverBlock>false</neverBlock>
+    </appender>
+
+    <appender name="ASYNC_SQL_LOGSTASH" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="SQL_LOGSTASH"/>
+        <queueSize>256</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+    </appender>
+
+    <!-- SQL Monitoring Logger -->
+    <logger name="SQL_MONITORING" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_SQL_LOGSTASH"/>
+    </logger>
+
+    <!-- Slow Query Logger -->
+    <logger name="SLOW_QUERY" level="WARN" additivity="false">
+        <appender-ref ref="SLOW_QUERY_LOGSTASH"/>
+    </logger>
+
+    <!-- P6Spy Logger -->
+    <logger name="p6spy" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_SQL_LOGSTASH"/>
+    </logger>
+
+    <!-- Framework loggers -->
+    <logger name="com.gallop.fastddd" level="DEBUG"/>
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.springframework.boot.actuate" level="INFO"/>
+    <logger name="org.mybatis" level="DEBUG"/>
+    <logger name="com.baomidou.mybatisplus" level="DEBUG"/>
+
+    <!-- Development profile configuration -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_LOGSTASH"/>
+            <appender-ref ref="ERROR_LOGSTASH"/>
+        </root>
+    </springProfile>
+
+    <!-- Test profile configuration -->
+    <springProfile name="test">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_LOGSTASH"/>
+        </root>
+    </springProfile>
+
+    <!-- Production profile configuration -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="ASYNC_LOGSTASH"/>
+            <appender-ref ref="ERROR_LOGSTASH"/>
+        </root>
+    </springProfile>
+</configuration>

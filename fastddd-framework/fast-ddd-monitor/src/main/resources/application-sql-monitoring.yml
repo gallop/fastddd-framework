@@ -1,0 +1,58 @@
+# SQL监控配置示例
+fastddd:
+  monitor:
+    sql:
+      enabled: true
+      slow-query-threshold: 1000  # 慢查询阈值，单位毫秒
+      log-parameters: true        # 是否记录SQL参数
+      log-result-set-size: true   # 是否记录结果集大小
+      prometheus-enabled: true    # 是否启用Prometheus指标
+      elk-enabled: true          # 是否启用ELK日志
+      max-sql-length: 2000       # 最大SQL长度
+      include-stack-trace: false  # 是否包含堆栈跟踪
+      exclude-patterns:          # 排除的SQL模式
+        - "SELECT 1"
+        - "SELECT @@"
+        - "SHOW "
+      include-patterns:          # 包含的SQL模式（为空表示包含所有）
+        - ".*"
+
+# Spring Boot Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: 
+          - health
+          - info
+          - metrics
+          - prometheus
+          - sql-monitoring
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+
+# Micrometer配置
+micrometer:
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+        step: 10s
+        descriptions: true
+    tags:
+      application: ${spring.application.name:fastddd-app}
+      environment: ${spring.profiles.active:dev}
+
+# 日志配置
+logging:
+  level:
+    com.gallop.fastddd.monitor.sql: DEBUG
+    p6spy: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

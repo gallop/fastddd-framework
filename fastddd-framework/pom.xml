@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>fastddd-framework</artifactId>
+    <packaging>pom</packaging>
+    <name>FastDDD Framework</name>
+    <description>DDD framework core modules - base utilities, configuration, data access, web, caching, events, search, monitoring, security, AI</description>
+
+    <modules>
+        <module>fast-ddd-common</module>
+        <module>fast-ddd-config</module>
+        <module>fast-ddd-model</module>
+        <module>fast-ddd-crud</module>
+        <module>fast-ddd-web</module>
+        <module>fast-ddd-application</module>
+        <module>fast-ddd-cache</module>
+        <module>fast-ddd-event</module>
+        <module>fast-ddd-search</module>
+        <module>fast-ddd-monitor</module>
+        <module>fast-ddd-starter</module>
+        <module>fast-ddd-security-starter</module>
+        <module>fast-ddd-ai-spring-boot-starter</module>
+        <module>fast-ddd-analyzer-spring-boot-starter</module>
+    </modules>
+
+</project>

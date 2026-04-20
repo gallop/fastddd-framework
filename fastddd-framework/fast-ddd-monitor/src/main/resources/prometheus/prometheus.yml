@@ -1,0 +1,48 @@
+# Prometheus配置文件
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 规则文件
+rule_files:
+  - "sql_monitoring_rules.yml"
+
+# 抓取配置
+scrape_configs:
+  # FastDDD应用监控
+  - job_name: 'fastddd-app'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    params:
+      format: ['prometheus']
+    
+  # SQL监控专用指标
+  - job_name: 'fastddd-sql-monitoring'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/actuator/sql-monitoring/statistics'
+    scrape_interval: 5s
+    scrape_timeout: 3s
+    
+  # Spring Boot Actuator健康检查
+  - job_name: 'fastddd-health'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/actuator/health'
+    scrape_interval: 30s
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# 存储配置
+storage:
+  tsdb:
+    retention.time: 15d
+    retention.size: 10GB

@@ -1,0 +1,21 @@
+logging:
+  level:
+    com.gallop.fastddd.web.advice.ResponseWrapper: DEBUG
+    org.springframework.web: DEBUG
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+spring:
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+fast-ddd:
+  web:
+    response-wrapper:
+      enabled: true

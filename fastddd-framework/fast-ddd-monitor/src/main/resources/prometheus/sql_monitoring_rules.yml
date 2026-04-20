@@ -1,0 +1,119 @@
+# SQL监控告警规则
+groups:
+  - name: sql_monitoring_alerts
+    rules:
+      # 慢查询告警
+      - alert: HighSlowQueryRate
+        expr: (sql_slow_queries_total / sql_queries_total) * 100 > 20
+        for: 2m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "High slow query rate detected"
+          description: "Slow query rate is {{ $value }}% for the last 2 minutes"
+
+      # 极高慢查询告警
+      - alert: CriticalSlowQueryRate
+        expr: (sql_slow_queries_total / sql_queries_total) * 100 > 50
+        for: 1m
+        labels:
+          severity: critical
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "Critical slow query rate detected"
+          description: "Slow query rate is {{ $value }}% for the last 1 minute"
+
+      # SQL执行时间过长告警
+      - alert: HighSQLExecutionTime
+        expr: sql_execution_time_seconds{quantile="0.95"} > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "High SQL execution time detected"
+          description: "95th percentile SQL execution time is {{ $value }}s"
+
+      # 数据库连接数过高告警
+      - alert: HighDatabaseConnections
+        expr: sql_connection_pool_active > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "High database connection count"
+          description: "Active database connections: {{ $value }}"
+
+      # SQL错误率告警
+      - alert: HighSQLErrorRate
+        expr: rate(sql_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "High SQL error rate detected"
+          description: "SQL error rate is {{ $value }} errors/second"
+
+      # 大结果集告警
+      - alert: LargeResultSet
+        expr: sql_result_set_size{quantile="0.95"} > 10000
+        for: 5m
+        labels:
+          severity: info
+          service: fastddd-sql-monitoring
+        annotations:
+          summary: "Large result set detected"
+          description: "95th percentile result set size is {{ $value }} rows"
+
+  - name: sql_performance_alerts
+    rules:
+      # SELECT查询性能告警
+      - alert: SlowSelectQueries
+        expr: sql_execution_time_seconds{operation="SELECT",quantile="0.90"} > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+          operation: SELECT
+        annotations:
+          summary: "Slow SELECT queries detected"
+          description: "90th percentile SELECT query time is {{ $value }}s"
+
+      # INSERT查询性能告警
+      - alert: SlowInsertQueries
+        expr: sql_execution_time_seconds{operation="INSERT",quantile="0.90"} > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+          operation: INSERT
+        annotations:
+          summary: "Slow INSERT queries detected"
+          description: "90th percentile INSERT query time is {{ $value }}s"
+
+      # UPDATE查询性能告警
+      - alert: SlowUpdateQueries
+        expr: sql_execution_time_seconds{operation="UPDATE",quantile="0.90"} > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+          operation: UPDATE
+        annotations:
+          summary: "Slow UPDATE queries detected"
+          description: "90th percentile UPDATE query time is {{ $value }}s"
+
+      # DELETE查询性能告警
+      - alert: SlowDeleteQueries
+        expr: sql_execution_time_seconds{operation="DELETE",quantile="0.90"} > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: fastddd-sql-monitoring
+          operation: DELETE
+        annotations:
+          summary: "Slow DELETE queries detected"
+          description: "90th percentile DELETE query time is {{ $value }}s"

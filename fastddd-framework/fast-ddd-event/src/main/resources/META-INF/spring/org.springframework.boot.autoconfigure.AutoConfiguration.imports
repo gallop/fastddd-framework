@@ -1,0 +1,2 @@
+com.gallop.fastddd.event.EventAutoConfiguration
+com.gallop.fastddd.event.rocketmq.RocketMQEventAutoConfiguration

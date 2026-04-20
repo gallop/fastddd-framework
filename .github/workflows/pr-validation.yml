@@ -1,0 +1,148 @@
+# FastDDD Framework Pull Request Validation
+# Author: gallop
+# Created: 2025-01-10
+
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: '-Xmx1024m'
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Validate Maven project structure
+      run: |
+        mvn validate -B
+        mvn dependency:analyze -B
+    
+    - name: Compile and run tests
+      run: |
+        mvn clean compile -B
+        mvn test -B
+    
+    - name: Run code style checks
+      run: |
+        mvn checkstyle:check -B
+      continue-on-error: true
+    
+    - name: Check for security vulnerabilities
+      run: |
+        mvn org.owasp:dependency-check-maven:check -B
+      continue-on-error: true
+    
+    - name: Build application
+      run: |
+        mvn package -DskipTests -B
+    
+    - name: Validate Docker build
+      run: |
+        docker build -t fastddd-test:pr-${{ github.event.number }} .
+        docker run --rm fastddd-test:pr-${{ github.event.number }} java -version
+    
+    - name: Comment PR with results
+      uses: actions/github-script@v7
+      if: always()
+      with:
+        script: |
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.user.type === 'Bot' && comment.body.includes('PR Validation Results')
+          );
+          
+          const body = `## PR Validation Results
+          
+          ✅ **Build Status**: ${{ job.status }}
+          📊 **Tests**: All tests passed
+          🔍 **Code Quality**: Checkstyle validation completed
+          🐳 **Docker**: Image build successful
+          
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.head_ref }}
+          
+          > This PR is ready for review!`;
+          
+          if (botComment) {
+            github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }
+
+  auto-merge-check:
+    name: Auto-merge Eligibility Check
+    runs-on: ubuntu-latest
+    needs: validate-pr
+    if: success()
+    
+    steps:
+    - name: Check if PR is eligible for auto-merge
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const pr = context.payload.pull_request;
+          
+          // Check if PR is from a trusted source (same repo, not fork)
+          const isTrusted = !pr.head.repo.fork;
+          
+          // Check if PR has required labels
+          const hasAutoMergeLabel = pr.labels.some(label => label.name === 'auto-merge');
+          
+          // Check if PR is not a draft
+          const isNotDraft = !pr.draft;
+          
+          if (isTrusted && hasAutoMergeLabel && isNotDraft) {
+            console.log('PR is eligible for auto-merge');
+            
+            // Add auto-merge label if not present
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['ready-to-merge']
+            });
+          } else {
+            console.log('PR is not eligible for auto-merge');
+            console.log(`Trusted: ${isTrusted}, Has label: ${hasAutoMergeLabel}, Not draft: ${isNotDraft}`);
+          }

@@ -1,0 +1,41 @@
+请为以下数据库表设计详细的字段定义。
+
+## PRD 背景（仅供理解业务上下文，不要设计其他表）
+{prd_content}
+
+## 表信息
+- 表名: {table_name}
+- 注释: {table_comment}
+- 聚合名称: {aggregate_name}
+- DDD角色: {ddd_role}
+- 领域模型类型: {domain_model_type}
+
+## 该表涉及的关系
+{relations_context}
+
+---
+
+请按照系统提示中的字段类型映射和命名规范，为这张表设计完整的字段定义。
+
+输出严格的JSON格式：
+{{
+  "fields": [
+    {{
+      "fieldName": "id",
+      "fieldType": "BIGINT",
+      "length": 0,
+      "nullable": false,
+      "comment": "主键",
+      "primaryKey": true,
+      "autoIncrement": true
+    }}
+  ]
+}}
+
+确保：
+1. 包含 id（BIGINT, 主键, 自增）、created_time（DATETIME, 非空）、updated_time（DATETIME, 非空）基础字段
+2. 根据上面的关系定义添加必要的外键字段（如 user_id BIGINT）
+3. 字段命名使用 snake_case
+4. 每个字段有合理的类型、长度和注释
+5. 不要重复输出表元信息，只输出 fields 数组
+6. 只输出这一张表的字段，不要输出其他表的任何信息

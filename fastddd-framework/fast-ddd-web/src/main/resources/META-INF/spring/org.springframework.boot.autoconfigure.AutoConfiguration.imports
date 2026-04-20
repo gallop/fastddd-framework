@@ -1,0 +1,2 @@
+com.gallop.fastddd.web.FastDddWebAutoConfiguration
+com.gallop.fastddd.web.config.FastDddJacksonAutoConfiguration

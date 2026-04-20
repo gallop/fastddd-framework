@@ -1,0 +1,90 @@
+# FastDDD OpenAPI和Knife4j配置
+fastddd:
+  web:
+    openapi:
+      enabled: true
+      title: "FastDDD API Documentation"
+      description: "FastDDD框架API文档，提供完整的接口说明和示例"
+      version: "1.0.0"
+      contact:
+        name: "FastDDD Team"
+        email: "support@fastddd.com"
+        url: "https://github.com/gallop/fastddd"
+      license:
+        name: "Apache 2.0"
+        url: "https://www.apache.org/licenses/LICENSE-2.0"
+      server:
+        url: "http://localhost:8080"
+        description: "开发环境"
+    knife4j:
+      enabled: true
+      enhance: true
+      production: false
+      basic:
+        enable: false
+        username: "admin"
+        password: "123456"
+      setting:
+        enable: true
+        language: "zh-CN"
+        enable-search: true
+        enable-footer: false
+        enable-footer-custom: true
+        footer-custom-content: "Copyright © 2025 FastDDD Framework"
+        enable-dynamic-parameter: true
+        enable-debug: true
+        enable-open-api: true
+        enable-group: true
+
+# SpringDoc配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls-primary-name: default
+    display-request-duration: true
+    display-operation-id: true
+    show-extensions: true
+    show-common-extensions: true
+  group-configs:
+    - group: default
+      paths-to-match: /**
+      packages-to-scan: com.gallop.fastddd
+    - group: fastddd-framework
+      paths-to-match: /api/**
+      packages-to-scan: com.gallop.fastddd
+    - group: business-api
+      paths-to-match: /business/**, /app/**
+
+# Knife4j增强配置
+knife4j:
+  enable: true
+  setting:
+    language: zh-CN
+    enable-version: true
+    enable-reload-cache-parameter: false
+    enable-after-script: true
+    enable-filter-multipart-api-method-type: POST
+    enable-filter-multipart-apis: false
+    enable-request-cache: true
+    enable-host: false
+    enable-home-custom: true
+    home-custom-path: classpath:markdown/home.md
+    enable-search: true
+    enable-footer: false
+    enable-footer-custom: true
+    footer-custom-content: Copyright © 2025 FastDDD Framework
+    enable-dynamic-parameter: true
+    enable-debug: true
+    enable-open-api: false
+    enable-group: true
+  cors: false
+  production: false
+  basic:
+    enable: false
+    username: admin
+    password: 123456

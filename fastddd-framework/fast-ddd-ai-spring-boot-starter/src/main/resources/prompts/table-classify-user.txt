@@ -1,0 +1,22 @@
+请对以下数据库表进行 DDD 分类。
+
+## 表基本信息
+- 表名: {table_name}
+- 注释: {table_comment}
+- 字段数量: {column_count}
+
+## 字段详情
+{columns_json}
+
+## 表关联关系
+{relationships_context}
+
+## 已有聚合分组
+{aggregates_context}
+
+## PRD 业务上下文
+{prd_section}
+
+---
+
+请根据系统提示中的分类标准，判断该表的领域模型类型和 DDD 角色。只输出 JSON。

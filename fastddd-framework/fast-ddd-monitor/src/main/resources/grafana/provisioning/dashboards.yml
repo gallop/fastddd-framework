@@ -1,0 +1,14 @@
+# Grafana仪表盘自动配置
+apiVersion: 1
+
+providers:
+  # FastDDD SQL监控仪表盘
+  - name: 'fastddd-sql-monitoring'
+    orgId: 1
+    folder: 'FastDDD'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/fastddd

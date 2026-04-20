@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>fast-ddd-analyzer-spring-boot-starter</artifactId>
+    <name>fast-ddd-analyzer-spring-boot-starter</name>
+    <description>FastDDD Analyzer Starter - Intelligent Table Analysis and Aggregate Detection</description>
+
+    <dependencies>
+        <!-- FastDDD Common -->
+        <dependency>
+            <groupId>com.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-common</artifactId>
+        </dependency>
+
+        <!-- FastDDD Code Generator (for TableMetadata model) -->
+        <dependency>
+            <groupId>com.gallop.fastddd</groupId>
+            <artifactId>fastddd-code-generator</artifactId>
+        </dependency>
+
+        <!-- FastDDD AI Starter (optional, for LLM-enhanced analysis) -->
+        <dependency>
+            <groupId>com.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Boot -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Spring AI (optional, for LLM-enhanced classification) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Boot Configuration Processor -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Jackson for JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
