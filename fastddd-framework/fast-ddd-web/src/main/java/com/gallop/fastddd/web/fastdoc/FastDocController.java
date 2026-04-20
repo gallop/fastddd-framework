@@ -1,12 +1,16 @@
 package com.gallop.fastddd.web.fastdoc;
 
-import com.gallop.fastddd.web.fastdoc.model.DatabaseDocMetadata;
-import com.gallop.fastddd.web.fastdoc.model.TableDocMetadata;
+import com.gallop.fastddd.fastdoc.FastDocExportService;
+import com.gallop.fastddd.fastdoc.FastDocService;
+import com.gallop.fastddd.fastdoc.FastDocTemplateService;
+import com.gallop.fastddd.fastdoc.model.DatabaseDocMetadata;
+import com.gallop.fastddd.fastdoc.model.TableDocMetadata;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +30,7 @@ import java.util.Map;
 @RequestMapping("/api/fastdoc")
 @RequiredArgsConstructor
 @Tag(name = "FastDoc", description = "数据库文档生成API")
+@ConditionalOnBean(FastDocService.class)
 public class FastDocController {
 
     private final FastDocService fastDocService;

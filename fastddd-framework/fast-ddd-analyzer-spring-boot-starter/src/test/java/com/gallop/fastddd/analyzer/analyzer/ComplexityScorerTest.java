@@ -1,8 +1,8 @@
 package com.gallop.fastddd.analyzer.analyzer;
 
 import com.gallop.fastddd.analyzer.properties.AnalyzerProperties;
-import com.gallop.fastddd.codegen.model.ColumnMetadata;
-import com.gallop.fastddd.codegen.model.TableMetadata;
+import com.gallop.fastddd.common.model.ColumnMetadata;
+import com.gallop.fastddd.common.model.TableMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

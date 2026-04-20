@@ -22,12 +22,6 @@
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
-        <!-- FastDDD Code Generator (for TableMetadata model) -->
-        <dependency>
-            <groupId>com.gallop.fastddd</groupId>
-            <artifactId>fastddd-code-generator</artifactId>
-        </dependency>
-
         <!-- FastDDD AI Starter (optional, for LLM-enhanced analysis) -->
         <dependency>
             <groupId>com.gallop.fastddd</groupId>

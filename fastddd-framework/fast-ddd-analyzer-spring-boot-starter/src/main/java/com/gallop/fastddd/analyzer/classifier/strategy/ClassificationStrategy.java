@@ -1,7 +1,7 @@
 package com.gallop.fastddd.analyzer.classifier.strategy;
 
 import com.gallop.fastddd.analyzer.classifier.model.TableAnalysisResult;
-import com.gallop.fastddd.codegen.model.TableMetadata;
+import com.gallop.fastddd.common.model.TableMetadata;
 
 /**
  * 表分类策略接口

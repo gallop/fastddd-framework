@@ -2,7 +2,7 @@ package com.gallop.fastddd.analyzer.detector;
 
 import com.gallop.fastddd.analyzer.classifier.model.AggregateInfo;
 import com.gallop.fastddd.analyzer.constants.FieldPatterns;
-import com.gallop.fastddd.codegen.model.TableMetadata;
+import com.gallop.fastddd.common.model.TableMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

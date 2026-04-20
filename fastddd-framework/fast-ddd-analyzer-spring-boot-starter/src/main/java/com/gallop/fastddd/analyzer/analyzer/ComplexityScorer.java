@@ -2,8 +2,8 @@ package com.gallop.fastddd.analyzer.analyzer;
 
 import com.gallop.fastddd.analyzer.constants.FieldPatterns;
 import com.gallop.fastddd.analyzer.properties.AnalyzerProperties;
-import com.gallop.fastddd.codegen.model.ColumnMetadata;
-import com.gallop.fastddd.codegen.model.TableMetadata;
+import com.gallop.fastddd.common.model.ColumnMetadata;
+import com.gallop.fastddd.common.model.TableMetadata;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

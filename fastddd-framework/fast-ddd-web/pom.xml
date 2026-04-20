@@ -23,6 +23,12 @@
             <groupId>com.gallop.fastddd</groupId>
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
+
+        <!-- FastDDD FastDoc Core -->
+        <dependency>
+            <groupId>com.gallop.fastddd</groupId>
+            <artifactId>fastddd-fastdoc-core</artifactId>
+        </dependency>
         
         <!-- FastDDD Model -->
         <dependency>

@@ -9,7 +9,7 @@ import com.gallop.fastddd.analyzer.classifier.strategy.ClassificationStrategy;
 import com.gallop.fastddd.analyzer.detector.AggregateDetector;
 import com.gallop.fastddd.analyzer.properties.AnalyzerProperties;
 import com.gallop.fastddd.common.enums.DomainModelType;
-import com.gallop.fastddd.codegen.model.TableMetadata;
+import com.gallop.fastddd.common.model.TableMetadata;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
