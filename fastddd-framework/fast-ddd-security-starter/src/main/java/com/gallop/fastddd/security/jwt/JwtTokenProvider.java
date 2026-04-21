@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security.jwt;
 
+import com.gallop.fastddd.security.channel.AuthChannel;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +41,19 @@ public class JwtTokenProvider {
      * @return JWT Token
      */
     public String generateAccessToken(Authentication authentication) {
+        return generateAccessToken(authentication, AuthChannel.DEFAULT);
+    }
+
+    /**
+     * 生成访问Token（含通道标识）
+     *
+     * @param authentication 认证信息
+     * @param channel 认证通道
+     * @return JWT Token
+     */
+    public String generateAccessToken(Authentication authentication, AuthChannel channel) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return generateToken(userDetails, jwtProperties.getExpiration().toMillis());
+        return generateToken(userDetails, jwtProperties.getExpiration().toMillis(), channel);
     }
 
     /**
@@ -51,8 +63,19 @@ public class JwtTokenProvider {
      * @return 刷新Token
      */
     public String generateRefreshToken(Authentication authentication) {
+        return generateRefreshToken(authentication, AuthChannel.DEFAULT);
+    }
+
+    /**
+     * 生成刷新Token（含通道标识）
+     *
+     * @param authentication 认证信息
+     * @param channel 认证通道
+     * @return 刷新Token
+     */
+    public String generateRefreshToken(Authentication authentication, AuthChannel channel) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return generateToken(userDetails, jwtProperties.getRefreshExpiration().toMillis());
+        return generateToken(userDetails, jwtProperties.getRefreshExpiration().toMillis(), channel);
     }
 
     /**
@@ -60,9 +83,10 @@ public class JwtTokenProvider {
      *
      * @param userDetails 用户详情
      * @param expiration  过期时间（毫秒）
+     * @param channel     认证通道
      * @return JWT Token
      */
-    private String generateToken(UserDetails userDetails, long expiration) {
+    private String generateToken(UserDetails userDetails, long expiration, AuthChannel channel) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
@@ -71,6 +95,7 @@ public class JwtTokenProvider {
         claims.put("authorities", userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
+        claims.put("channel", channel.getCode());
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -102,6 +127,19 @@ public class JwtTokenProvider {
     public java.util.List<String> getAuthoritiesFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         return (java.util.List<String>) claims.get("authorities");
+    }
+
+    /**
+     * 从Token中获取认证通道
+     * 旧 Token 无 channel 字段时返回 DEFAULT
+     *
+     * @param token JWT Token
+     * @return 认证通道
+     */
+    public AuthChannel getChannelFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        Object channelCode = claims.get("channel");
+        return AuthChannel.fromCode(channelCode != null ? channelCode.toString() : null);
     }
 
     /**

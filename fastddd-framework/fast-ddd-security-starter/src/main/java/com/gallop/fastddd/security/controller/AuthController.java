@@ -1,7 +1,7 @@
 package com.gallop.fastddd.security.controller;
 
 import com.gallop.fastddd.security.audit.AuditLog;
-import com.gallop.fastddd.security.dto.LoginRequest;
+import com.gallop.fastddd.security.channel.AuthChannel;
 import com.gallop.fastddd.security.dto.LoginResponse;
 import com.gallop.fastddd.security.dto.RefreshRequest;
 import com.gallop.fastddd.security.dto.TokenResponse;
@@ -12,12 +12,14 @@ import com.gallop.fastddd.security.spi.SecurityIdentityService;
 import com.gallop.fastddd.security.spi.SecurityPermissionService;
 import com.gallop.fastddd.security.spi.SecurityUserDetails;
 import com.gallop.fastddd.security.spi.SecurityUserInfo;
+import com.gallop.fastddd.security.strategy.AuthStrategy;
+import com.gallop.fastddd.security.strategy.AuthStrategyRegistry;
+import com.gallop.fastddd.security.strategy.AuthenticationRequest;
 import com.gallop.fastddd.web.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -36,58 +39,67 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-    private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtProperties jwtProperties;
     private final SecurityIdentityService identityService;
     private final SecurityPermissionService permissionService;
+    private final AuthStrategyRegistry strategyRegistry;
 
-    public AuthController(AuthenticationManager authenticationManager,
-                          JwtTokenProvider jwtTokenProvider,
+    public AuthController(JwtTokenProvider jwtTokenProvider,
                           JwtProperties jwtProperties,
                           SecurityIdentityService identityService,
-                          SecurityPermissionService permissionService) {
-        this.authenticationManager = authenticationManager;
+                          SecurityPermissionService permissionService,
+                          AuthStrategyRegistry strategyRegistry) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtProperties = jwtProperties;
         this.identityService = identityService;
         this.permissionService = permissionService;
+        this.strategyRegistry = strategyRegistry;
     }
 
     @PostMapping("/login")
     @AuditLog(value = "用户登录", type = AuditLog.OperationType.LOGIN)
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+    public ApiResponse<LoginResponse> login(@RequestBody AuthenticationRequest request,
                                              HttpServletRequest httpRequest) {
-        log.info("用户登录请求: {}", request.getUsername());
+        String strategyType = resolveStrategyType(request);
+        log.info("用户登录请求: {}, 策略: {}", request.getUsername(), strategyType);
 
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.getUsername(),
-                            request.getPassword()
-                    )
-            );
+            // 1. 策略路由
+            AuthStrategy strategy = strategyRegistry.getStrategy(strategyType);
 
-            SecurityUserDetails userDetails = identityService.loadUserByUsername(request.getUsername());
+            if (strategy == null) {
+                return ApiResponse.error(400, "不支持的认证方式: " + strategyType);
+            }
+
+            // 2. 执行认证
+            Authentication authentication = strategy.authenticate(request);
+
+            // 3. 获取用户详情
+            String authenticatedUsername = authentication.getName();
+            SecurityUserDetails userDetails = identityService.loadUserByUsername(authenticatedUsername);
             if (userDetails == null) {
                 return ApiResponse.error(401, "用户不存在");
             }
 
-            String accessToken = jwtTokenProvider.generateAccessToken(authentication);
-            String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+            // 4. 生成 Token（含当前应用通道）
+            AuthChannel channel = jwtProperties.getChannel();
+            String accessToken = jwtTokenProvider.generateAccessToken(authentication, channel);
+            String refreshToken = jwtTokenProvider.generateRefreshToken(authentication, channel);
 
+            // 5. 获取用户信息
             SecurityUserInfo user = identityService.getUserInfo(userDetails.getUserId());
             if (user == null) {
                 return ApiResponse.error(401, "用户信息不存在");
             }
 
-            // Extract permissions from the authenticated principal (already queried by UserDetailsService)
+            // 6. 提取权限
             List<String> permissions = authentication.getAuthorities().stream()
                     .map(auth -> auth.getAuthority())
                     .filter(auth -> !auth.startsWith("ROLE_"))
                     .collect(Collectors.toList());
 
-            log.info("用户 {} 登录成功", request.getUsername());
+            log.info("用户 {} 登录成功, 通道: {}", authenticatedUsername, channel);
 
             LoginResponse response = LoginResponse.builder()
                     .accessToken(accessToken)
@@ -101,8 +113,8 @@ public class AuthController {
             return ApiResponse.success(response, "登录成功");
 
         } catch (Exception e) {
-            log.error("用户 {} 登录失败: {}", request.getUsername(), e.getMessage(), e);
-            return ApiResponse.error(401, "用户名或密码错误");
+            log.error("登录失败, 策略: {}: {}", strategyType, e.getMessage(), e);
+            return ApiResponse.error(401, "认证失败");
         }
     }
 
@@ -133,7 +145,6 @@ public class AuthController {
                 return ApiResponse.error(401, "用户不存在");
             }
 
-            // Use permissions from SPI for refresh (no UserDetailsService involved here)
             List<String> permissions = permissionService.getPermissionsByUserId(userDetails.getUserId());
 
             Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -144,7 +155,8 @@ public class AuthController {
                             .collect(Collectors.toList())
             );
 
-            String newAccessToken = jwtTokenProvider.generateAccessToken(authentication);
+            AuthChannel channel = jwtProperties.getChannel();
+            String newAccessToken = jwtTokenProvider.generateAccessToken(authentication, channel);
 
             log.info("用户 {} Token刷新成功", username);
 
@@ -190,5 +202,17 @@ public class AuthController {
                 .build();
 
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 根据 extra 内容自动识别策略类型
+     */
+    private String resolveStrategyType(AuthenticationRequest request) {
+        Map<String, String> extra = request.getExtra();
+        if (extra != null) {
+            if (extra.containsKey("wechatCode")) return "wechat-mini";
+            if (extra.containsKey("smsCode")) return "sms";
+        }
+        return "password";
     }
 }

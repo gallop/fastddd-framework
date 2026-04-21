@@ -1,5 +1,7 @@
 package com.gallop.fastddd.security.jwt;
 
+import com.gallop.fastddd.security.channel.AuthChannel;
+import com.gallop.fastddd.security.channel.AuthChannelContext;
 import com.gallop.fastddd.security.config.SecurityHttpProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -45,6 +47,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(jwt) && jwtTokenProvider.validateToken(jwt)) {
                 String username = jwtTokenProvider.getUsernameFromToken(jwt);
                 List<String> authorities = jwtTokenProvider.getAuthoritiesFromToken(jwt);
+                AuthChannel tokenChannel = jwtTokenProvider.getChannelFromToken(jwt);
+
+                // 通道校验：仅当应用配置了非 DEFAULT 通道时启用
+                AuthChannel appChannel = jwtProperties.getChannel();
+                if (appChannel != null && appChannel != AuthChannel.DEFAULT
+                        && tokenChannel != appChannel && tokenChannel != AuthChannel.DEFAULT) {
+                    log.warn("Channel mismatch: token channel={}, app channel={}, user={}",
+                            tokenChannel, appChannel, username);
+                    SecurityContextHolder.clearContext();
+                    // 继续过滤器链，由 Spring Security 的 JwtAuthenticationEntryPoint 返回 401
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                // 校验通过后才设置通道上下文
+                AuthChannelContext.set(tokenChannel);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     List<SimpleGrantedAuthority> grantedAuthorities = authorities.stream()
@@ -57,14 +75,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    log.debug("Successfully authenticated user: {}", username);
+                    log.debug("Successfully authenticated user: {}, channel: {}", username, tokenChannel);
                 }
             }
+
+            filterChain.doFilter(request, response);
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);
+            throw ex;
+        } finally {
+            AuthChannelContext.clear();
         }
-
-        filterChain.doFilter(request, response);
     }
 
     private String getJwtFromRequest(HttpServletRequest request) {

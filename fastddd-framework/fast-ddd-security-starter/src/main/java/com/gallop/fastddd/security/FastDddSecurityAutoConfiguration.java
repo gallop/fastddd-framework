@@ -14,6 +14,7 @@ import com.gallop.fastddd.security.spi.DefaultSecurityIdentityService;
 import com.gallop.fastddd.security.spi.DefaultSecurityPermissionService;
 import com.gallop.fastddd.security.spi.SecurityIdentityService;
 import com.gallop.fastddd.security.spi.SecurityPermissionService;
+import com.gallop.fastddd.security.strategy.AuthStrategyRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -21,7 +22,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.authentication.AuthenticationManager;
 
 /**
  * FastDDD安全模块自动配置
@@ -83,11 +83,11 @@ public class FastDddSecurityAutoConfiguration {
     @Bean
     @ConditionalOnClass(name = "com.gallop.fastddd.web.response.ApiResponse")
     @ConditionalOnMissingBean(name = "authController")
-    public AuthController frameworkAuthController(AuthenticationManager authenticationManager,
-                                                   JwtTokenProvider jwtTokenProvider,
+    public AuthController frameworkAuthController(JwtTokenProvider jwtTokenProvider,
                                                    JwtProperties jwtProperties,
                                                    SecurityIdentityService identityService,
-                                                   SecurityPermissionService permissionService) {
-        return new AuthController(authenticationManager, jwtTokenProvider, jwtProperties, identityService, permissionService);
+                                                   SecurityPermissionService permissionService,
+                                                   AuthStrategyRegistry strategyRegistry) {
+        return new AuthController(jwtTokenProvider, jwtProperties, identityService, permissionService, strategyRegistry);
     }
 }

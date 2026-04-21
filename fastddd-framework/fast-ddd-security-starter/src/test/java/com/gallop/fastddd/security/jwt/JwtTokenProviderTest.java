@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security.jwt;
 
+import com.gallop.fastddd.security.channel.AuthChannel;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,5 +141,68 @@ class JwtTokenProviderTest {
         assertFalse(jwtTokenProvider.validateToken(expiredToken));
         // isTokenExpired应该对过期token返回true
         assertTrue(jwtTokenProvider.isTokenExpired(expiredToken));
+    }
+
+    @Test
+    void testGenerateAccessTokenWithChannel() {
+        List<SimpleGrantedAuthority> authorities = Arrays.asList(
+                new SimpleGrantedAuthority("ROLE_USER")
+        );
+        UserDetails userDetails = new User("testuser", "password", authorities);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+
+        // 生成含 ADMIN 通道的 Token
+        String token = jwtTokenProvider.generateAccessToken(authentication, AuthChannel.ADMIN);
+
+        assertNotNull(token);
+        assertTrue(jwtTokenProvider.validateToken(token));
+        assertEquals("testuser", jwtTokenProvider.getUsernameFromToken(token));
+        assertEquals(AuthChannel.ADMIN, jwtTokenProvider.getChannelFromToken(token));
+    }
+
+    @Test
+    void testGenerateRefreshTokenWithChannel() {
+        List<SimpleGrantedAuthority> authorities = Arrays.asList(
+                new SimpleGrantedAuthority("ROLE_USER")
+        );
+        UserDetails userDetails = new User("testuser", "password", authorities);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication, AuthChannel.CUSTOMER);
+
+        assertNotNull(refreshToken);
+        assertTrue(jwtTokenProvider.validateToken(refreshToken));
+        assertEquals(AuthChannel.CUSTOMER, jwtTokenProvider.getChannelFromToken(refreshToken));
+    }
+
+    @Test
+    void testGetChannelFromOldToken() {
+        // 模拟旧 Token（无 channel 字段）
+        String oldToken = Jwts.builder()
+                .setSubject("testuser")
+                .claim("authorities", Arrays.asList("ROLE_USER"))
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 60000))
+                .signWith(Keys.hmacShaKeyFor(
+                        jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8)),
+                        io.jsonwebtoken.SignatureAlgorithm.HS512)
+                .compact();
+
+        // 旧 Token 无 channel 字段，应返回 DEFAULT
+        AuthChannel channel = jwtTokenProvider.getChannelFromToken(oldToken);
+        assertEquals(AuthChannel.DEFAULT, channel);
+    }
+
+    @Test
+    void testDefaultChannelWithoutExplicitParam() {
+        // 使用不带 channel 参数的原方法，应默认 DEFAULT
+        List<SimpleGrantedAuthority> authorities = Arrays.asList(
+                new SimpleGrantedAuthority("ROLE_USER")
+        );
+        UserDetails userDetails = new User("testuser", "password", authorities);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+
+        String token = jwtTokenProvider.generateAccessToken(authentication);
+        assertEquals(AuthChannel.DEFAULT, jwtTokenProvider.getChannelFromToken(token));
     }
 }

@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security.jwt;
 
+import com.gallop.fastddd.security.channel.AuthChannel;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -44,4 +45,10 @@ public class JwtProperties {
      * 是否启用JWT
      */
     private boolean enabled = true;
+
+    /**
+     * 当前应用的认证通道标识
+     * 单端应用默认 DEFAULT，多端子应用配置为 ADMIN/CUSTOMER/MERCHANT
+     */
+    private AuthChannel channel = AuthChannel.DEFAULT;
 }
