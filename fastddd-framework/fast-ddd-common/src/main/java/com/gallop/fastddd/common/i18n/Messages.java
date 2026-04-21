@@ -11,7 +11,7 @@ import java.util.Locale;
  */
 public class Messages {
 
-    private static MessageSource messageSource;
+    private static volatile MessageSource messageSource;
 
     public static void setMessageSource(MessageSource ms) {
         messageSource = ms;

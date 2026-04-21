@@ -1,13 +1,10 @@
 package com.gallop.fastddd.common.i18n;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.support.ResourceBundleMessageSource;
-
-import java.util.Locale;
 
 /**
  * i18n 自动配置：注册 MessageSource 并初始化 Messages 静态工具类。
@@ -28,12 +25,11 @@ public class I18nAutoConfiguration {
     }
 
     @Bean
-    public MessagesInitializer messagesInitializer(MessageSource messageSource) {
+    public MessageSourceInitializer messageSourceInitializer(MessageSource messageSource) {
         Messages.setMessageSource(messageSource);
-        return new MessagesInitializer();
+        return new MessageSourceInitializer();
     }
 
-    public static class MessagesInitializer {
-        // placeholder — Messages.setMessageSource 已在 Bean 工厂方法中完成
+    static class MessageSourceInitializer {
     }
 }
