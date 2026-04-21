@@ -137,7 +137,7 @@ public class SecurityAutoConfiguration {
             // 配置安全头
             .headers(headers -> headers
                 .frameOptions(frame -> frame.deny())
-                .contentTypeOptions(ctype -> ctype.and())
+                .contentTypeOptions(contentTypeOptions -> {})
                 .httpStrictTransportSecurity(hsts -> hsts
                     .maxAgeInSeconds(31536000)
                     .includeSubDomains(true)

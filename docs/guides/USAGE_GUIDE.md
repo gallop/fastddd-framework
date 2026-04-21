@@ -13,7 +13,8 @@
 5. [配置参考](#配置参考)
 6. [最佳实践](#最佳实践)
 7. [监控与运维](#监控与运维)
-8. [改进建议](#改进建议)
+8. [多端认证](#多端认证multi-channel-auth)
+9. [改进建议](#改进建议)
 
 ---
 
@@ -965,6 +966,97 @@ public class SearchServiceTest {
 
 ---
 
+## 多端认证（Multi-Channel Auth）
+
+### 概述
+
+FastDDD 支持单端和多端两种认证模式，通过 Studio 代码生成器按需选择。
+
+| 模式 | 适用场景 | 认证方式 | 项目结构 |
+|------|---------|---------|---------|
+| 单端 (SINGLE) | 管理后台、单端业务系统 | 密码 | 单 Spring Boot 应用 |
+| 多端 (MULTI) | 电商(小程序+管理)、SaaS、物流 | 密码/短信/微信小程序 | Maven 多模块 |
+
+### 多端项目结构
+
+```
+my-project/                        ← Maven 父工程
+├── pom.xml
+├── common/                        ← 共享模块
+│   ├── common-user/               ← 用户领域 (Entity/Mapper/Service)
+│   ├── common-order/              ← 订单领域
+│   └── common-shared/             ← 跨领域公共
+├── admin-api/                     ← 管理端 (8080)
+│   ├── src/.../security/          ← AppIdentityService
+│   └── src/.../controller/
+├── customer-api/                  ← 客户端 (8081)
+│   ├── src/.../security/          ← AppIdentityService + SmsAuthStrategy
+│   └── src/.../controller/
+├── docker-compose.yml
+└── docker/nginx/default.conf
+```
+
+### Studio 配置步骤
+
+1. **一体化生成器** 或 **我的项目** → 选择数据源和表
+2. **Security 配置** → 选择 `多端模式 (MULTI)`
+3. 配置通道: 启用 ADMIN/CUSTOMER/MERCHANT，选择认证策略
+4. **表分配**: 将表分配到对应的子应用或共享
+5. 生成 → 下载 ZIP
+
+### Token 隔离
+
+每个子应用使用不同的 JWT Secret + channel 校验:
+
+```yaml
+# admin-api/application.yml
+fast-ddd:
+  security:
+    jwt:
+      channel: ADMIN
+      secret: admin-secret-change-me
+```
+
+```yaml
+# customer-api/application.yml
+fast-ddd:
+  security:
+    jwt:
+      channel: CUSTOMER
+      secret: customer-secret-change-me
+```
+
+框架内置 `JwtAuthenticationFilter` 会校验 Token 的 channel 与应用配置是否匹配，实现端间隔离。
+
+### 认证策略
+
+| 策略 | type | 触发条件 | 生成条件 |
+|------|------|---------|---------|
+| 密码 | `password` | 默认 | 框架内置，无需生成 |
+| 短信验证码 | `sms` | extra 中含 `smsCode` | 通道策略含 `sms` |
+| 微信小程序 | `wechat-mini` | extra 中含 `wechatCode` | 通道策略含 `wechat-mini` |
+
+登录接口统一为 `POST /api/auth/login`，框架自动根据请求参数路由到对应策略。
+
+### 生成的 Security 组件
+
+每个子应用会生成:
+
+- `AppIdentityService.java` — 实现 `SecurityIdentityService`，连接 common-user 模块
+- `SmsAuthStrategy.java` — (可选) 短信验证码认证
+- `WechatMiniAuthStrategy.java` — (可选) 微信小程序认证
+
+### 部署
+
+```bash
+# Docker Compose 一键部署
+docker-compose up -d
+
+# Nginx 反向代理: /api/admin → admin-api:8080, /api/customer → customer-api:8081
+```
+
+---
+
 ## 附录
 
 ### 常见问题
@@ -1018,6 +1110,6 @@ public void processOrder(Order order) {
 
 ---
 
-**文档版本**: 1.0.0
-**最后更新**: 2025-01-11
+**文档版本**: 1.1.0
+**最后更新**: 2026-04-21
 **维护者**: FastDDD Team

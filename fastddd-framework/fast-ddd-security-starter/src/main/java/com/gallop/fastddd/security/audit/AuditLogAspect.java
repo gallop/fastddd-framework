@@ -8,7 +8,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
+
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -25,7 +25,6 @@ import java.util.Arrays;
  */
 @Slf4j
 @Aspect
-@Component
 public class AuditLogAspect {
 
     private final AuditLogService auditLogService;
@@ -73,7 +72,12 @@ public class AuditLogAspect {
                 try {
                     Object[] args = joinPoint.getArgs();
                     if (args != null && args.length > 0) {
-                        logEntity.setRequestParams(objectMapper.writeValueAsString(Arrays.asList(args)));
+                        String paramsJson = objectMapper.writeValueAsString(Arrays.asList(args));
+                        // 脱敏: 遮盖 password/secret/token 字段
+                        paramsJson = paramsJson.replaceAll(
+                                "\"(password|secret|token|accessToken|refreshToken)\"\\s*:\\s*\"[^\"]*\"",
+                                "\"$1\":\"***\"");
+                        logEntity.setRequestParams(paramsJson);
                     }
                 } catch (Exception e) {
                     log.warn("Failed to serialize request parameters", e);

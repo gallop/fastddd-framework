@@ -19,7 +19,7 @@ public class JwtProperties {
     /**
      * JWT密钥
      */
-    private String secret = "fastDDD-security-jwt-secret-key-2025";
+    private String secret = "fastDDD-security-jwt-secret-key-2025-MUST-BE-CHANGED-IN-PRODUCTION-MINIMUM-64-BYTES!!";
 
     /**
      * JWT过期时间
@@ -51,4 +51,10 @@ public class JwtProperties {
      * 单端应用默认 DEFAULT，多端子应用配置为 ADMIN/CUSTOMER/MERCHANT
      */
     private AuthChannel channel = AuthChannel.DEFAULT;
+
+    /**
+     * 严格通道模式: true 时拒绝 DEFAULT 通道 Token 访问非 DEFAULT 应用
+     * 建议迁移完成后启用
+     */
+    private boolean strictChannel = false;
 }

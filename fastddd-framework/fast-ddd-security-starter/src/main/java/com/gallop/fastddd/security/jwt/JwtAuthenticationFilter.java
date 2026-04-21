@@ -51,12 +51,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 通道校验：仅当应用配置了非 DEFAULT 通道时启用
                 AuthChannel appChannel = jwtProperties.getChannel();
-                if (appChannel != null && appChannel != AuthChannel.DEFAULT
-                        && tokenChannel != appChannel && tokenChannel != AuthChannel.DEFAULT) {
-                    log.warn("Channel mismatch: token channel={}, app channel={}, user={}",
-                            tokenChannel, appChannel, username);
+                boolean strictMode = jwtProperties.isStrictChannel();
+                boolean channelMismatch = appChannel != null && appChannel != AuthChannel.DEFAULT
+                        && tokenChannel != appChannel;
+                boolean blockedByStrictMode = strictMode && tokenChannel == AuthChannel.DEFAULT
+                        && appChannel != AuthChannel.DEFAULT;
+                if (channelMismatch || blockedByStrictMode) {
+                    log.warn("Channel mismatch: token channel={}, app channel={}, user={}, strict={}",
+                            tokenChannel, appChannel, username, strictMode);
                     SecurityContextHolder.clearContext();
-                    // 继续过滤器链，由 Spring Security 的 JwtAuthenticationEntryPoint 返回 401
                     filterChain.doFilter(request, response);
                     return;
                 }

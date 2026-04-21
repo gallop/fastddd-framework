@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * @date 2025-01-10 15:30:00
  */
 @Slf4j
-@Component
 public class JwtTokenProvider {
 
     private final JwtProperties jwtProperties;

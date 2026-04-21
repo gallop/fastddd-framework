@@ -171,7 +171,7 @@ public class AuthController {
 
         } catch (Exception e) {
             log.error("Token刷新失败: {}", e.getMessage());
-            return ApiResponse.error(401, "Token刷新失败: " + e.getMessage());
+            return ApiResponse.error(401, "Token刷新失败");
         }
     }
 
