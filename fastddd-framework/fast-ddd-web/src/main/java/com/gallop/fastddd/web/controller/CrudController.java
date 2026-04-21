@@ -2,6 +2,7 @@ package com.gallop.fastddd.web.controller;
 
 import com.gallop.fastddd.crud.service.IService;
 import com.gallop.fastddd.model.po.BasePO;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -42,15 +43,15 @@ public abstract class CrudController<S extends IService<T>, T extends BasePO> ex
         try {
             // 默认实现：根据参数进行字段查询
             if (params.isEmpty()) {
-                return ResponseEntity.ok(ApiResponse.success(service.list(), "查询成功"));
+                return ResponseEntity.ok(ApiResponse.success(service.list(), Messages.get("web.crud.query.success")));
             }
-            
+
             Object result = service.listByFields(params);
-            return ResponseEntity.ok(ApiResponse.success(result, "自定义查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.crud.custom-query.success")));
         } catch (Exception e) {
             log.error("{}自定义查询失败", getEntityName(), e);
             return ResponseEntity.status(500)
-                    .body(ApiResponse.error("自定义查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.custom-query.failed", e.getMessage())));
         }
     }
 
@@ -63,12 +64,12 @@ public abstract class CrudController<S extends IService<T>, T extends BasePO> ex
     public ResponseEntity<ApiResponse<String>> health() {
         try {
             long count = service.count();
-            String message = String.format("%s控制器运行正常，当前记录数: %d", getEntityName(), count);
-            return ResponseEntity.ok(ApiResponse.success(message, "健康检查通过"));
+            String message = Messages.get("web.crud.health.message", getEntityName(), count);
+            return ResponseEntity.ok(ApiResponse.success(message, Messages.get("web.crud.health.ok")));
         } catch (Exception e) {
             log.error("{}控制器健康检查失败", getEntityName(), e);
             return ResponseEntity.status(500)
-                    .body(ApiResponse.error("健康检查失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.health.failed", e.getMessage())));
         }
     }
 
@@ -88,11 +89,11 @@ public abstract class CrudController<S extends IService<T>, T extends BasePO> ex
                 "timestamp", System.currentTimeMillis()
             );
             
-            return ResponseEntity.ok(ApiResponse.success(stats, "统计信息获取成功"));
+            return ResponseEntity.ok(ApiResponse.success(stats, Messages.get("web.crud.stats.success")));
         } catch (Exception e) {
             log.error("{}统计信息获取失败", getEntityName(), e);
             return ResponseEntity.status(500)
-                    .body(ApiResponse.error("统计信息获取失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.stats.failed", e.getMessage())));
         }
     }
 }

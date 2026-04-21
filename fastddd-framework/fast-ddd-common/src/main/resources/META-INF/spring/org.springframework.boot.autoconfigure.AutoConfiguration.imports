@@ -1,1 +1,2 @@
 com.gallop.fastddd.common.FastDddCommonAutoConfiguration
+com.gallop.fastddd.common.i18n.I18nAutoConfiguration

@@ -1,5 +1,6 @@
 package com.gallop.fastddd.application.command;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import lombok.Getter;
 
 import java.util.Optional;
@@ -57,7 +58,7 @@ public class CommandResult<T> {
      * @return 成功结果
      */
     public static <T> CommandResult<T> success() {
-        return new CommandResult<>(true, "操作成功", null, null);
+        return new CommandResult<>(true, Messages.get("common.success"), null, null);
     }
 
     /**
@@ -68,7 +69,7 @@ public class CommandResult<T> {
      * @return 成功结果
      */
     public static <T> CommandResult<T> success(T data) {
-        return new CommandResult<>(true, "操作成功", data, null);
+        return new CommandResult<>(true, Messages.get("common.success"), data, null);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.gallop.fastddd.web.controller;
 
 import com.gallop.fastddd.application.command.Command;
 import com.gallop.fastddd.application.command.CommandHandler;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -75,12 +76,12 @@ public abstract class CommandController<C extends Command, R> {
             R result = getCommandHandler().handle(command);
 
             log.debug("命令执行成功: {}", command.getCommandType());
-            return ResponseEntity.ok(ApiResponse.success(result, "操作成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.command.success")));
 
         } catch (Exception e) {
             log.error("执行命令失败: {} - {}", command.getCommandType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("执行失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.command.failed", e.getMessage())));
         }
     }
 
@@ -99,12 +100,12 @@ public abstract class CommandController<C extends Command, R> {
             getCommandHandler().handle(command);
 
             log.debug("命令执行成功: {}", command.getCommandType());
-            return ResponseEntity.ok(ApiResponse.success(null, "操作成功"));
+            return ResponseEntity.ok(ApiResponse.success(null, Messages.get("web.command.success")));
 
         } catch (Exception e) {
             log.error("执行命令失败: {} - {}", command.getCommandType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("执行失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.command.failed", e.getMessage())));
         }
     }
 }

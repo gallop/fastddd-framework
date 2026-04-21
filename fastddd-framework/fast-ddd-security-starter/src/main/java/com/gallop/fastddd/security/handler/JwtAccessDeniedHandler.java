@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security.handler;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,7 +39,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
         
         Map<String, Object> body = new HashMap<>();
         body.put("code", HttpStatus.FORBIDDEN.value());
-        body.put("message", "权限不足，拒绝访问");
+        body.put("message", Messages.get("security.access.denied"));
         body.put("data", null);
         body.put("timestamp", System.currentTimeMillis());
         body.put("path", request.getRequestURI());

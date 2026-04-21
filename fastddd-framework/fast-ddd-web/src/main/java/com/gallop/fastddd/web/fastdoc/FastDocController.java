@@ -1,5 +1,6 @@
 package com.gallop.fastddd.web.fastdoc;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.fastdoc.FastDocExportService;
 import com.gallop.fastddd.fastdoc.FastDocService;
 import com.gallop.fastddd.fastdoc.FastDocTemplateService;
@@ -172,7 +173,7 @@ public class FastDocController {
         } catch (Exception e) {
             log.error("生成数据库Markdown文档失败", e);
             return ResponseEntity.internalServerError()
-                    .body("生成文档失败: " + e.getMessage());
+                    .body(Messages.get("web.doc.generate.failed", e.getMessage()));
         }
     }
 
@@ -194,7 +195,7 @@ public class FastDocController {
         } catch (Exception e) {
             log.error("生成数据库HTML文档失败", e);
             return ResponseEntity.internalServerError()
-                    .body("生成文档失败: " + e.getMessage());
+                    .body(Messages.get("web.doc.generate.failed", e.getMessage()));
         }
     }
 
@@ -222,7 +223,7 @@ public class FastDocController {
         } catch (Exception e) {
             log.error("生成表[{}]Markdown文档失败", tableName, e);
             return ResponseEntity.internalServerError()
-                    .body("生成文档失败: " + e.getMessage());
+                    .body(Messages.get("web.doc.generate.failed", e.getMessage()));
         }
     }
 
@@ -250,7 +251,7 @@ public class FastDocController {
         } catch (Exception e) {
             log.error("生成表[{}]HTML文档失败", tableName, e);
             return ResponseEntity.internalServerError()
-                    .body("生成文档失败: " + e.getMessage());
+                    .body(Messages.get("web.doc.generate.failed", e.getMessage()));
         }
     }
 

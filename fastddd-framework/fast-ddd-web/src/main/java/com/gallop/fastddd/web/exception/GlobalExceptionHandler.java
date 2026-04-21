@@ -3,6 +3,7 @@ package com.gallop.fastddd.web.exception;
 import com.gallop.fastddd.application.exception.CommandValidationException;
 import com.gallop.fastddd.common.exception.BusinessException;
 import com.gallop.fastddd.common.exception.SystemException;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -63,7 +64,7 @@ public class GlobalExceptionHandler {
 
         ApiResponse<Map<String, List<String>>> response = ApiResponse.error(
                 400,
-                "Command 验证失败: " + errorSummary,
+                Messages.get("web.error.command-validation", errorSummary),
                 fieldErrors);
 
         return ResponseEntity.badRequest().body(response);
@@ -115,7 +116,7 @@ public class GlobalExceptionHandler {
         
         String message = String.join("; ", errors);
         return ResponseEntity.badRequest()
-                .body(ApiResponse.failure(400, "参数校验失败: " + message));
+                .body(ApiResponse.failure(400, Messages.get("web.error.param-validation", message)));
     }
     
     /**
@@ -133,7 +134,7 @@ public class GlobalExceptionHandler {
         
         String message = String.join("; ", errors);
         return ResponseEntity.badRequest()
-                .body(ApiResponse.failure(400, "参数绑定失败: " + message));
+                .body(ApiResponse.failure(400, Messages.get("web.error.param-bind", message)));
     }
     
     /**
@@ -143,9 +144,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(MethodArgumentTypeMismatchException e, HttpServletRequest request) {
         log.warn("Type mismatch exception occurred at {}: {}", request.getRequestURI(), e.getMessage());
         
-        String message = String.format("参数 '%s' 类型不匹配，期望类型: %s", 
-                e.getName(), 
-                e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "未知");
+        String message = Messages.get("web.error.param-type-mismatch",
+                e.getName(),
+                e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : Messages.get("web.error.param-type-unknown"));
         
         return ResponseEntity.badRequest()
                 .body(ApiResponse.failure(400, message));
@@ -158,7 +159,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e, HttpServletRequest request) {
         log.warn("Illegal argument exception occurred at {}: {}", request.getRequestURI(), e.getMessage());
         return ResponseEntity.badRequest()
-                .body(ApiResponse.failure(400, "参数错误: " + e.getMessage()));
+                .body(ApiResponse.failure(400, Messages.get("web.error.illegal-argument", e.getMessage())));
     }
     
     /**
@@ -168,7 +169,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException e, HttpServletRequest request) {
         log.error("Illegal state exception occurred at {}: {}", request.getRequestURI(), e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure(500, "系统状态异常: " + e.getMessage()));
+                .body(ApiResponse.failure(500, Messages.get("web.error.illegal-state", e.getMessage())));
     }
     
     /**
@@ -178,7 +179,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException e, HttpServletRequest request) {
         log.error("Runtime exception occurred at {}: {}", request.getRequestURI(), e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure(500, "系统运行时异常"));
+                .body(ApiResponse.failure(500, Messages.get("web.error.runtime")));
     }
     
     /**
@@ -188,7 +189,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotAcceptableException(HttpMediaTypeNotAcceptableException e, HttpServletRequest request) {
         log.warn("Media type not acceptable exception occurred at {}: {}", request.getRequestURI(), e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
-                .body(ApiResponse.failure(406, "不支持的媒体类型: " + e.getMessage()));
+                .body(ApiResponse.failure(406, Messages.get("web.error.media-type", e.getMessage())));
     }
     
     /**
@@ -198,6 +199,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception e, HttpServletRequest request) {
         log.error("Unexpected exception occurred at {}: {}", request.getRequestURI(), e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure(500, "系统内部错误"));
+                .body(ApiResponse.failure(500, Messages.get("web.error.internal")));
     }
 }

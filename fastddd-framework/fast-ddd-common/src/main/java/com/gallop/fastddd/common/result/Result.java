@@ -1,5 +1,6 @@
 package com.gallop.fastddd.common.result;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -64,7 +65,7 @@ public class Result<T> implements Serializable {
      * @return 成功响应
      */
     public static <T> Result<T> success(T data) {
-        return success(data, "操作成功");
+        return success(data, Messages.get("common.success"));
     }
     
     /**

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gallop.fastddd.crud.service.IService;
 import com.gallop.fastddd.model.po.BasePO;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -57,15 +58,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             boolean success = service.save(entity);
             if (success) {
                 return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(ApiResponse.success(entity, "创建成功"));
+                        .body(ApiResponse.success(entity, Messages.get("web.crud.create.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("创建失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.create.failed")));
             }
         } catch (Exception e) {
             log.error("创建实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("创建失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.create.error", e.getMessage())));
         }
     }
 
@@ -81,15 +82,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             boolean success = service.saveBatch(entityList);
             if (success) {
                 return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(ApiResponse.success("成功创建 " + entityList.size() + " 条记录", "批量创建成功"));
+                        .body(ApiResponse.success(Messages.get("web.crud.batch-create.detail", entityList.size()), Messages.get("web.crud.batch-create.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("批量创建失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.batch-create.failed")));
             }
         } catch (Exception e) {
             log.error("批量创建实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("批量创建失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.batch-create.error", e.getMessage())));
         }
     }
 
@@ -104,15 +105,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         try {
             Optional<T> entityOpt = service.getById(id);
             if (entityOpt.isPresent()) {
-                return ResponseEntity.ok(ApiResponse.success(entityOpt.get(), "查询成功"));
+                return ResponseEntity.ok(ApiResponse.success(entityOpt.get(), Messages.get("web.crud.query.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("未找到指定记录"));
+                        .body(ApiResponse.error(Messages.get("web.crud.query.not-found")));
             }
         } catch (Exception e) {
             log.error("根据ID查询实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
         }
     }
 
@@ -125,11 +126,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     public ResponseEntity<ApiResponse<List<T>>> list() {
         try {
             List<T> entityList = service.list();
-            return ResponseEntity.ok(ApiResponse.success(entityList, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(entityList, Messages.get("web.crud.query.success")));
         } catch (Exception e) {
             log.error("查询实体列表失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
         }
     }
 
@@ -147,11 +148,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         try {
             Page<T> page = new Page<>(current, size);
             IPage<T> result = service.page(page);
-            return ResponseEntity.ok(ApiResponse.success(result, "分页查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.crud.page.success")));
         } catch (Exception e) {
             log.error("分页查询实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("分页查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.page.failed", e.getMessage())));
         }
     }
 
@@ -168,11 +169,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             @PathVariable("value") String value) {
         try {
             List<T> entityList = service.listByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(entityList, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(entityList, Messages.get("web.crud.query.success")));
         } catch (Exception e) {
             log.error("根据字段查询实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
         }
     }
 
@@ -186,11 +187,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     public ResponseEntity<ApiResponse<List<T>>> listByFields(@RequestBody Map<String, Object> fieldValueMap) {
         try {
             List<T> entityList = service.listByFields(fieldValueMap);
-            return ResponseEntity.ok(ApiResponse.success(entityList, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(entityList, Messages.get("web.crud.query.success")));
         } catch (Exception e) {
             log.error("根据多字段查询实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
         }
     }
 
@@ -209,15 +210,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             // 注意：这里假设实体已经包含正确的ID，或者由具体实现来处理ID设置
             boolean success = service.updateById(entity);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success(entity, "更新成功"));
+                return ResponseEntity.ok(ApiResponse.success(entity, Messages.get("web.crud.update.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("更新失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.update.failed")));
             }
         } catch (Exception e) {
             log.error("更新实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("更新失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.update.error", e.getMessage())));
         }
     }
 
@@ -237,15 +238,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         try {
             boolean success = service.updateById(entity);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success(true, "更新成功"));
+                return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.update.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("更新失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.update.failed")));
             }
         } catch (Exception e) {
             log.error("更新实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("更新失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.update.error", e.getMessage())));
         }
     }
 
@@ -260,15 +261,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         try {
             boolean success = service.updateBatchById(entityList);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success("成功更新 " + entityList.size() + " 条记录", "批量更新成功"));
+                return ResponseEntity.ok(ApiResponse.success(Messages.get("web.crud.batch-update.detail", entityList.size()), Messages.get("web.crud.batch-update.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("批量更新失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.batch-update.failed")));
             }
         } catch (Exception e) {
             log.error("批量更新实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("批量更新失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.batch-update.error", e.getMessage())));
         }
     }
 
@@ -309,15 +310,15 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         try {
             boolean success = service.removeByIds(ids);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success("成功删除 " + ids.size() + " 条记录", "批量删除成功"));
+                return ResponseEntity.ok(ApiResponse.success(Messages.get("web.crud.batch-delete.detail", ids.size()), Messages.get("web.crud.batch-delete.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("批量删除失败"));
+                        .body(ApiResponse.error(Messages.get("web.crud.batch-delete.failed")));
             }
         } catch (Exception e) {
             log.error("批量删除实体失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("批量删除失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.batch-delete.error", e.getMessage())));
         }
     }
 
@@ -330,11 +331,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     public ResponseEntity<ApiResponse<Long>> count() {
         try {
             long count = service.count();
-            return ResponseEntity.ok(ApiResponse.success(count, "统计成功"));
+            return ResponseEntity.ok(ApiResponse.success(count, Messages.get("web.crud.count.success")));
         } catch (Exception e) {
             log.error("统计记录数失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("统计失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.count.failed", e.getMessage())));
         }
     }
 
@@ -351,11 +352,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             @PathVariable("value") String value) {
         try {
             long count = service.countByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(count, "统计成功"));
+            return ResponseEntity.ok(ApiResponse.success(count, Messages.get("web.crud.count.success")));
         } catch (Exception e) {
             log.error("根据字段统计记录数失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("统计失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.count.failed", e.getMessage())));
         }
     }
 
@@ -372,11 +373,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             @PathVariable("value") String value) {
         try {
             boolean exists = service.existsByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(exists, "检查成功"));
+            return ResponseEntity.ok(ApiResponse.success(exists, Messages.get("web.crud.check.success")));
         } catch (Exception e) {
             log.error("检查记录存在性失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("检查失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.crud.check.failed", e.getMessage())));
         }
     }
 }

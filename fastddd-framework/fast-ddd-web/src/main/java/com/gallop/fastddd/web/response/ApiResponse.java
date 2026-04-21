@@ -1,5 +1,6 @@
 package com.gallop.fastddd.web.response;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -71,7 +72,7 @@ public class ApiResponse<T> implements Serializable {
      * @return 成功响应
      */
     public static <T> ApiResponse<T> success(T data) {
-        return success(data, "操作成功");
+        return success(data, Messages.get("common.success"));
     }
     
     /**

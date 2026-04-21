@@ -2,6 +2,7 @@ package com.gallop.fastddd.web.controller;
 
 import com.gallop.fastddd.application.query.Query;
 import com.gallop.fastddd.application.query.QueryHandler;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -81,12 +82,12 @@ public abstract class QueryController<Q extends Query, R> {
             R result = getQueryHandler().handle(query);
 
             log.debug("查询执行成功: {}", query.getQueryType());
-            return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.query.success")));
 
         } catch (Exception e) {
             log.error("执行查询失败: {} - {}", query.getQueryType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.query.failed", e.getMessage())));
         }
     }
 
@@ -105,12 +106,12 @@ public abstract class QueryController<Q extends Query, R> {
             R result = getQueryHandler().handle(query);
 
             log.debug("查询执行成功: {}", query.getQueryType());
-            return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.query.success")));
 
         } catch (Exception e) {
             log.error("执行查询失败: {} - {}", query.getQueryType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.query.failed", e.getMessage())));
         }
     }
 
@@ -131,16 +132,16 @@ public abstract class QueryController<Q extends Query, R> {
             if (result == null) {
                 log.debug("查询结果为空: {}", query.getQueryType());
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error(404, "未找到匹配的数据"));
+                        .body(ApiResponse.error(404, Messages.get("web.query.not-found")));
             }
 
             log.debug("查询执行成功: {}", query.getQueryType());
-            return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
+            return ResponseEntity.ok(ApiResponse.success(result, Messages.get("web.query.success")));
 
         } catch (Exception e) {
             log.error("执行查询失败: {} - {}", query.getQueryType(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("查询失败: " + e.getMessage()));
+                    .body(ApiResponse.error(Messages.get("web.query.failed", e.getMessage())));
         }
     }
 }

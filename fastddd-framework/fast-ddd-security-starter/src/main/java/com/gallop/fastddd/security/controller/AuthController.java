@@ -15,6 +15,7 @@ import com.gallop.fastddd.security.spi.SecurityUserInfo;
 import com.gallop.fastddd.security.strategy.AuthStrategy;
 import com.gallop.fastddd.security.strategy.AuthStrategyRegistry;
 import com.gallop.fastddd.security.strategy.AuthenticationRequest;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -69,7 +70,7 @@ public class AuthController {
             AuthStrategy strategy = strategyRegistry.getStrategy(strategyType);
 
             if (strategy == null) {
-                return ApiResponse.error(400, "不支持的认证方式: " + strategyType);
+                return ApiResponse.error(400, Messages.get("security.auth.unsupported", strategyType));
             }
 
             // 2. 执行认证
@@ -79,7 +80,7 @@ public class AuthController {
             String authenticatedUsername = authentication.getName();
             SecurityUserDetails userDetails = identityService.loadUserByUsername(authenticatedUsername);
             if (userDetails == null) {
-                return ApiResponse.error(401, "用户不存在");
+                return ApiResponse.error(401, Messages.get("security.auth.user-not-found"));
             }
 
             // 4. 生成 Token（含当前应用通道）
@@ -90,7 +91,7 @@ public class AuthController {
             // 5. 获取用户信息
             SecurityUserInfo user = identityService.getUserInfo(userDetails.getUserId());
             if (user == null) {
-                return ApiResponse.error(401, "用户信息不存在");
+                return ApiResponse.error(401, Messages.get("security.auth.user-info-not-found"));
             }
 
             // 6. 提取权限
@@ -110,11 +111,11 @@ public class AuthController {
                     .permissions(permissions)
                     .build();
 
-            return ApiResponse.success(response, "登录成功");
+            return ApiResponse.success(response, Messages.get("security.auth.login.success"));
 
         } catch (Exception e) {
             log.error("登录失败, 策略: {}: {}", strategyType, e.getMessage(), e);
-            return ApiResponse.error(401, "认证失败");
+            return ApiResponse.error(401, Messages.get("security.auth.login.failed"));
         }
     }
 
@@ -126,7 +127,7 @@ public class AuthController {
 
         log.info("用户 {} 登出", username);
         SecurityContextHolder.clearContext();
-        return ApiResponse.success(null, "登出成功");
+        return ApiResponse.success(null, Messages.get("security.auth.logout.success"));
     }
 
     @PostMapping("/refresh")
@@ -134,7 +135,7 @@ public class AuthController {
         String refreshToken = request.getRefreshToken();
 
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            return ApiResponse.error(401, "刷新Token无效或已过期");
+            return ApiResponse.error(401, Messages.get("security.auth.refresh.invalid"));
         }
 
         try {
@@ -142,7 +143,7 @@ public class AuthController {
 
             SecurityUserDetails userDetails = identityService.loadUserByUsername(username);
             if (userDetails == null) {
-                return ApiResponse.error(401, "用户不存在");
+                return ApiResponse.error(401, Messages.get("security.auth.user-not-found"));
             }
 
             List<String> permissions = permissionService.getPermissionsByUserId(userDetails.getUserId());
@@ -167,11 +168,11 @@ public class AuthController {
                     .expiresIn(jwtProperties.getExpiration().getSeconds())
                     .build();
 
-            return ApiResponse.success(response, "Token刷新成功");
+            return ApiResponse.success(response, Messages.get("security.auth.refresh.success"));
 
         } catch (Exception e) {
             log.error("Token刷新失败: {}", e.getMessage());
-            return ApiResponse.error(401, "Token刷新失败");
+            return ApiResponse.error(401, Messages.get("security.auth.refresh.failed"));
         }
     }
 
@@ -184,12 +185,12 @@ public class AuthController {
 
         SecurityUserDetails userDetails = identityService.loadUserByUsername(username);
         if (userDetails == null) {
-            return ApiResponse.error(404, "用户不存在");
+            return ApiResponse.error(404, Messages.get("security.auth.user-not-found"));
         }
 
         SecurityUserInfo user = identityService.getUserInfo(userDetails.getUserId());
         if (user == null) {
-            return ApiResponse.error(404, "用户信息不存在");
+            return ApiResponse.error(404, Messages.get("security.auth.user-info-not-found"));
         }
 
         List<String> roles = permissionService.getRolesByUserId(userDetails.getUserId());

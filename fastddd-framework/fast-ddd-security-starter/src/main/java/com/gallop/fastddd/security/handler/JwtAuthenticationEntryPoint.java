@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security.handler;
 
+import com.gallop.fastddd.common.i18n.Messages;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,7 +39,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         
         Map<String, Object> body = new HashMap<>();
         body.put("code", HttpStatus.UNAUTHORIZED.value());
-        body.put("message", "未认证，请先登录");
+        body.put("message", Messages.get("security.access.unauthorized"));
         body.put("data", null);
         body.put("timestamp", System.currentTimeMillis());
         body.put("path", request.getRequestURI());
