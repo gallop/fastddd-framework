@@ -27,22 +27,22 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
     /**
      * 创建时间
      */
-    protected LocalDateTime createdAt;
-    
+    protected LocalDateTime createTime;
+
     /**
      * 更新时间
      */
-    protected LocalDateTime updatedAt;
-    
+    protected LocalDateTime updateTime;
+
     /**
      * 创建者
      */
-    protected String createdBy;
-    
+    protected String createUser;
+
     /**
      * 更新者
      */
-    protected String updatedBy;
+    protected String updateUser;
     
     /**
      * 版本号（用于乐观锁）
@@ -76,11 +76,11 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
      */
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
+        if (createTime == null) {
+            createTime = now;
         }
-        if (updatedAt == null) {
-            updatedAt = now;
+        if (updateTime == null) {
+            updateTime = now;
         }
         if (version == null) {
             version = 0L;
@@ -91,7 +91,7 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
      * 实体更新前的回调
      */
     public void preUpdate() {
-        updatedAt = LocalDateTime.now();
+        updateTime = LocalDateTime.now();
         if (version != null) {
             version++;
         }

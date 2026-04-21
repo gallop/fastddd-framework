@@ -1,0 +1,620 @@
+# FastDDD Framework Reference for Claude Code
+
+> 本文档为 FastDDD 框架的完整参考，可直接复制到新项目的 CLAUDE.md 中使用。
+
+## 框架概述
+
+FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
+
+**Maven 坐标**: `com.gallop.fastddd:fast-ddd-*:1.0.0-SNAPSHOT`
+**Java 版本**: 17+
+**Spring Boot 版本**: 3.4.x
+
+---
+
+## 模块依赖关系
+
+```
+fast-ddd-starter (一键引入核心五模块)
+ ├── fast-ddd-common    # 基础工具、领域基类、异常、结果包装
+ ├── fast-ddd-config    # 条件注解 (@ConditionalOnDev 等)
+ ├── fast-ddd-model     # 数据模型基类 BasePO
+ ├── fast-ddd-crud      # CRUD 服务/Repository 增强
+ └── fast-ddd-web       # Web 层基类、统一响应、异常处理
+
+fast-ddd-security-starter  # JWT 认证 + CORS + 审计日志 + 多端通道
+fast-ddd-application       # CQRS 命令/查询基础设施
+fast-ddd-event             # 领域事件 (同步/异步/Outbox/RocketMQ)
+fast-ddd-cache             # (占位，尚未实现)
+fast-ddd-search            # (占位，尚未实现)
+fast-ddd-monitor           # SQL 性能监控 + Prometheus 指标
+fast-ddd-ai-spring-boot-starter       # AI/LLM 提示词模板
+fast-ddd-analyzer-spring-boot-starter # 智能表分析 (领域划分)
+```
+
+**典型项目 POM 依赖选择**:
+- 基础 CRUD 项目: `fast-ddd-starter` + `fast-ddd-security-starter`
+- 充血模型项目: 额外引入 `fast-ddd-application` + `fast-ddd-event`
+- 完整企业项目: 全部引入（注意 cache/search 为占位模块）
+
+---
+
+## 两套基类体系
+
+FastDDD 提供两套独立的基类体系，字段命名已统一：
+
+| 字段 | BaseEntity (领域层) | BasePO (持久层) | DB 列名 |
+|------|-------------------|----------------|---------|
+| 创建时间 | `protected LocalDateTime createTime` | `@TableField(fill=INSERT) createTime` | `create_time` |
+| 更新时间 | `protected LocalDateTime updateTime` | `@TableField(fill=INSERT_UPDATE) updateTime` | `update_time` |
+| 创建人 | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
+| 更新人 | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
+| 版本号 | `protected Long version` | `@Version Long version` | `version` |
+| 逻辑删除 | `protected Boolean deleted` | `@TableLogic Boolean deleted` | `deleted` |
+| 主键 | `protected ID id` (abstract getId/setId) | `abstract Serializable getId()` | `id` |
+
+**统一收益**: 充血模型 Entity ↔ PO 转换时，公共字段名完全一致，BeanUtils/MapStruct 可直接拷贝。
+
+---
+
+## 核心基类速查
+
+### 1. 贫血模型 — BasePO (fast-ddd-model)
+
+```java
+@TableName("t_order")
+@Getter @Setter
+@EqualsAndHashCode(callSuper = true)
+public class Order extends BasePO {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private String orderNo;
+    private Integer status;
+
+    // 必须实现 getId() — BasePO 的 getId() 是抽象方法
+    @Override
+    public Long getId() { return id; }
+}
+// BasePO 自动提供: createTime, updateTime, createUser, updateUser, version, deleted
+// createTime/updateTime/createUser/updateUser 由框架 AutoFill 自动填充
+```
+
+**关键规则**:
+- 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
+- `BasePO.getId()` 是抽象方法，子类必须声明 `id` 字段并实现 `getId()`
+- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `version`, `deleted` — 这些已由 `BasePO` 提供
+
+### 2. 充血模型 — AggregateRoot (fast-ddd-common)
+
+```java
+@Getter @Setter
+@EqualsAndHashCode(callSuper = true)
+public class Order extends AggregateRoot<Long> {
+    private String orderNo;
+    private Integer status;
+
+    // 必须显式实现 getId()/setId() — 直接访问父类 protected id 字段
+    @Override public Long getId() { return id; }
+    @Override public void setId(Long id) { this.id = id; }
+
+    // 领域行为
+    public void pay() {
+        this.status = 1;
+        addDomainEvent(new OrderPaidEvent(this.id, this.orderNo));
+    }
+}
+// BaseEntity 自动提供: createTime, updateTime, createUser, updateUser, version, deleted
+// prePersist()/preUpdate() 自动填充时间字段
+```
+
+**充血模型 PO 与 Entity 转换** (infrastructure 层):
+
+```java
+// PO — 持久化对象，对应数据库表
+@TableName("t_order")
+@Getter @Setter
+@EqualsAndHashCode(callSuper = true)
+public class OrderPO extends BasePO {
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String orderNo;
+    private Integer status;
+    @Override public Long getId() { return id; }
+}
+
+// EntityMapper — PO ↔ Entity 转换器
+// 由于 BaseEntity 和 BasePO 字段名统一，公共字段可直接拷贝
+@Component
+public class OrderEntityMapper {
+    public Order toEntity(OrderPO po) {
+        Order order = new Order();
+        order.setId(po.getId());
+        order.setOrderNo(po.getOrderNo());
+        order.setStatus(po.getStatus());
+        // 公共字段名一致，可使用 BeanUtils.copyProperties 或逐个设置
+        order.setCreateTime(po.getCreateTime());
+        order.setUpdateTime(po.getUpdateTime());
+        order.setVersion(po.getVersion());
+        return order;
+    }
+    public OrderPO toPo(Order entity) { /* 反向映射 */ }
+}
+
+// Repository 实现
+@Repository
+public class OrderRepositoryImpl implements EntityRepository<Order, Long> {
+    private final OrderBaseMapper baseMapper;  // extends BaseMapper<OrderPO>
+    private final OrderEntityMapper entityMapper;
+
+    @Override
+    public Order save(Order entity) {
+        OrderPO po = entityMapper.toPo(entity);
+        if (po.getId() == null) baseMapper.insert(po);
+        else baseMapper.updateById(po);
+        return entityMapper.toEntity(po);
+    }
+}
+```
+
+**关键规则**:
+- 继承 `AggregateRoot` 时用 `@Getter/@Setter`，不用 `@Data`
+- 不要调用 `super.getId()` — 它是抽象方法，无实现，直接访问 `protected id` 字段
+- DTO 跨包访问必须用 `private` 字段 + `@Data`
+
+### 3. 数据层 (fast-ddd-crud)
+
+```java
+// Mapper — 继承 BaseRepository 获得通用查询方法
+public interface OrderMapper extends BaseRepository<Order> {
+    // 自动继承: selectOneByField, selectListByField, existsByField, deleteByField 等
+}
+
+// Service 接口
+public interface OrderService extends IService<Order> {
+    // 继承: save, removeById, updateById, getById, list, page, getByField 等
+}
+
+// Service 实现
+@Service
+public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implements OrderService {
+    // baseMapper 已自动注入，所有 CRUD 方法继承即可
+}
+```
+
+**BaseRepository 内置查询方法**（无需手写 SQL）:
+- `selectOneByField("username", "admin")` → `Optional<T>`
+- `selectListByField("status", 1)` → `List<T>`
+- `selectListByFieldLike("name", "%test%")` → `List<T>`
+- `selectListByFieldIn("id", ids)` → `List<T>`
+- `selectListByFields(Map<String, Object>)` → `List<T>`
+- `existsByField("username", "admin")` → `boolean`
+- `countByField("status", 1)` → `long`
+- `countByField("username", "admin")` → `long`
+- `deleteByField("status", 0)` → `int`
+- `batchInsert(List<T>)` → 批量插入
+- `batchUpdateById(List<T>)` → 批量更新
+
+### 4. Web 层 (fast-ddd-web)
+
+```java
+@RestController
+@RequestMapping("/api/orders")
+public class OrderController extends BaseController<OrderService, Order> {
+    // 自动继承以下 REST 端点:
+    // POST /                            — 新增单条
+    // POST /batch                       — 批量新增
+    // GET /{id}                         — 按ID查询
+    // GET /                             — 列表查询
+    // GET /page?current=1&size=10       — 分页查询
+    // GET /field/{field}/{value}        — 按字段查询列表
+    // POST /search                      — 多字段条件查询
+    // PUT /{id}                         — 按ID更新
+    // PUT /                             — 条件更新
+    // PUT /batch                        — 批量更新
+    // DELETE /{id}                      — 按ID删除
+    // DELETE /batch                     — 批量删除
+    // GET /count                        — 总数统计
+    // GET /count/{field}/{value}        — 按字段统计
+    // GET /exists/{field}/{value}       — 字段存在性检查
+}
+```
+
+**统一响应格式** (`ApiResponse<T>`):
+```json
+{ "code": 200, "message": "操作成功", "data": {...}, "timestamp": 1704067200000 }
+```
+
+启用自动包装: 在 `Application` 类上加 `@EnableApiResponseWrapper`
+
+### 5. CQRS 充血模型 (fast-ddd-application)
+
+```java
+// 命令
+public class CreateOrderCommand extends Command {
+    @NotBlank private String customerId;
+    private List<OrderItemDto> items;
+}
+
+// 命令处理器
+@Component
+public class CreateOrderCommandHandler implements CommandHandler<CreateOrderCommand, OrderDto> {
+    @Override
+    public OrderDto handle(CreateOrderCommand cmd) {
+        Order order = Order.create(cmd.getCustomerId(), cmd.getItems());
+        orderRepository.saveAndPublishEvents(order);
+        return OrderDto.from(order);
+    }
+}
+
+// 应用服务 — 使用 @ApplicationService 语义化标注
+@ApplicationService(aggregate = Order.class, description = "订单应用服务")
+public class OrderApplicationService { ... }
+
+// 命令控制器
+@RestController
+@RequestMapping("/api/orders")
+public class OrderCommandController extends CommandController<CreateOrderCommand, OrderDto> {
+    @Override protected CommandHandler<CreateOrderCommand, OrderDto> getCommandHandler() {
+        return createOrderCommandHandler;
+    }
+}
+
+// 查询控制器 (读侧)
+@RestController
+@RequestMapping("/api/orders")
+public class OrderQueryController extends QueryController<GetOrderByIdQuery, OrderDto> {
+    @Override protected QueryHandler<GetOrderByIdQuery, OrderDto> getQueryHandler() {
+        return getOrderByIdQueryHandler;
+    }
+}
+```
+
+---
+
+## 安全模块 (fast-ddd-security-starter)
+
+### 配置项
+
+```yaml
+fast-ddd:
+  security:
+    jwt:
+      enabled: true
+      secret: your-secret-key-at-least-64-bytes-long!!
+      expiration: 24h          # Duration 类型，需带单位: s/m/h/d
+      refresh-expiration: 7d
+      channel: ADMIN           # 多端通道: DEFAULT/ADMIN/CUSTOMER/MERCHANT
+      strict-channel: false    # 严格模式下 DEFAULT 令牌也会被拒绝
+    cors:
+      enabled: true
+      allowed-origins:
+        - http://localhost:3000
+      allowed-methods:         # 必须用 YAML list 格式，不能用逗号分隔字符串
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      max-age: 3600s           # Duration 类型，需带单位
+    http:
+      permit-all-paths:
+        - /api/auth/**
+        - /actuator/health
+```
+
+### SPI 接口（业务实现）
+
+框架提供默认 Stub 实现，业务项目通过 `@Service` 实现 SPI 接口自动替换（基于 `@ConditionalOnMissingBean`）:
+
+```java
+// 1. 身份服务 — 替换 DefaultSecurityIdentityService
+@Service
+public class AppIdentityService implements SecurityIdentityService {
+    @Override
+    public SecurityUserDetails loadUserByUsername(String username) { ... }
+    @Override
+    public SecurityUserInfo getUserInfo(Long userId) { ... }
+}
+
+// 2. 权限服务 — 替换 DefaultSecurityPermissionService
+@Service
+public class AppPermissionService implements SecurityPermissionService {
+    @Override
+    public List<String> getPermissionsByUserId(Long userId) { ... }
+    @Override
+    public List<String> getRolesByUserId(Long userId) { ... }
+}
+
+// 3. 认证策略 — 自动注册到 AuthStrategyRegistry
+@Component
+public class SmsAuthStrategy implements AuthStrategy {
+    @Override public String getType() { return "sms"; }
+    @Override public Authentication authenticate(AuthenticationRequest request) { ... }
+}
+```
+
+### 内置认证端点
+
+框架自动注册 `AuthController` (`/api/auth/*`)，支持策略路由:
+- `POST /api/auth/login` — 登录（自动识别 password/sms/wechat-mini 策略）
+- `POST /api/auth/logout` — 登出
+- `POST /api/auth/refresh` — 刷新 Token
+- `GET /api/auth/userinfo` — 获取当前用户信息
+
+### 审计日志
+
+框架提供 `@AuditLog` 注解，用于记录操作审计日志（自动脱敏 password/secret/token 字段）:
+
+```java
+@PostMapping("/login")
+@AuditLog(value = "用户登录", type = AuditLog.OperationType.LOGIN, async = true)
+public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) { ... }
+
+// @AuditLog 参数:
+// value     — 操作描述
+// type      — 操作类型: LOGIN, LOGOUT, CREATE, UPDATE, DELETE, OTHER
+// logParams — 是否记录请求参数 (默认 true)
+// logResult — 是否记录返回结果 (默认 false)
+// async     — 是否异步保存审计日志 (默认 true)
+```
+
+---
+
+## 事件驱动 (fast-ddd-event)
+
+```java
+// 发布事件
+@Autowired private EventPublisher eventPublisher;
+
+// 同步发布
+eventPublisher.publishEvent(new OrderPaidEvent(orderId, amount));
+
+// 异步发布
+eventPublisher.publishEventAsync(new OrderPaidEvent(orderId, amount));
+
+// 批量发布
+eventPublisher.publishEvents(events);
+
+// 监听事件 — 使用框架 @DomainEventListener (元标注 Spring @EventListener)
+@Component
+public class OrderEventHandler {
+    @DomainEventListener(condition = "#event.amount > 1000")
+    public void handleOrderPaid(OrderPaidEvent event) { ... }
+}
+```
+
+### Outbox 事务性事件
+
+创建 `outbox_events` 表并注册 `OutboxEventRepository` Bean 即可启用:
+
+```sql
+CREATE TABLE outbox_events (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    event_id    VARCHAR(64) NOT NULL UNIQUE,
+    aggregate_id   VARCHAR(128),
+    aggregate_type VARCHAR(64),
+    event_type     VARCHAR(128),
+    event_data     TEXT,
+    status      VARCHAR(20) DEFAULT 'PENDING',  -- PENDING/PROCESSING/PUBLISHED/FAILED/CANCELLED
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    published_at DATETIME,
+    retry_count INT DEFAULT 0,
+    max_retry_count INT DEFAULT 3,
+    next_retry_at DATETIME,
+    error_message TEXT,
+    version     INT DEFAULT 0,
+    INDEX idx_status (status),
+    INDEX idx_aggregate (aggregate_type, aggregate_id)
+);
+```
+
+启用后，`eventPublisher.publishEvent()` 会在事务内先将事件持久化到 outbox 表，后台定时器负责实际投递。
+
+---
+
+## 代码生成
+
+### CLI 方式 (Maven Plugin)
+
+```bash
+# 单表代码生成
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:generate-code \
+  -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
+  -Dcodegen.username=root \
+  -Dcodegen.password=123456 \
+  -Dcodegen.basePackage=com.example.project \
+  -Dcodegen.tablePrefix=t_
+
+# 项目初始化
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:init-project \
+  -Dinit.groupId=com.example \
+  -Dinit.artifactId=my-app \
+  -Dinit.modelType=RICH \
+  -Dinit.databaseType=mysql
+```
+
+### Studio 方式 (可视化)
+
+访问 `http://localhost:8082/fastddd-studio`，提供:
+- **项目初始化**: 可视化选择模块、数据库类型
+- **表设计**: 在线设计表结构 + DDL 执行
+- **代码生成**: 选表生成，支持贫血/充血两种模型
+- **AI 设计**: 粘贴 PRD 自动生成表结构设计
+- **多端项目生成**: 多模块 Maven 项目 + 安全组件 + Docker 部署配置
+
+### 生成模型选择
+
+| 场景 | 模型 | 生成文件数 | 适用 |
+|------|------|-----------|------|
+| 简单 CRUD 表 | ANEMIC | 5 个 (Entity/Mapper/Service/ServiceImpl/Controller) | 配置表、字典表 |
+| 核心业务实体 | RICH | 11+ 个 (AggregateRoot/PO/Repository/CQRS/Event) | 订单、用户、商品 |
+
+---
+
+## 包结构规范
+
+### 贫血模型
+```
+com.example.{module}
+├── entity/          # extends BasePO
+├── mapper/          # extends BaseRepository<T>
+├── service/         # extends IService<T>
+│   └── impl/        # extends BaseServiceImpl<M, T>
+└── controller/      # extends BaseController<S, T>
+```
+
+### 充血模型
+```
+com.example.{aggregate}
+├── domain/
+│   ├── {Aggregate}.java           # extends AggregateRoot<ID>
+│   ├── {ValueObject}.java
+│   └── {Aggregate}CreatedEvent.java
+├── application/
+│   ├── command/                    # extends Command
+│   ├── query/                      # extends Query
+│   └── handler/                    # CommandHandler / QueryHandler
+├── infrastructure/
+│   └── persistence/
+│       ├── {Aggregate}PO.java      # extends BasePO (数据库映射)
+│       ├── {Aggregate}BaseMapper.java  # extends BaseMapper<PO>
+│       ├── {Aggregate}EntityMapper.java  # PO ↔ Entity 转换
+│       ├── {Aggregate}Repository.java     # 接口
+│       └── {Aggregate}RepositoryImpl.java # 实现
+└── interfaces/
+    ├── controller/
+    │   ├── {Aggregate}CommandController.java  # extends CommandController
+    │   └── {Aggregate}QueryController.java    # extends QueryController
+    └── dto/
+```
+
+---
+
+## 数据库规范
+
+### 表命名
+- `snake_case`，可选 `t_` 或 `sys_` 前缀
+- 示例: `user_info`, `order_detail`, `sys_config`
+
+### 标准字段（框架自动填充）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | BIGINT AUTO_INCREMENT | 主键 |
+| `create_time` | DATETIME | 创建时间（自动填充） |
+| `update_time` | DATETIME | 更新时间（自动填充） |
+| `create_user` | VARCHAR(64) | 创建人（自动填充） |
+| `update_user` | VARCHAR(64) | 更新人（自动填充） |
+| `version` | INT DEFAULT 0 | 乐观锁版本号 |
+| `deleted` | TINYINT DEFAULT 0 | 逻辑删除标志 |
+
+### MyBatis Plus 配置
+```yaml
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+```
+
+---
+
+## 配置属性汇总
+
+| 前缀 | 模块 | 说明 |
+|------|------|------|
+| `fast-ddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
+| `fast-ddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
+| `fast-ddd.security.http` | security | HTTP 安全 (permit-all-paths) |
+| `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String) |
+| `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
+| `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
+| `fast-ddd.ai` | ai | AI 模块开关 |
+| `fastddd.analyzer` | analyzer | 智能表分析 (策略, 权重) |
+
+**Duration 字段**: 所有 `Duration` 类型配置必须带单位后缀 (`s`/`m`/`h`/`d`)，如 `8h`, `3600s`, `7d`。
+
+---
+
+## 异常处理
+
+框架自动注册 `GlobalExceptionHandler`，统一处理:
+
+| 异常 | HTTP 状态码 | 说明 |
+|------|-----------|------|
+| `BusinessException` | 400 | 业务异常，客户端可处理 |
+| `SystemException` | 500 | 系统异常，需排查 |
+| `CommandValidationException` | 400 | 命令校验失败（含字段级错误详情） |
+| `MethodArgumentNotValidException` | 400 | 参数校验失败 |
+| `AuthenticationException` | 401 | 认证失败 |
+| 其他 `Exception` | 500 | 兜底处理 |
+
+业务中抛出异常:
+```java
+Assert.notNull(user, "用户不存在");                    // 自动抛 BusinessException
+throw new BusinessException("余额不足");                // code=400
+throw new BusinessException(1001, "库存不足");          // 自定义错误码
+throw new SystemException("支付网关超时");               // code=500
+```
+
+---
+
+## 多端项目生成
+
+Studio 支持一键生成多端 Maven 多模块项目:
+
+```
+generated-project/
+├── pom.xml                    # 父 POM
+├── common/
+│   ├── common-user/           # 用户领域 (Entity/Mapper/Service)
+│   ├── common-order/          # 订单领域
+│   ├── common-shared/         # 共享代码
+│   └── pom.xml
+├── admin-api/                 # 管理后台 (port 8080)
+├── customer-api/              # 客户端 (port 8081, 可含 SMS/微信认证)
+├── merchant-api/              # 商户端 (port 8082)
+├── docker-compose.yml         # 容器编排 (MySQL/PostgreSQL/H2 条件生成)
+└── docker/nginx/default.conf  # 反向代理配置
+```
+
+每个子应用自动生成:
+- Security SPI 实现 (`AppIdentityService`)
+- 按需生成认证策略 (`SmsAuthStrategy`, `WechatMiniAuthStrategy`)
+- 独立 JWT Secret + Channel 隔离
+- Dockerfile + nginx 配置
+
+---
+
+## 常见踩坑点
+
+| 场景 | 正确做法 | 错误做法 |
+|------|---------|---------|
+| 继承 BasePO/AggregateRoot | `@Getter @Setter` | `@Data`（不处理父类抽象方法） |
+| 实现 getId()/setId() | 直接访问 `protected id` 字段 | `super.getId()`（抽象方法无实现） |
+| DTO 跨包字段 | `private` + `@Data` | 默认包级访问（跨包不可见） |
+| Duration 配置 | `8h`, `3600s`, `7d` | 纯数字 `28800`（缺少单位） |
+| CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
+| BasePO 子类 | 不重复声明 createTime/updateTime/version/deleted | 重复声明导致类型冲突 |
+| Security SPI 实现 | 用 `@Service`，不要加额外注解 | 加 `@Component`（可能与 AutoConfig 冲突） |
+
+---
+
+## 常用工具类
+
+| 类 | 用途 |
+|----|------|
+| `Assert` | 参数校验，失败抛 `BusinessException` |
+| `JsonUtils` | JSON 序列化/反序列化 |
+| `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
+| `Result<T>` | 通用结果包装 |
+| `PageResult<T>` | 分页结果包装 |
+| `DomainModelType` | 模型类型枚举 (ANEMIC/RICH) |
+| `CurrentUserProvider` | 当前用户 ID 提供者 SPI（默认返回 "system"） |
