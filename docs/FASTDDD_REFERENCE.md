@@ -25,7 +25,7 @@ fast-ddd-starter (一键引入核心五模块)
 fast-ddd-security-starter  # JWT 认证 + CORS + 审计日志 + 多端通道
 fast-ddd-application       # CQRS 命令/查询基础设施
 fast-ddd-event             # 领域事件 (同步/异步/Outbox/RocketMQ)
-fast-ddd-cache             # (占位，尚未实现)
+fast-ddd-cache             # 两级缓存 (Caffeine L1 + Redis L2)
 fast-ddd-search            # (占位，尚未实现)
 fast-ddd-monitor           # SQL 性能监控 + Prometheus 指标
 fast-ddd-ai-spring-boot-starter       # AI/LLM 提示词模板
@@ -35,7 +35,7 @@ fast-ddd-analyzer-spring-boot-starter # 智能表分析 (领域划分)
 **典型项目 POM 依赖选择**:
 - 基础 CRUD 项目: `fast-ddd-starter` + `fast-ddd-security-starter`
 - 充血模型项目: 额外引入 `fast-ddd-application` + `fast-ddd-event`
-- 完整企业项目: 全部引入（注意 cache/search 为占位模块）
+- 完整企业项目: 全部引入（注意 search 为占位模块）
 
 ---
 
@@ -415,6 +415,105 @@ CREATE TABLE outbox_events (
 
 ---
 
+## 缓存模块 (fast-ddd-cache)
+
+两级缓存：Caffeine (L1 本地) + Redis (L2 分布式)，零配置开箱即用。
+
+### 引入依赖
+
+```xml
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-cache</artifactId>
+</dependency>
+```
+
+无 Redis 配置 → 自动降级为纯本地缓存。不引入此依赖 → 缓存模块不加载。
+
+### 使用方式一：Spring Cache 注解（推荐）
+
+```java
+@Service
+public class UserService {
+
+    @Cacheable(cacheNames = "users", key = "#id")
+    public User getById(Long id) {
+        return userMapper.selectById(id);
+    }
+
+    @CachePut(cacheNames = "users", key = "#user.id")
+    public User update(User user) {
+        userMapper.updateById(user);
+        return user;
+    }
+
+    @CacheEvict(cacheNames = "users", key = "#id")
+    public void deleteById(Long id) {
+        userMapper.deleteById(id);
+    }
+}
+```
+
+**类型安全**：框架在 Redis 中存储 `{"__type":"className","__value":{...}}`，`@Cacheable` 返回的对象类型与原始方法一致，不会出现 `LinkedHashMap`。
+
+### 使用方式二：编程 API (CacheService)
+
+```java
+@Autowired
+private CacheService cacheService;
+
+// getOrLoad — 带防击穿的自动加载
+User user = cacheService.getOrLoad("users", "user:123", User.class,
+    () -> userMapper.selectById(123));
+
+// 批量操作
+Map<String, User> users = cacheService.multiGet("users",
+    List.of("user:1", "user:2"), User.class);
+
+// 清除
+cacheService.evict("users", "user:123");
+cacheService.clear("users");
+```
+
+两种方式共享同一缓存实例，操作同一份数据。
+
+### 配置
+
+```yaml
+fastddd:
+  cache:
+    enabled: true                    # 总开关
+    allow-null-values: true          # 缓存 null 防穿透
+    local:
+      enabled: true
+      max-size: 10000
+      expire-after-write: 5m
+    redis:
+      enabled: true
+      key-prefix: "fastddd:"
+      expire-after-write: 30m
+      sync-topic: "fastddd:cache:sync"
+    caches:                          # 按 cache name 覆盖
+      users:
+        local:
+          max-size: 5000
+          expire-after-write: 2m
+        redis:
+          expire-after-write: 10m
+```
+
+### 运行场景
+
+| 场景 | 条件 | 行为 |
+|------|------|------|
+| 完整两级 | 有 Redis 配置 | L1 → L2 → loader，Pub/Sub 同步 L1 失效 |
+| 纯本地 | 无 Redis | 仅 Caffeine，适合单体应用 |
+| 禁用 | `enabled=false` | 不加载任何 Bean |
+
+详细用法参见 [CACHE_GUIDE.md](guides/CACHE_GUIDE.md)。
+
+---
+
 ## 代码生成
 
 ### CLI 方式 (Maven Plugin)
@@ -533,6 +632,7 @@ mybatis-plus:
 | `fast-ddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
 | `fast-ddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
 | `fast-ddd.security.http` | security | HTTP 安全 (permit-all-paths) |
+| `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
 | `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String) |
 | `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
 | `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
@@ -692,6 +792,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 |----|------|
 | `Assert` | 参数校验，失败抛 `BusinessException` |
 | `Messages` | i18n 国际化消息获取 (`Messages.get(code, args...)`) |
+| `CacheService` | 两级缓存编程 API (get/put/evict/getOrLoad/multiGet) |
 | `JsonUtils` | JSON 序列化/反序列化 |
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
 | `Result<T>` | 通用结果包装 |

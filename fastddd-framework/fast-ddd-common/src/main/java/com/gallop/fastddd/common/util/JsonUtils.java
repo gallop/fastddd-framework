@@ -25,6 +25,13 @@ public final class JsonUtils {
     }
     
     private static final ObjectMapper OBJECT_MAPPER = createObjectMapper();
+
+    /**
+     * 获取全局 ObjectMapper 实例
+     */
+    public static ObjectMapper getObjectMapper() {
+        return OBJECT_MAPPER;
+    }
     
     /**
      * 创建ObjectMapper实例

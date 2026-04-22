@@ -30,16 +30,23 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
         
-        <!-- Spring Boot Data Redis -->
+        <!-- Spring Boot Data Redis (optional for conditional loading) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
         </dependency>
-        
-        <!-- Redisson -->
+
+        <!-- Caffeine local cache -->
         <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- Spring Cache annotations + CacheManager/Cache interfaces -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
         
         <!-- Spring Boot Configuration Processor -->
