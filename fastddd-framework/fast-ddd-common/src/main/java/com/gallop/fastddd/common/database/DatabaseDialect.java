@@ -33,6 +33,27 @@ public interface DatabaseDialect {
 
     String getTableOptions();
 
+    // ---- Full-Text Search support (default: disabled) ----
+
+    /** Whether this dialect supports native full-text search predicates. */
+    default boolean supportsFullTextSearch() { return false; }
+
+    /**
+     * Build a full-text search SQL predicate template.
+     * Only called when {@link #supportsFullTextSearch()} returns true.
+     * <p>
+     * Implementations should use {@code {0}} as the keyword placeholder
+     * (compatible with MyBatis Plus {@code wrapper.apply(template, value)}).
+     *
+     * @param fields           column names to search (already validated as safe identifiers)
+     * @param keywordPlaceholder placeholder string (typically "{0}")
+     * @return SQL predicate template (e.g. {@code MATCH(name,email) AGAINST({0} IN BOOLEAN MODE)})
+     */
+    default String getFullTextSearchExpression(String[] fields, String keywordPlaceholder) {
+        throw new UnsupportedOperationException(
+                "Full-text search not supported by " + getDbType());
+    }
+
     /**
      * 从 DataSource 检测数据库方言。
      * 检测失败时 fallback 到 MySqlDialect（向后兼容）。

@@ -28,4 +28,13 @@ public class MySqlDialect implements DatabaseDialect {
 
     @Override
     public String getTableOptions() { return " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"; }
+
+    @Override
+    public boolean supportsFullTextSearch() { return true; }
+
+    @Override
+    public String getFullTextSearchExpression(String[] fields, String keywordPlaceholder) {
+        String fieldList = String.join(", ", fields);
+        return "MATCH(" + fieldList + ") AGAINST(" + keywordPlaceholder + " IN BOOLEAN MODE)";
+    }
 }
