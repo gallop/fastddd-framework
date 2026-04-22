@@ -26,7 +26,7 @@ fast-ddd-security-starter  # JWT 认证 + CORS + 审计日志 + 多端通道
 fast-ddd-application       # CQRS 命令/查询基础设施
 fast-ddd-event             # 领域事件 (同步/异步/Outbox/RocketMQ)
 fast-ddd-cache             # 两级缓存 (Caffeine L1 + Redis L2)
-fast-ddd-search            # (占位，尚未实现)
+fast-ddd-search            # 全文搜索 (SQL LIKE/FULLTEXT + Meilisearch 可选)
 fast-ddd-monitor           # SQL 性能监控 + Prometheus 指标
 fast-ddd-ai-spring-boot-starter       # AI/LLM 提示词模板
 fast-ddd-analyzer-spring-boot-starter # 智能表分析 (领域划分)
@@ -35,7 +35,7 @@ fast-ddd-analyzer-spring-boot-starter # 智能表分析 (领域划分)
 **典型项目 POM 依赖选择**:
 - 基础 CRUD 项目: `fast-ddd-starter` + `fast-ddd-security-starter`
 - 充血模型项目: 额外引入 `fast-ddd-application` + `fast-ddd-event`
-- 完整企业项目: 全部引入（注意 search 为占位模块）
+- 完整企业项目: 全部引入
 
 ---
 
@@ -514,6 +514,88 @@ fastddd:
 
 ---
 
+## 搜索模块 (fast-ddd-search)
+
+轻量级全文搜索，SQL 默认零配置，Meilisearch 可选切换，业务代码不变。
+
+### 依赖引入
+
+```xml
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-search</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+### 核心接口
+
+```java
+// 非泛型 SPI，注入无歧义
+@Autowired
+private SearchService searchService;
+
+SearchResult<Product> result = searchService.search(query, Product.class);
+```
+
+### SearchQuery 构建器
+
+```java
+SearchQuery query = SearchQuery.builder()
+    .keyword("手机")                              // 关键词
+    .field("name")                                // 搜索字段 (Java 属性名，自动转下划线)
+    .field("description")
+    .filter("status", SearchQuery.Filter.eq(1))   // 精确过滤
+    .filter("price", SearchQuery.Filter.gte(100)) // 范围过滤
+    .sort(SearchQuery.Sort.desc("createTime"))    // 排序
+    .pageNum(1)
+    .pageSize(10)
+    .highlight(true)                              // 高亮 (仅 Meilisearch)
+    .build();
+```
+
+### Filter 操作符
+
+| 方法 | 说明 | 示例 SQL |
+|------|------|---------|
+| `eq(val)` | 精确匹配 | `status = 1` |
+| `ne(val)` | 不等于 | `status != 0` |
+| `gt/gte/lt/lte(val)` | 范围 | `price >= 100` |
+| `in(list)` / `notIn(list)` | 集合 | `category_id IN (1,2,3)` |
+| `isNull()` / `notNull()` | 空值 | `email IS NOT NULL` |
+| `like(pattern)` | 模糊匹配 | `name LIKE '%张%'` |
+
+### 后端切换 (仅改配置)
+
+```yaml
+# 默认 SQL 后端 — 零配置
+fastddd:
+  search:
+    enabled: true        # 默认 true
+    backend: sql         # 默认 sql
+
+# 切换 Meilisearch
+fastddd:
+  search:
+    backend: meilisearch
+    meilisearch:
+      host: "http://localhost:7700"
+      api-key: "${MEILISEARCH_API_KEY}"
+```
+
+### 运行场景
+
+| 场景 | 条件 | 行为 |
+|------|------|------|
+| SQL LIKE | `backend=sql` (默认) | QueryWrapper LIKE 查询，零额外依赖 |
+| SQL FULLTEXT | `backend=sql` + MySQL | 自动 `MATCH...AGAINST` (需 FULLTEXT 索引) |
+| Meilisearch | `backend=meilisearch` + SDK 在 classpath | 全文搜索 + 高亮 |
+| 禁用 | `enabled=false` | 不加载任何 Bean |
+
+详细用法参见 [SEARCH_GUIDE.md](guides/SEARCH_GUIDE.md)。
+
+---
+
 ## 代码生成
 
 ### CLI 方式 (Maven Plugin)
@@ -633,6 +715,7 @@ mybatis-plus:
 | `fast-ddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
 | `fast-ddd.security.http` | security | HTTP 安全 (permit-all-paths) |
 | `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
+| `fastddd.search` | search | 全文搜索 (backend: sql/meilisearch, SQL 全文策略, Meilisearch 连接配置, 按索引定制) |
 | `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String) |
 | `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
 | `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
@@ -797,5 +880,8 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
 | `Result<T>` | 通用结果包装 |
 | `PageResult<T>` | 分页结果包装 |
+| `SearchService` | 全文搜索 SPI (SQL/Meilisearch 双后端) |
+| `SearchQuery` | 搜索查询构建器 (关键词+字段+过滤+排序+分页) |
+| `SearchResult<T>` | 搜索结果 (分页+高亮+聚合+后端标识) |
 | `DomainModelType` | 模型类型枚举 (ANEMIC/RICH) |
 | `CurrentUserProvider` | 当前用户 ID 提供者 SPI（默认返回 "system"） |
