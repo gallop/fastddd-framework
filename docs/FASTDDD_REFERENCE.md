@@ -593,6 +593,84 @@ generated-project/
 
 ---
 
+## 国际化 i18n (fast-ddd-common)
+
+框架内置国际化支持，所有 API 响应消息、错误提示均已 i18n 化。默认中文，支持英文切换。
+
+### 基本用法
+
+```java
+import com.gallop.fastddd.common.i18n.Messages;
+
+// 获取消息（自动根据当前 Locale 选择语言）
+String msg = Messages.get("web.crud.create.success");         // → "创建成功" (zh) / "Created successfully" (en)
+
+// 带参数的消息
+String msg = Messages.get("web.crud.create.error", "主键冲突"); // → "创建失败: 主键冲突"
+String msg = Messages.get("web.crud.batch-create.detail", 5);  // → "成功创建 5 条记录"
+```
+
+### Locale 切换
+
+框架自动配置 `LocaleResolver`，按以下优先级解析语言:
+
+1. **URL 参数**: `?lang=en` → 英文, `?lang=zh` → 中文
+2. **Accept-Language Header**: 浏览器/客户端自动携带
+3. **默认**: `zh_CN` (简体中文)
+
+示例: `GET /api/users/1?lang=en` → 所有响应消息变为英文
+
+### 消息码约定
+
+格式: `{module}.{category}.{operation}.{status}`
+
+| 前缀 | 范围 | 示例 |
+|------|------|------|
+| `common.*` | 通用 | `common.success` |
+| `web.crud.*` | BaseController 端点 | `web.crud.create.success`, `web.crud.query.not-found` |
+| `web.command.*` | CommandController | `web.command.success`, `web.command.failed` |
+| `web.query.*` | QueryController | `web.query.success`, `web.query.not-found` |
+| `web.error.*` | GlobalExceptionHandler | `web.error.param-validation`, `web.error.internal` |
+| `web.doc.*` | FastDoc 文档生成 | `web.doc.generate.failed` |
+| `security.auth.*` | 认证端点 | `security.auth.login.success`, `security.auth.user-not-found` |
+| `security.access.*` | 访问控制 | `security.access.denied`, `security.access.unauthorized` |
+
+### 业务项目自定义消息
+
+在业务项目的 `src/main/resources/` 下创建 `messages.properties` (中文) 和 `messages_en.properties` (英文)，同名 key 会覆盖框架默认值:
+
+```properties
+# messages.properties — 覆盖框架默认消息
+web.crud.create.success=用户新增成功
+web.crud.query.not-found=找不到该用户
+
+# 也可以添加业务消息
+biz.order.paid=订单已支付
+biz.order.cancelled=订单已取消
+```
+
+```properties
+# messages_en.properties
+web.crud.create.success=User created successfully
+biz.order.paid=Order has been paid
+biz.order.cancelled=Order has been cancelled
+```
+
+业务代码中使用:
+
+```java
+throw new BusinessException(Messages.get("biz.order.cancelled"));
+return ApiResponse.success(data, Messages.get("biz.order.paid"));
+```
+
+### 自动配置
+
+框架通过 `I18nAutoConfiguration` 自动注册:
+- `MessageSource` — 加载 `messages` 资源包 (`@ConditionalOnMissingBean`，可覆盖)
+- `I18nWebConfiguration` — `LocaleResolver` + `LocaleChangeInterceptor` (fast-ddd-web 模块)
+
+---
+
 ## 常见踩坑点
 
 | 场景 | 正确做法 | 错误做法 |
@@ -604,6 +682,7 @@ generated-project/
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
 | BasePO 子类 | 不重复声明 createTime/updateTime/version/deleted | 重复声明导致类型冲突 |
 | Security SPI 实现 | 用 `@Service`，不要加额外注解 | 加 `@Component`（可能与 AutoConfig 冲突） |
+| i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
 
 ---
 
@@ -612,6 +691,7 @@ generated-project/
 | 类 | 用途 |
 |----|------|
 | `Assert` | 参数校验，失败抛 `BusinessException` |
+| `Messages` | i18n 国际化消息获取 (`Messages.get(code, args...)`) |
 | `JsonUtils` | JSON 序列化/反序列化 |
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
 | `Result<T>` | 通用结果包装 |
