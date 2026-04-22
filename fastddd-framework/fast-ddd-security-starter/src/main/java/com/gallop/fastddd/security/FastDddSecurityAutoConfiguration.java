@@ -23,6 +23,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
+
 /**
  * FastDDD安全模块自动配置
  *
@@ -56,9 +58,11 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AuditLogService.class)
-    public AuditLogServiceImpl auditLogServiceImpl(@Autowired(required = false) JdbcTemplate jdbcTemplate) {
+    public AuditLogServiceImpl auditLogServiceImpl(@Autowired(required = false) JdbcTemplate jdbcTemplate,
+                                                   @Autowired(required = false) DataSource dataSource) {
         AuditLogServiceImpl impl = new AuditLogServiceImpl();
         impl.setJdbcTemplate(jdbcTemplate);
+        impl.setDataSource(dataSource);
         return impl;
     }
 

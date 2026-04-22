@@ -1,8 +1,11 @@
 package com.gallop.fastddd.security.audit;
 
+import com.gallop.fastddd.common.database.DatabaseDialect;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
+
+import javax.sql.DataSource;
 
 /**
  * 审计日志服务实现类
@@ -16,29 +19,15 @@ import org.springframework.scheduling.annotation.Async;
 @Slf4j
 public class AuditLogServiceImpl implements AuditLogService {
 
-    private JdbcTemplate jdbcTemplate;
+    private volatile JdbcTemplate jdbcTemplate;
+    private volatile DataSource dataSource;
 
     private static final String INSERT_SQL = "INSERT INTO sys_audit_log " +
             "(username, operation, operation_type, method, request_url, request_params, " +
             "result, client_ip, user_agent, execution_time, success, error_message, create_time) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s)";
 
-    private static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS sys_audit_log (" +
-            "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
-            "username VARCHAR(50), " +
-            "operation VARCHAR(200), " +
-            "operation_type VARCHAR(50), " +
-            "method VARCHAR(10), " +
-            "request_url VARCHAR(500), " +
-            "request_params TEXT, " +
-            "result TEXT, " +
-            "client_ip VARCHAR(50), " +
-            "user_agent VARCHAR(500), " +
-            "execution_time BIGINT, " +
-            "success TINYINT(1) DEFAULT 1, " +
-            "error_message TEXT, " +
-            "create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" +
-            ")";
+    private volatile String resolvedInsertSql;
 
     private volatile boolean tableInitialized = false;
 
@@ -46,12 +35,18 @@ public class AuditLogServiceImpl implements AuditLogService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    public void setDataSource(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
     @Override
     public void saveAuditLog(AuditLogEntity auditLog) {
         if (jdbcTemplate != null) {
             try {
                 ensureTableExists();
-                jdbcTemplate.update(INSERT_SQL,
+                String sql = resolvedInsertSql != null ? resolvedInsertSql
+                        : String.format(INSERT_SQL, "NOW()");
+                jdbcTemplate.update(sql,
                         auditLog.getUsername(),
                         auditLog.getOperation(),
                         auditLog.getOperationType(),
@@ -84,15 +79,42 @@ public class AuditLogServiceImpl implements AuditLogService {
             synchronized (this) {
                 if (!tableInitialized) {
                     try {
-                        jdbcTemplate.execute(CREATE_TABLE_SQL);
+                        String sql = buildCreateTableSql();
+                        jdbcTemplate.execute(sql);
                         log.info("自动创建 sys_audit_log 表成功");
                     } catch (Exception e) {
                         log.debug("sys_audit_log 表已存在或自动创建失败: {}", e.getMessage());
+                    }
+                    if (dataSource != null) {
+                        DatabaseDialect dialect = DatabaseDialect.detect(dataSource);
+                        resolvedInsertSql = String.format(INSERT_SQL, dialect.getNowFunction());
                     }
                     tableInitialized = true;
                 }
             }
         }
+    }
+
+    private String buildCreateTableSql() {
+        DatabaseDialect dialect = dataSource != null
+                ? DatabaseDialect.detect(dataSource)
+                : new com.gallop.fastddd.common.database.MySqlDialect();
+        return "CREATE TABLE IF NOT EXISTS sys_audit_log (" +
+                dialect.getPkDefinition() + ", " +
+                "username VARCHAR(50), " +
+                "operation VARCHAR(200), " +
+                "operation_type VARCHAR(50), " +
+                "method VARCHAR(10), " +
+                "request_url VARCHAR(500), " +
+                "request_params " + dialect.getClobType() + ", " +
+                "result " + dialect.getClobType() + ", " +
+                "client_ip VARCHAR(50), " +
+                "user_agent VARCHAR(500), " +
+                "execution_time BIGINT, " +
+                "success " + dialect.getBooleanType() + " DEFAULT 1, " +
+                "error_message " + dialect.getClobType() + ", " +
+                "create_time " + dialect.getTimestampType() + " NOT NULL DEFAULT CURRENT_TIMESTAMP" +
+                ")" + dialect.getTableOptions();
     }
 
     private void logToSlf4j(AuditLogEntity auditLog) {
