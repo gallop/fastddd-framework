@@ -12,10 +12,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * 审计日志切面
@@ -67,17 +71,24 @@ public class AuditLogAspect {
                 logEntity.setUserAgent(request.getHeader("User-Agent"));
             }
             
-            // 记录请求参数
+            // 记录请求参数（跳过 Servlet 等不可序列化类型）
             if (auditLog.logParams()) {
                 try {
                     Object[] args = joinPoint.getArgs();
                     if (args != null && args.length > 0) {
-                        String paramsJson = objectMapper.writeValueAsString(Arrays.asList(args));
-                        // 脱敏: 遮盖 password/secret/token 字段
-                        paramsJson = paramsJson.replaceAll(
-                                "\"(password|secret|token|accessToken|refreshToken)\"\\s*:\\s*\"[^\"]*\"",
-                                "\"$1\":\"***\"");
-                        logEntity.setRequestParams(paramsJson);
+                        Object[] safeArgs = Arrays.stream(args)
+                                .filter(arg -> !(arg instanceof ServletRequest)
+                                        && !(arg instanceof ServletResponse))
+                                .collect(Collectors.toList())
+                                .toArray();
+                        if (safeArgs.length > 0) {
+                            String paramsJson = objectMapper.writeValueAsString(safeArgs);
+                            // 脱敏: 遮盖 password/secret/token 字段
+                            paramsJson = paramsJson.replaceAll(
+                                    "\"(password|secret|token|accessToken|refreshToken)\"\\s*:\\s*\"[^\"]*\"",
+                                    "\"$1\":\"***\"");
+                            logEntity.setRequestParams(paramsJson);
+                        }
                     }
                 } catch (Exception e) {
                     log.warn("Failed to serialize request parameters", e);
