@@ -14,6 +14,7 @@ import com.gallop.fastddd.security.spi.DefaultSecurityIdentityService;
 import com.gallop.fastddd.security.spi.DefaultSecurityPermissionService;
 import com.gallop.fastddd.security.spi.SecurityIdentityService;
 import com.gallop.fastddd.security.spi.SecurityPermissionService;
+import com.gallop.fastddd.security.spi.SecurityUserDetails;
 import com.gallop.fastddd.security.strategy.AuthStrategy;
 import com.gallop.fastddd.security.strategy.AuthStrategyRegistry;
 import com.gallop.fastddd.security.strategy.PasswordAuthStrategy;
@@ -26,6 +27,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -87,6 +90,18 @@ public class FastDddSecurityAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityPermissionService securityPermissionService() {
         return new DefaultSecurityPermissionService();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(UserDetailsService.class)
+    public UserDetailsService userDetailsService(SecurityIdentityService identityService) {
+        return username -> {
+            SecurityUserDetails details = identityService.loadUserByUsername(username);
+            if (details == null) {
+                throw new UsernameNotFoundException("User not found: " + username);
+            }
+            return details;
+        };
     }
 
     @Bean

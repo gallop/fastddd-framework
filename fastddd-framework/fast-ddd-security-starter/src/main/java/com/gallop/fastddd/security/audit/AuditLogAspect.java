@@ -90,8 +90,8 @@ public class AuditLogAspect {
                             logEntity.setRequestParams(paramsJson);
                         }
                     }
-                } catch (Exception e) {
-                    log.warn("Failed to serialize request parameters", e);
+                } catch (Throwable e) {
+                    log.warn("Failed to serialize request parameters: {}", e.getMessage());
                     logEntity.setRequestParams("Failed to serialize parameters");
                 }
             }
@@ -103,8 +103,8 @@ public class AuditLogAspect {
             if (auditLog.logResult() && result != null) {
                 try {
                     logEntity.setResult(objectMapper.writeValueAsString(result));
-                } catch (Exception e) {
-                    log.warn("Failed to serialize result", e);
+                } catch (Throwable e) {
+                    log.warn("Failed to serialize result: {}", e.getMessage());
                     logEntity.setResult("Failed to serialize result");
                 }
             }

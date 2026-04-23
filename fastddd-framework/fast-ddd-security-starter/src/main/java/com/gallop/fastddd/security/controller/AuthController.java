@@ -83,8 +83,8 @@ public class AuthController {
                 return ApiResponse.error(401, Messages.get("security.auth.user-not-found"));
             }
 
-            // 4. 生成 Token（含当前应用通道）
-            AuthChannel channel = jwtProperties.getChannel();
+            // 4. 生成 Token（优先使用请求中的 channel，回退到配置默认值）
+            AuthChannel channel = request.getChannel() != null ? request.getChannel() : jwtProperties.getChannel();
             String accessToken = jwtTokenProvider.generateAccessToken(authentication, channel);
             String refreshToken = jwtTokenProvider.generateRefreshToken(authentication, channel);
 
@@ -95,10 +95,7 @@ public class AuthController {
             }
 
             // 6. 提取权限
-            List<String> permissions = authentication.getAuthorities().stream()
-                    .map(auth -> auth.getAuthority())
-                    .filter(auth -> !auth.startsWith("ROLE_"))
-                    .collect(Collectors.toList());
+            List<String> permissions = permissionService.getPermissionsByUserId(userDetails.getUserId());
 
             log.info("用户 {} 登录成功, 通道: {}", authenticatedUsername, channel);
 
@@ -149,14 +146,17 @@ public class AuthController {
             List<String> permissions = permissionService.getPermissionsByUserId(userDetails.getUserId());
 
             Authentication authentication = new UsernamePasswordAuthenticationToken(
-                    username,
+                    userDetails,
                     null,
                     permissions.stream()
                             .map(org.springframework.security.core.authority.SimpleGrantedAuthority::new)
                             .collect(Collectors.toList())
             );
 
-            AuthChannel channel = jwtProperties.getChannel();
+            AuthChannel channel = jwtTokenProvider.getChannelFromToken(refreshToken);
+            if (channel == null) {
+                channel = jwtProperties.getChannel();
+            }
             String newAccessToken = jwtTokenProvider.generateAccessToken(authentication, channel);
 
             log.info("用户 {} Token刷新成功", username);
