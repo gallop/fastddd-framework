@@ -19,11 +19,9 @@
         <!-- 应用日志 -->
         <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>logs/application.log</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
                 <fileNamePattern>logs/application.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-                <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                    <maxFileSize>100MB</maxFileSize>
-                </timeBasedFileNamingAndTriggeringPolicy>
+                <maxFileSize>100MB</maxFileSize>
                 <maxHistory>30</maxHistory>
             </rollingPolicy>
             <encoder>
@@ -34,11 +32,9 @@
         <!-- SQL监控日志 - JSON格式用于ELK -->
         <appender name="SQL_MONITORING" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>logs/sql-monitoring.log</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
                 <fileNamePattern>logs/sql-monitoring.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-                <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                    <maxFileSize>100MB</maxFileSize>
-                </timeBasedFileNamingAndTriggeringPolicy>
+                <maxFileSize>100MB</maxFileSize>
                 <maxHistory>30</maxHistory>
             </rollingPolicy>
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
@@ -57,11 +53,9 @@
         <!-- 慢查询日志 - 单独文件 -->
         <appender name="SLOW_QUERY" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>logs/slow-query.log</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
                 <fileNamePattern>logs/slow-query.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-                <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                    <maxFileSize>100MB</maxFileSize>
-                </timeBasedFileNamingAndTriggeringPolicy>
+                <maxFileSize>100MB</maxFileSize>
                 <maxHistory>30</maxHistory>
             </rollingPolicy>
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
