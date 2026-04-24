@@ -3,6 +3,17 @@
 ## 最大表数量
 {max_tables}
 
+## 基础设施表排除规则
+以下认证/权限基础设施表由框架模板套件提供，**不要在本次设计中生成**：
+- 用户认证表（user / sys_user）：包含 username、password、status 等认证字段
+- 角色表（role / sys_role）：包含 role_code、role_name 等
+- 权限表（permission / sys_permission）：包含 permission_code 等
+- 用户角色关联表（user_role / sys_user_role）
+- 角色权限关联表（role_permission / sys_role_permission）
+
+如果业务需要用户扩展信息（如用户资料、积分、地址），请设计独立的扩展表
+（如 user_profile、user_point、user_address），通过 user_id 关联到框架提供的用户表。
+
 ## PRD 内容
 {prd_content}
 
