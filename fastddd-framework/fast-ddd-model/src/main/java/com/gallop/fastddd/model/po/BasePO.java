@@ -3,7 +3,6 @@ package com.gallop.fastddd.model.po;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -59,14 +58,8 @@ public abstract class BasePO implements Serializable {
     private String updateUser;
 
     /**
-     * Version for optimistic locking.
-     */
-    @Version
-    private Long version;
-
-    /**
      * Soft delete flag.
      */
     @TableLogic
-    private Boolean deleted = false;
+    private Integer deleted = 0;
 }

@@ -49,9 +49,11 @@ FastDDD 提供两套独立的基类体系，字段命名已统一：
 | 更新时间 | `protected LocalDateTime updateTime` | `@TableField(fill=INSERT_UPDATE) updateTime` | `update_time` |
 | 创建人 | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
 | 更新人 | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
-| 版本号 | `protected Long version` | `@Version Long version` | `version` |
-| 逻辑删除 | `protected Boolean deleted` | `@TableLogic Boolean deleted` | `deleted` |
+| 逻辑删除 | `protected Integer deleted` | `@TableLogic Integer deleted` | `deleted` |
 | 主键 | `protected ID id` (abstract getId/setId) | `abstract Serializable getId()` | `id` |
+| 版本号 | `VersionedEntity` 子类提供 | `VersionedPO` 子类提供 | `version` |
+
+**version 字段按需继承**：只有数据库表有 `version` 列的实体才继承 `VersionedPO`/`VersionedEntity`，其余继承 `BasePO`/`BaseEntity`。
 
 **统一收益**: 充血模型 Entity ↔ PO 转换时，公共字段名完全一致，BeanUtils/MapStruct 可直接拷贝。
 
@@ -77,14 +79,16 @@ public class Order extends BasePO {
     @Override
     public Long getId() { return id; }
 }
-// BasePO 自动提供: createTime, updateTime, createUser, updateUser, version, deleted
+// BasePO 自动提供: createTime, updateTime, createUser, updateUser, deleted
 // createTime/updateTime/createUser/updateUser 由框架 AutoFill 自动填充
+// 需要乐观锁的实体请继承 VersionedPO（自动包含 version 字段）
 ```
 
 **关键规则**:
 - 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
 - `BasePO.getId()` 是抽象方法，子类必须声明 `id` 字段并实现 `getId()`
-- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `version`, `deleted` — 这些已由 `BasePO` 提供
+- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `BasePO` 提供
+- 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
 
 ### 2. 充血模型 — AggregateRoot (fast-ddd-common)
 
@@ -105,8 +109,9 @@ public class Order extends AggregateRoot<Long> {
         addDomainEvent(new OrderPaidEvent(this.id, this.orderNo));
     }
 }
-// BaseEntity 自动提供: createTime, updateTime, createUser, updateUser, version, deleted
+// BaseEntity 自动提供: createTime, updateTime, createUser, updateUser, deleted
 // prePersist()/preUpdate() 自动填充时间字段
+// 需要乐观锁的领域实体请继承 VersionedEntity（自动包含 version 字段）
 ```
 
 **充血模型 PO 与 Entity 转换** (infrastructure 层):
@@ -136,7 +141,7 @@ public class OrderEntityMapper {
         // 公共字段名一致，可使用 BeanUtils.copyProperties 或逐个设置
         order.setCreateTime(po.getCreateTime());
         order.setUpdateTime(po.getUpdateTime());
-        order.setVersion(po.getVersion());
+        // 如需乐观锁: order.setVersion(po.getVersion()) — PO 需继承 VersionedPO，Entity 需继承 VersionedEntity
         return order;
     }
     public OrderPO toPo(Order entity) { /* 反向映射 */ }
@@ -689,7 +694,7 @@ com.example.{aggregate}
 | `update_time` | DATETIME | 更新时间（自动填充） |
 | `create_user` | VARCHAR(64) | 创建人（自动填充） |
 | `update_user` | VARCHAR(64) | 更新人（自动填充） |
-| `version` | INT DEFAULT 0 | 乐观锁版本号 |
+| `version` | INT DEFAULT 0 | 乐观锁版本号（**可选**，仅 VersionedPO 子类需要） |
 | `deleted` | TINYINT DEFAULT 0 | 逻辑删除标志 |
 
 ### MyBatis Plus 配置
@@ -863,7 +868,8 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | DTO 跨包字段 | `private` + `@Data` | 默认包级访问（跨包不可见） |
 | Duration 配置 | `8h`, `3600s`, `7d` | 纯数字 `28800`（缺少单位） |
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
-| BasePO 子类 | 不重复声明 createTime/updateTime/version/deleted | 重复声明导致类型冲突 |
+| BasePO 子类 | 不重复声明 createTime/updateTime/deleted | 重复声明导致类型冲突 |
+| 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
 | Security SPI 实现 | 用 `@Service`，不要加额外注解 | 加 `@Component`（可能与 AutoConfig 冲突） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
 

@@ -43,34 +43,29 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
      * 更新者
      */
     protected String updateUser;
-    
-    /**
-     * 版本号（用于乐观锁）
-     */
-    protected Long version;
-    
+
     /**
      * 是否已删除
      */
-    protected Boolean deleted = false;
-    
+    protected Integer deleted = 0;
+
     /**
      * 获取实体标识
      */
     public abstract ID getId();
-    
+
     /**
      * 设置实体标识
      */
     public abstract void setId(ID id);
-    
+
     /**
      * 判断实体是否为新实体（未持久化）
      */
     public boolean isNew() {
         return getId() == null;
     }
-    
+
     /**
      * 实体创建前的回调
      */
@@ -82,18 +77,12 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
         if (updateTime == null) {
             updateTime = now;
         }
-        if (version == null) {
-            version = 0L;
-        }
     }
-    
+
     /**
      * 实体更新前的回调
      */
     public void preUpdate() {
         updateTime = LocalDateTime.now();
-        if (version != null) {
-            version++;
-        }
     }
 }
