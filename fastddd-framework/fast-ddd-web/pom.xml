@@ -24,10 +24,11 @@
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
-        <!-- FastDDD FastDoc Core -->
+        <!-- FastDDD FastDoc Core (optional — only needed for doc generation) -->
         <dependency>
             <groupId>com.gallop.fastddd</groupId>
             <artifactId>fastddd-fastdoc-core</artifactId>
+            <optional>true</optional>
         </dependency>
         
         <!-- FastDDD Model -->

@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Bean;
  * （spring-ai-starter-model-openai 自动创建 OpenAiChatModel bean）。
  * </p>
  * <ul>
- *   <li>主开关：fast-ddd.ai.enabled（默认 true）</li>
+ *   <li>主开关：fastddd.ai.enabled（默认 true）</li>
  *   <li>LLM 配置：spring.ai.openai.*</li>
  * </ul>
  *
@@ -26,7 +26,7 @@ import org.springframework.context.annotation.Bean;
 @Slf4j
 @AutoConfiguration
 @EnableConfigurationProperties(AiProperties.class)
-@ConditionalOnProperty(prefix = "fast-ddd.ai", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "fastddd.ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AiAutoConfiguration {
 
     public AiAutoConfiguration(AiProperties properties) {

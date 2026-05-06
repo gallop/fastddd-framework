@@ -1,19 +1,16 @@
 package com.gallop.fastddd.crud.provider;
 
-import org.springframework.stereotype.Component;
-
 /**
  * {@link CurrentUserProvider}的默认实现。
  * 当没有提供自定义实现时返回默认值'system'。
- * 
- * 此实现可以通过在应用程序上下文中提供自定义的
- * {@link CurrentUserProvider} bean来覆盖。
- * 
+ *
+ * 注意：此类不使用 @Component，由 {@link com.gallop.fastddd.crud.FastDddCrudAutoConfiguration}
+ * 通过 @Bean + @ConditionalOnMissingBean + @Primary 注册，确保自定义实现可以正确替换。
+ *
  * @author gallop
  * @since 2025-08-31
  * @version 1.0.0-SNAPSHOT
  */
-@Component
 public class DefaultCurrentUserProvider implements CurrentUserProvider {
 
     /**

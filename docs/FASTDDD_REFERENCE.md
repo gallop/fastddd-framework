@@ -50,7 +50,7 @@ FastDDD 提供两套独立的基类体系，字段命名已统一：
 | 创建人 | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
 | 更新人 | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
 | 逻辑删除 | `protected Integer deleted` | `@TableLogic Integer deleted` | `deleted` |
-| 主键 | `protected ID id` (abstract getId/setId) | `abstract Serializable getId()` | `id` |
+| 主键 | `protected ID id` (abstract getId/setId) | `protected Serializable id` (内置 @TableId) | `id` |
 | 版本号 | `VersionedEntity` 子类提供 | `VersionedPO` 子类提供 | `version` |
 
 **version 字段按需继承**：只有数据库表有 `version` 列的实体才继承 `VersionedPO`/`VersionedEntity`，其余继承 `BasePO`/`BaseEntity`。
@@ -69,25 +69,22 @@ FastDDD 提供两套独立的基类体系，字段命名已统一：
 @EqualsAndHashCode(callSuper = true)
 public class Order extends BasePO {
 
-    @TableId(type = IdType.AUTO)
-    private Long id;
-
     private String orderNo;
     private Integer status;
 
-    // 必须实现 getId() — BasePO 的 getId() 是抽象方法
-    @Override
-    public Long getId() { return id; }
+    // id 字段已由 BasePO 内置，无需声明 @TableId / getId() / setId()
+    // getId() 返回 Serializable，需具体类型时强转: (Long) entity.getId()
 }
-// BasePO 自动提供: createTime, updateTime, createUser, updateUser, deleted
+// BasePO 自动提供: id, createTime, updateTime, createUser, updateUser, deleted
 // createTime/updateTime/createUser/updateUser 由框架 AutoFill 自动填充
 // 需要乐观锁的实体请继承 VersionedPO（自动包含 version 字段）
 ```
 
 **关键规则**:
 - 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
-- `BasePO.getId()` 是抽象方法，子类必须声明 `id` 字段并实现 `getId()`
+- `BasePO` 已内置 `id` 字段（`@TableId(type = IdType.ASSIGN_ID)`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
 - 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `BasePO` 提供
+- ID 策略通过全局配置 `mybatis-plus.global-config.db-config.id-type` 控制，子类可重新声明 `id` 覆盖
 - 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
 
 ### 2. 充血模型 — AggregateRoot (fast-ddd-common)
@@ -122,11 +119,9 @@ public class Order extends AggregateRoot<Long> {
 @Getter @Setter
 @EqualsAndHashCode(callSuper = true)
 public class OrderPO extends BasePO {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    // id 已由 BasePO 内置，无需声明
     private String orderNo;
     private Integer status;
-    @Override public Long getId() { return id; }
 }
 
 // EntityMapper — PO ↔ Entity 转换器
@@ -213,16 +208,16 @@ public class OrderController extends BaseController<OrderService, Order> {
     // GET /{id}                         — 按ID查询
     // GET /                             — 列表查询
     // GET /page?current=1&size=10       — 分页查询
-    // GET /field/{field}/{value}        — 按字段查询列表
-    // POST /search                      — 多字段条件查询
     // PUT /{id}                         — 按ID更新
     // PUT /                             — 条件更新
     // PUT /batch                        — 批量更新
     // DELETE /{id}                      — 按ID删除
     // DELETE /batch                     — 批量删除
     // GET /count                        — 总数统计
-    // GET /count/{field}/{value}        — 按字段统计
-    // GET /exists/{field}/{value}       — 字段存在性检查
+
+    // 可覆写生命周期 Hook:
+    // beforeCreate / afterCreate / beforeUpdate / afterUpdate
+    // beforeDelete / afterDelete / beforeCreateBatch / beforeUpdateBatch
 }
 ```
 
@@ -283,7 +278,7 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 ### 配置项
 
 ```yaml
-fast-ddd:
+fastddd:
   security:
     jwt:
       enabled: true
@@ -716,15 +711,15 @@ mybatis-plus:
 
 | 前缀 | 模块 | 说明 |
 |------|------|------|
-| `fast-ddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
-| `fast-ddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
-| `fast-ddd.security.http` | security | HTTP 安全 (permit-all-paths) |
+| `fastddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
+| `fastddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
+| `fastddd.security.http` | security | HTTP 安全 (permit-all-paths) |
 | `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
 | `fastddd.search` | search | 全文搜索 (backend: sql/meilisearch, SQL 全文策略, Meilisearch 连接配置, 按索引定制) |
 | `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String) |
 | `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
 | `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
-| `fast-ddd.ai` | ai | AI 模块开关 |
+| `fastddd.ai` | ai | AI 模块开关 |
 | `fastddd.analyzer` | analyzer | 智能表分析 (策略, 权重) |
 
 **Duration 字段**: 所有 `Duration` 类型配置必须带单位后缀 (`s`/`m`/`h`/`d`)，如 `8h`, `3600s`, `7d`。
@@ -863,12 +858,13 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 
 | 场景 | 正确做法 | 错误做法 |
 |------|---------|---------|
-| 继承 BasePO/AggregateRoot | `@Getter @Setter` | `@Data`（不处理父类抽象方法） |
-| 实现 getId()/setId() | 直接访问 `protected id` 字段 | `super.getId()`（抽象方法无实现） |
+| 继承 BasePO | `@Getter @Setter`，不声明 id | `@Data` + 重复声明 `private Long id` |
+| 继承 AggregateRoot | `@Getter @Setter` + 显式实现 getId/setId | `@Data`（不处理父类抽象方法） |
+| BasePO getId 返回值 | `(Long) entity.getId()` 强转 | 期望自动拆箱为 Long |
 | DTO 跨包字段 | `private` + `@Data` | 默认包级访问（跨包不可见） |
 | Duration 配置 | `8h`, `3600s`, `7d` | 纯数字 `28800`（缺少单位） |
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
-| BasePO 子类 | 不重复声明 createTime/updateTime/deleted | 重复声明导致类型冲突 |
+| BasePO 子类 | 不重复声明 id/createTime/updateTime/deleted | 重复声明导致类型冲突 |
 | 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
 | Security SPI 实现 | 用 `@Service`，不要加额外注解 | 加 `@Component`（可能与 AutoConfig 冲突） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
@@ -884,7 +880,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | `CacheService` | 两级缓存编程 API (get/put/evict/getOrLoad/multiGet) |
 | `JsonUtils` | JSON 序列化/反序列化 |
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
-| `Result<T>` | 通用结果包装 |
+| `Result<T>` | 通用结果包装（**已废弃**，请使用 `ApiResponse<T>`） |
 | `PageResult<T>` | 分页结果包装 |
 | `SearchService` | 全文搜索 SPI (SQL/Meilisearch 双后端) |
 | `SearchQuery` | 搜索查询构建器 (关键词+字段+过滤+排序+分页) |

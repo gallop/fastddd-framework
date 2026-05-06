@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         classes = {TestApplication.class},
         properties = {
-                "fast-ddd.web.response-wrapper.enabled=true"
+                "fastddd.web.response-wrapper.enabled=true"
         })
 @AutoConfigureMockMvc
 @EnableApiResponseWrapper

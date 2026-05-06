@@ -8,13 +8,17 @@ import com.gallop.fastddd.web.config.WebMvcConfig;
 import com.gallop.fastddd.web.config.OpenApiConfiguration;
 import com.gallop.fastddd.web.config.Knife4jConfiguration;
 import com.gallop.fastddd.web.exception.GlobalExceptionHandler;
+import com.gallop.fastddd.web.fastdoc.FastDocController;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.FilterType;
 
 import javax.sql.DataSource;
 
@@ -28,7 +32,13 @@ import javax.sql.DataSource;
  */
 @Slf4j
 @AutoConfiguration
-@ComponentScan("com.gallop.fastddd.web")
+@ComponentScan(
+    basePackages = "com.gallop.fastddd.web",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = "com\\.gallop\\.fastddd\\.web\\.fastdoc\\..*"
+    )
+)
 @Import({ApiResponseWrapperConfiguration.class, WebMvcConfig.class,
          OpenApiConfiguration.class, Knife4jConfiguration.class})
 public class FastDddWebAutoConfiguration {
@@ -37,9 +47,6 @@ public class FastDddWebAutoConfiguration {
         log.info("=== FastDddWebAutoConfiguration initialized ===");
     }
 
-    /**
-     * 全局异常处理器
-     */
     @Bean
     @ConditionalOnMissingBean(GlobalExceptionHandler.class)
     public GlobalExceptionHandler globalExceptionHandler() {
@@ -47,21 +54,33 @@ public class FastDddWebAutoConfiguration {
         return new GlobalExceptionHandler();
     }
 
-    @Bean
-    @ConditionalOnBean(DataSource.class)
-    public FastDocService fastDocService(DataSource dataSource) {
-        return new FastDocService(dataSource);
-    }
+    @Configuration
+    @ConditionalOnClass(name = "com.gallop.fastddd.fastdoc.FastDocService")
+    static class FastDocConfiguration {
+        @Bean
+        @ConditionalOnBean(DataSource.class)
+        public FastDocService fastDocService(DataSource dataSource) {
+            return new FastDocService(dataSource);
+        }
 
-    @Bean
-    @ConditionalOnBean(FastDocService.class)
-    public FastDocTemplateService fastDocTemplateService() {
-        return new FastDocTemplateService();
-    }
+        @Bean
+        @ConditionalOnBean(FastDocService.class)
+        public FastDocTemplateService fastDocTemplateService() {
+            return new FastDocTemplateService();
+        }
 
-    @Bean
-    @ConditionalOnBean(FastDocService.class)
-    public FastDocExportService fastDocExportService(FastDocService fastDocService, FastDocTemplateService fastDocTemplateService) {
-        return new FastDocExportService(fastDocService, fastDocTemplateService);
+        @Bean
+        @ConditionalOnBean(FastDocService.class)
+        public FastDocExportService fastDocExportService(FastDocService fastDocService, FastDocTemplateService fastDocTemplateService) {
+            return new FastDocExportService(fastDocService, fastDocTemplateService);
+        }
+
+        @Bean
+        @ConditionalOnBean(FastDocService.class)
+        public FastDocController fastDocController(FastDocService fastDocService,
+                                                   FastDocTemplateService templateService,
+                                                   FastDocExportService exportService) {
+            return new FastDocController(fastDocService, templateService, exportService);
+        }
     }
 }

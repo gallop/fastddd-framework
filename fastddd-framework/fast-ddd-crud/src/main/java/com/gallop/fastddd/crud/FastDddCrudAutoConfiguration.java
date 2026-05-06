@@ -9,7 +9,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Primary;
 
 /**
  * FastDDD CRUD模块的自动配置。
@@ -31,7 +30,6 @@ public class FastDddCrudAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(CurrentUserProvider.class)
-    @Primary
     public CurrentUserProvider defaultCurrentUserProvider() {
         return new DefaultCurrentUserProvider();
     }

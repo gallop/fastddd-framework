@@ -6,6 +6,7 @@ import com.gallop.fastddd.security.audit.AuditLogServiceImpl;
 import com.gallop.fastddd.security.config.AuditLogConfiguration;
 import com.gallop.fastddd.security.config.SecurityAutoConfiguration;
 import com.gallop.fastddd.security.controller.AuthController;
+import com.gallop.fastddd.security.provider.SecurityCurrentUserProvider;
 import com.gallop.fastddd.security.handler.JwtAccessDeniedHandler;
 import com.gallop.fastddd.security.handler.JwtAuthenticationEntryPoint;
 import com.gallop.fastddd.security.jwt.JwtProperties;
@@ -25,6 +26,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -114,6 +116,16 @@ public class FastDddSecurityAutoConfiguration {
     @ConditionalOnBean(AuthenticationManager.class)
     public PasswordAuthStrategy passwordAuthStrategy(AuthenticationManager authenticationManager) {
         return new PasswordAuthStrategy(authenticationManager);
+    }
+
+    @Configuration
+    @ConditionalOnClass(name = "com.gallop.fastddd.crud.provider.CurrentUserProvider")
+    static class CrudBridgeConfiguration {
+        @Bean
+        @Primary
+        public SecurityCurrentUserProvider securityCurrentUserProvider() {
+            return new SecurityCurrentUserProvider();
+        }
     }
 
     @Bean

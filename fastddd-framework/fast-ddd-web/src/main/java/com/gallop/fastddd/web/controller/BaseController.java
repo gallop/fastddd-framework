@@ -8,8 +8,6 @@ import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-//import io.swagger.v3.oas.annotations.media.Content;
-//import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,7 +19,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -42,6 +39,29 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     @Autowired
     protected S service;
 
+    // ==================== Lifecycle Hooks ====================
+    // Hooks run at the Controller layer (outside @Transactional).
+    // Suitable for parameter validation, permission checks, and audit enrichment.
+    // For transactional hooks, override methods in your Service layer instead.
+
+    protected void beforeCreate(T entity) {}
+
+    protected void afterCreate(T entity) {}
+
+    protected void beforeUpdate(Serializable id, T entity) {}
+
+    protected void afterUpdate(Serializable id, T entity) {}
+
+    protected void beforeDelete(Serializable id) {}
+
+    protected void afterDelete(Serializable id) {}
+
+    protected void beforeCreateBatch(List<T> entityList) {}
+
+    protected void beforeUpdateBatch(List<T> entityList) {}
+
+    // ==================== CRUD Operations ====================
+
     /**
      * 创建单个实体
      * @param entity 实体对象
@@ -55,8 +75,10 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     @PostMapping
     public ResponseEntity<ApiResponse<T>> create(@Validated @RequestBody T entity) {
         try {
+            beforeCreate(entity);
             boolean success = service.save(entity);
             if (success) {
+                afterCreate(entity);
                 return ResponseEntity.status(HttpStatus.CREATED)
                         .body(ApiResponse.success(entity, Messages.get("web.crud.create.success")));
             } else {
@@ -77,12 +99,13 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      * @return 创建结果
      */
     @PostMapping("/batch")
-    public ResponseEntity<ApiResponse<String>> createBatch(@Valid @RequestBody List<T> entityList) {
+    public ResponseEntity<ApiResponse<Boolean>> createBatch(@Valid @RequestBody List<T> entityList) {
         try {
+            beforeCreateBatch(entityList);
             boolean success = service.saveBatch(entityList);
             if (success) {
                 return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(ApiResponse.success(Messages.get("web.crud.batch-create.detail", entityList.size()), Messages.get("web.crud.batch-create.success")));
+                        .body(ApiResponse.success(true, Messages.get("web.crud.batch-create.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(ApiResponse.error(Messages.get("web.crud.batch-create.failed")));
@@ -157,45 +180,6 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     }
 
     /**
-     * 根据字段查询实体列表
-     * 
-     * @param field 字段名
-     * @param value 字段值
-     * @return 实体列表
-     */
-    @GetMapping("/field/{field}/{value}")
-    public ResponseEntity<ApiResponse<List<T>>> listByField(
-            @PathVariable("field") String field,
-            @PathVariable("value") String value) {
-        try {
-            List<T> entityList = service.listByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(entityList, Messages.get("web.crud.query.success")));
-        } catch (Exception e) {
-            log.error("根据字段查询实体失败", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
-        }
-    }
-
-    /**
-     * 根据多个字段查询实体列表
-     * 
-     * @param fieldValueMap 字段值映射
-     * @return 实体列表
-     */
-    @PostMapping("/search")
-    public ResponseEntity<ApiResponse<List<T>>> listByFields(@RequestBody Map<String, Object> fieldValueMap) {
-        try {
-            List<T> entityList = service.listByFields(fieldValueMap);
-            return ResponseEntity.ok(ApiResponse.success(entityList, Messages.get("web.crud.query.success")));
-        } catch (Exception e) {
-            log.error("根据多字段查询实体失败", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(Messages.get("web.crud.query.failed", e.getMessage())));
-        }
-    }
-
-    /**
      * 根据ID更新实体
      * 
      * @param id 主键ID
@@ -207,9 +191,12 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
             @PathVariable("id") @NotNull Serializable id,
             @Valid @RequestBody T entity) {
         try {
-            // 注意：这里假设实体已经包含正确的ID，或者由具体实现来处理ID设置
+            // URL path id is authoritative — overwrites any id from request body
+            entity.setId(id);
+            beforeUpdate(id, entity);
             boolean success = service.updateById(entity);
             if (success) {
+                afterUpdate(id, entity);
                 return ResponseEntity.ok(ApiResponse.success(entity, Messages.get("web.crud.update.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -236,6 +223,7 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
     @PutMapping
     public ResponseEntity<ApiResponse<Boolean>> update(@Validated @RequestBody T entity) {
         try {
+            beforeUpdate(entity.getId(), entity);
             boolean success = service.updateById(entity);
             if (success) {
                 return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.update.success")));
@@ -257,11 +245,12 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      * @return 更新结果
      */
     @PutMapping("/batch")
-    public ResponseEntity<ApiResponse<String>> updateBatch(@Valid @RequestBody List<T> entityList) {
+    public ResponseEntity<ApiResponse<Boolean>> updateBatch(@Valid @RequestBody List<T> entityList) {
         try {
+            beforeUpdateBatch(entityList);
             boolean success = service.updateBatchById(entityList);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success(Messages.get("web.crud.batch-update.detail", entityList.size()), Messages.get("web.crud.batch-update.success")));
+                return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.batch-update.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(ApiResponse.error(Messages.get("web.crud.batch-update.failed")));
@@ -281,21 +270,25 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      */
     @Operation(summary = "删除实体", description = "根据ID删除已存在的实体对象")
     @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "实体删除成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "实体删除成功"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "未找到指定实体")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable("id") @NotNull Serializable id) {
+    public ResponseEntity<ApiResponse<Boolean>> delete(@PathVariable("id") @NotNull Serializable id) {
         try {
+            beforeDelete(id);
             boolean success = service.removeById(id);
             if (success) {
-                return ResponseEntity.noContent().build();
+                afterDelete(id);
+                return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.delete.success")));
             } else {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error(404, Messages.get("web.crud.delete.not-found")));
             }
         } catch (Exception e) {
             log.error("删除实体失败", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(Messages.get("web.crud.delete.error", e.getMessage())));
         }
     }
 
@@ -306,11 +299,11 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      * @return 删除结果
      */
     @DeleteMapping("/batch")
-    public ResponseEntity<ApiResponse<String>> deleteBatch(@RequestBody List<? extends Serializable> ids) {
+    public ResponseEntity<ApiResponse<Boolean>> deleteBatch(@RequestBody List<? extends Serializable> ids) {
         try {
             boolean success = service.removeByIds(ids);
             if (success) {
-                return ResponseEntity.ok(ApiResponse.success(Messages.get("web.crud.batch-delete.detail", ids.size()), Messages.get("web.crud.batch-delete.success")));
+                return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.batch-delete.success")));
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(ApiResponse.error(Messages.get("web.crud.batch-delete.failed")));
@@ -339,45 +332,4 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         }
     }
 
-    /**
-     * 根据字段统计记录数
-     * 
-     * @param field 字段名
-     * @param value 字段值
-     * @return 记录数
-     */
-    @GetMapping("/count/{field}/{value}")
-    public ResponseEntity<ApiResponse<Long>> countByField(
-            @PathVariable("field") String field,
-            @PathVariable("value") String value) {
-        try {
-            long count = service.countByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(count, Messages.get("web.crud.count.success")));
-        } catch (Exception e) {
-            log.error("根据字段统计记录数失败", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(Messages.get("web.crud.count.failed", e.getMessage())));
-        }
-    }
-
-    /**
-     * 检查记录是否存在
-     * 
-     * @param field 字段名
-     * @param value 字段值
-     * @return 是否存在
-     */
-    @GetMapping("/exists/{field}/{value}")
-    public ResponseEntity<ApiResponse<Boolean>> existsByField(
-            @PathVariable("field") String field,
-            @PathVariable("value") String value) {
-        try {
-            boolean exists = service.existsByField(field, value);
-            return ResponseEntity.ok(ApiResponse.success(exists, Messages.get("web.crud.check.success")));
-        } catch (Exception e) {
-            log.error("检查记录存在性失败", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error(Messages.get("web.crud.check.failed", e.getMessage())));
-        }
-    }
 }

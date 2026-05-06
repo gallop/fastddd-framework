@@ -37,10 +37,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @EnableAutoConfiguration
 @TestPropertySource(properties = {
-    "fast-ddd.security.jwt.enabled=true",
-    "fast-ddd.security.jwt.secret=test-secret-key-for-jwt-token-generation-must-be-long-enough-for-hs512-algorithm",
-    "fast-ddd.security.jwt.expiration=3600000",
-    "fast-ddd.security.jwt.refresh-expiration=604800000"
+    "fastddd.security.jwt.enabled=true",
+    "fastddd.security.jwt.secret=test-secret-key-for-jwt-token-generation-must-be-long-enough-for-hs512-algorithm",
+    "fastddd.security.jwt.expiration=3600000",
+    "fastddd.security.jwt.refresh-expiration=604800000"
 })
 class SecurityIntegrationTest {
 

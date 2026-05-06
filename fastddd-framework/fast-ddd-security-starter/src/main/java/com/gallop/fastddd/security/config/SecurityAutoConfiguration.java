@@ -37,7 +37,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 @EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, SecurityHttpProperties.class})
-@ConditionalOnProperty(prefix = "fast-ddd.security.jwt", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "fastddd.security.jwt", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SecurityAutoConfiguration {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -154,7 +154,7 @@ public class SecurityAutoConfiguration {
      * <ul>
      *   <li>配置文件：application.yml, application-prod.yml</li>
      *   <li>环境变量：FASTDDD_SECURITY_CORS_*</li>
-     *   <li>命令行参数：--fast-ddd.security.cors.*</li>
+     *   <li>命令行参数：--fastddd.security.cors.*</li>
      * </ul>
      * <p>
      * 启动时会自动验证配置并打印详细日志，便于问题排查

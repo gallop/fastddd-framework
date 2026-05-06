@@ -24,7 +24,6 @@
     <mysql-connector.version>8.0.33</mysql-connector.version>
     <druid.version>1.2.20</druid.version>
     <!-- Cache -->
-    <redisson.version>3.24.3</redisson.version>
     <!-- Message Queue -->
     <rocketmq.version>2.2.3</rocketmq.version>
     <!-- Search -->
@@ -237,12 +236,6 @@
         <groupId>com.alibaba</groupId>
         <artifactId>druid-spring-boot-starter</artifactId>
         <version>${druid.version}</version>
-      </dependency>
-      <!-- Cache -->
-      <dependency>
-        <groupId>org.redisson</groupId>
-        <artifactId>redisson-spring-boot-starter</artifactId>
-        <version>${redisson.version}</version>
       </dependency>
       <!-- Message Queue -->
       <dependency>

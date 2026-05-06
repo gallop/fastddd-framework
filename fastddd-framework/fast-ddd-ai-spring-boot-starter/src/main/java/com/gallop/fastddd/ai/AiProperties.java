@@ -15,7 +15,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @since 1.0.0-SNAPSHOT
  */
 @Data
-@ConfigurationProperties(prefix = "fast-ddd.ai")
+@ConfigurationProperties(prefix = "fastddd.ai")
 public class AiProperties {
 
     /**

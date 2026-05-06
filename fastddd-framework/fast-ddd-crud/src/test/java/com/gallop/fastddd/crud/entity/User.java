@@ -1,7 +1,5 @@
 package com.gallop.fastddd.crud.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.gallop.fastddd.model.po.BasePO;
 import lombok.Data;
@@ -19,13 +17,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("t_user")
 public class User extends BasePO {
-    
-    /**
-     * Primary key
-     */
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    
+
     /**
      * Username
      */

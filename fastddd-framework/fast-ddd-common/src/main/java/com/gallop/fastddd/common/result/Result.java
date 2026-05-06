@@ -10,11 +10,16 @@ import java.time.LocalDateTime;
 
 /**
  * 通用响应结果类，用于统一API响应格式
- * 
+ *
+ * @deprecated Use {@link com.gallop.fastddd.web.response.ApiResponse} instead.
+ *             This class will be removed in version 2.0.
+ *             Migration: {@code Result.success(data)} → {@code ApiResponse.success(data)},
+ *             {@code Result.failure(message)} → {@code ApiResponse.error(message)}.
  * @author gallop
  * @since 2025-08-31
  * @version 1.0.0-SNAPSHOT
  */
+@Deprecated(forRemoval = true, since = "1.1.0")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -56,12 +57,19 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
         if (CollectionUtils.isEmpty(entityList)) {
             return false;
         }
-        
+        List<T> list = entityList instanceof List<T> l ? l : new ArrayList<>(entityList);
         try {
-            return baseMapper.batchInsert(entityList.stream().toList()) > 0;
+            for (int i = 0; i < list.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, list.size());
+                int affected = baseMapper.batchInsert(list.subList(i, end));
+                if (affected <= 0) {
+                    return false;
+                }
+            }
+            return true;
         } catch (Exception e) {
             log.error("批量保存失败", e);
-            return false;
+            throw e;
         }
     }
 
@@ -87,30 +95,36 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
         if (CollectionUtils.isEmpty(entityList)) {
             return false;
         }
-        
+        List<T> insertList = entityList.stream()
+                .filter(entity -> entity.getId() == null)
+                .toList();
+        List<T> updateList = entityList.stream()
+                .filter(entity -> entity.getId() != null)
+                .toList();
+
         try {
-            List<T> insertList = entityList.stream()
-                    .filter(entity -> entity.getId() == null)
-                    .toList();
-            List<T> updateList = entityList.stream()
-                    .filter(entity -> entity.getId() != null)
-                    .toList();
-            
-            boolean insertResult = true;
-            boolean updateResult = true;
-            
             if (!insertList.isEmpty()) {
-                insertResult = baseMapper.batchInsert(insertList) > 0;
+                for (int i = 0; i < insertList.size(); i += batchSize) {
+                    int end = Math.min(i + batchSize, insertList.size());
+                    int affected = baseMapper.batchInsert(insertList.subList(i, end));
+                    if (affected <= 0) {
+                        return false;
+                    }
+                }
             }
-            
             if (!updateList.isEmpty()) {
-                updateResult = baseMapper.batchUpdateById(updateList) > 0;
+                for (int i = 0; i < updateList.size(); i += batchSize) {
+                    int end = Math.min(i + batchSize, updateList.size());
+                    int affected = baseMapper.batchUpdateById(updateList.subList(i, end));
+                    if (affected <= 0) {
+                        return false;
+                    }
+                }
             }
-            
-            return insertResult && updateResult;
+            return true;
         } catch (Exception e) {
             log.error("批量保存或更新失败", e);
-            return false;
+            throw e;
         }
     }
 
@@ -159,12 +173,19 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
         if (CollectionUtils.isEmpty(entityList)) {
             return false;
         }
-        
+        List<T> list = entityList instanceof List<T> l ? l : new ArrayList<>(entityList);
         try {
-            return baseMapper.batchUpdateById(entityList.stream().toList()) > 0;
+            for (int i = 0; i < list.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, list.size());
+                int affected = baseMapper.batchUpdateById(list.subList(i, end));
+                if (affected <= 0) {
+                    return false;
+                }
+            }
+            return true;
         } catch (Exception e) {
             log.error("批量更新失败", e);
-            return false;
+            throw e;
         }
     }
 

@@ -33,7 +33,7 @@ class AiAutoConfigurationTest {
     @Test
     void testAiAutoConfigurationDisabledWhenPropertyFalse() {
         contextRunner
-                .withPropertyValues("fast-ddd.ai.enabled:false")
+                .withPropertyValues("fastddd.ai.enabled:false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(AiProperties.class);
                 });

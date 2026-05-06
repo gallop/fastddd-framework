@@ -13,7 +13,7 @@ import java.time.Duration;
  * @date 2025-01-10 15:30:00
  */
 @Data
-@ConfigurationProperties(prefix = "fast-ddd.security.jwt")
+@ConfigurationProperties(prefix = "fastddd.security.jwt")
 public class JwtProperties {
 
     /**

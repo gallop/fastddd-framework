@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@ConfigurationProperties(prefix = "fast-ddd.security.http")
+@ConfigurationProperties(prefix = "fastddd.security.http")
 public class SecurityHttpProperties {
 
     private List<String> permitAllPaths = new ArrayList<>(List.of(

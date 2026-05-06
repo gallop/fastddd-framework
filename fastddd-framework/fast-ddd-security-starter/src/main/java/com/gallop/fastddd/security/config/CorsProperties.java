@@ -42,7 +42,7 @@ import java.util.List;
 @Slf4j
 @Data
 @Component
-@ConfigurationProperties(prefix = "fast-ddd.security.cors")
+@ConfigurationProperties(prefix = "fastddd.security.cors")
 public class CorsProperties {
 
     /**
