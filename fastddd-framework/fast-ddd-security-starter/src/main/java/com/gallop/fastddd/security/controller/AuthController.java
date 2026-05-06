@@ -179,22 +179,34 @@ public class AuthController {
     @GetMapping("/userinfo")
     public ApiResponse<UserInfoResponse> getUserInfo() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // 优先从 token principal 获取 userId（新 Token）
+        Long userId = null;
         String username = authentication.getName();
 
-        log.debug("获取用户信息: {}", username);
-
-        SecurityUserDetails userDetails = identityService.loadUserByUsername(username);
-        if (userDetails == null) {
-            return ApiResponse.error(404, Messages.get("security.auth.user-not-found"));
+        if (authentication.getPrincipal() instanceof SecurityUserDetails) {
+            SecurityUserDetails principal = (SecurityUserDetails) authentication.getPrincipal();
+            userId = principal.getUserId();
         }
 
-        SecurityUserInfo user = identityService.getUserInfo(userDetails.getUserId());
+        // 旧 Token 无 userId，回退到 loadUserByUsername
+        if (userId == null) {
+            SecurityUserDetails userDetails = identityService.loadUserByUsername(username);
+            if (userDetails == null) {
+                return ApiResponse.error(404, Messages.get("security.auth.user-not-found"));
+            }
+            userId = userDetails.getUserId();
+        }
+
+        log.debug("获取用户信息: {}, userId: {}", username, userId);
+
+        SecurityUserInfo user = identityService.getUserInfo(userId);
         if (user == null) {
             return ApiResponse.error(404, Messages.get("security.auth.user-info-not-found"));
         }
 
-        List<String> roles = permissionService.getRolesByUserId(userDetails.getUserId());
-        List<String> permissions = permissionService.getPermissionsByUserId(userDetails.getUserId());
+        List<String> roles = permissionService.getRolesByUserId(userId);
+        List<String> permissions = permissionService.getPermissionsByUserId(userId);
 
         UserInfoResponse response = UserInfoResponse.builder()
                 .user(user)

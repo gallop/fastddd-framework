@@ -1,6 +1,7 @@
 package com.gallop.fastddd.security.jwt;
 
 import com.gallop.fastddd.security.channel.AuthChannel;
+import com.gallop.fastddd.security.spi.SecurityUserDetails;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -94,6 +95,12 @@ public class JwtTokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         claims.put("channel", channel.getCode());
+        if (userDetails instanceof SecurityUserDetails) {
+            Long userId = ((SecurityUserDetails) userDetails).getUserId();
+            if (userId != null) {
+                claims.put("userId", userId);
+            }
+        }
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -125,6 +132,22 @@ public class JwtTokenProvider {
     public java.util.List<String> getAuthoritiesFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         return (java.util.List<String>) claims.get("authorities");
+    }
+
+    /**
+     * 从Token中获取用户ID。
+     * 旧 Token 无 userId 字段时返回 null。
+     *
+     * @param token JWT Token
+     * @return 用户ID，旧 Token 返回 null
+     */
+    public Long getUserIdFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        Object userId = claims.get("userId");
+        if (userId instanceof Number) {
+            return ((Number) userId).longValue();
+        }
+        return null;
     }
 
     /**

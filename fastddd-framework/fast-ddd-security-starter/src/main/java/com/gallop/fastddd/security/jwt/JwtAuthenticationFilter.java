@@ -3,6 +3,7 @@ package com.gallop.fastddd.security.jwt;
 import com.gallop.fastddd.security.channel.AuthChannel;
 import com.gallop.fastddd.security.channel.AuthChannelContext;
 import com.gallop.fastddd.security.config.SecurityHttpProperties;
+import com.gallop.fastddd.security.spi.SecurityUserDetails;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -48,6 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtTokenProvider.getUsernameFromToken(jwt);
                 List<String> authorities = jwtTokenProvider.getAuthoritiesFromToken(jwt);
                 AuthChannel tokenChannel = jwtTokenProvider.getChannelFromToken(jwt);
+                Long userId = jwtTokenProvider.getUserIdFromToken(jwt);
 
                 // 通道校验：仅当应用配置了非 DEFAULT 通道时启用
                 AuthChannel appChannel = jwtProperties.getChannel();
@@ -72,13 +74,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .map(SimpleGrantedAuthority::new)
                             .collect(Collectors.toList());
 
+                    // 有 userId 时用 SecurityUserDetails 作 principal，便于业务层直接获取 userId
+                    Object principal = (userId != null)
+                            ? SecurityUserDetails.builder()
+                                .userId(userId)
+                                .username(username)
+                                .authorities(grantedAuthorities)
+                                .build()
+                            : username;
+
                     UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(username, null, grantedAuthorities);
+                            new UsernamePasswordAuthenticationToken(principal, null, grantedAuthorities);
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    log.debug("Successfully authenticated user: {}, channel: {}", username, tokenChannel);
+                    log.debug("Successfully authenticated user: {}, userId: {}, channel: {}", username, userId, tokenChannel);
                 }
             }
 

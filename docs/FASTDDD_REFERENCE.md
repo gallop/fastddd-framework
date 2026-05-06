@@ -86,6 +86,7 @@ public class Order extends BasePO {
 - 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `BasePO` 提供
 - ID 策略通过全局配置 `mybatis-plus.global-config.db-config.id-type` 控制，子类可重新声明 `id` 覆盖
 - 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
+- `BasePO.id` 类型为 `Serializable`（兼容 Long/String 等），框架自动注册 `SerializableTypeHandler`，MyBatis-Plus 结果映射无需额外配置
 
 ### 2. 充血模型 — AggregateRoot (fast-ddd-common)
 
@@ -306,7 +307,7 @@ fastddd:
 
 ### SPI 接口（业务实现）
 
-框架提供默认 Stub 实现，业务项目通过 `@Service` 实现 SPI 接口自动替换（基于 `@ConditionalOnMissingBean`）:
+安全模块使用 `@AutoConfiguration`（deferred import），确保 `@ConditionalOnMissingBean` 能正确检测到业务项目中通过 `@Service` 注册的 SPI 实现。业务项目无需添加 `@Import`，只需正常声明 `@Service` 即可自动替换框架默认实现。
 
 ```java
 // 1. 身份服务 — 替换 DefaultSecurityIdentityService
@@ -700,10 +701,13 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   global-config:
     db-config:
+      id-type: assign_id            # 雪花算法（推荐），不配则默认 AUTO
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
 ```
+
+> `BasePO.id` 类型为 `Serializable`，框架在 `FastDddCrudAutoConfiguration` 中自动注册 `SerializableTypeHandler`，将 JDBC 返回的 Long/String 等类型自动适配为 Serializable，无需手动配置 TypeHandler。
 
 ---
 
@@ -866,7 +870,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
 | BasePO 子类 | 不重复声明 id/createTime/updateTime/deleted | 重复声明导致类型冲突 |
 | 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
-| Security SPI 实现 | 用 `@Service`，不要加额外注解 | 加 `@Component`（可能与 AutoConfig 冲突） |
+| Security SPI 实现 | 用 `@Service` 即可，框架通过 `@AutoConfiguration` 自动检测 | 加 `@Import` 或 `@Component`（多此一举） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
 
 ---

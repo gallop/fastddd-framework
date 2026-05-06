@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -38,10 +39,13 @@ import java.util.List;
 /**
  * FastDDD安全模块自动配置
  *
+ * <p>使用 @AutoConfiguration 确保作为 deferred import 处理，
+ * 保证 @ConditionalOnMissingBean 能检测到用户通过 @Service 注册的 SPI 实现。
+ *
  * @author gallop
  * @date 2025-01-10 15:30:00
  */
-@Configuration
+@AutoConfiguration
 @Import({
     SecurityAutoConfiguration.class,
     AuditLogConfiguration.class
@@ -83,13 +87,13 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(SecurityIdentityService.class)
     public SecurityIdentityService securityIdentityService() {
         return new DefaultSecurityIdentityService();
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(SecurityPermissionService.class)
     public SecurityPermissionService securityPermissionService() {
         return new DefaultSecurityPermissionService();
     }

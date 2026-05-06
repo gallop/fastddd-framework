@@ -14,7 +14,8 @@ CREATE TABLE t_user (
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     create_user VARCHAR(50),
-    update_user VARCHAR(50)
+    update_user VARCHAR(50),
+    deleted TINYINT DEFAULT 0
 );
 
 -- Create indexes for better query performance
