@@ -184,18 +184,19 @@ public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implem
 }
 ```
 
-**BaseRepository 内置查询方法**（无需手写 SQL）:
+**BaseRepository 内置查询方法**（无需手写 SQL，字段名支持 Java 驼峰自动映射）:
 - `selectOneByField("username", "admin")` → `Optional<T>`
 - `selectListByField("status", 1)` → `List<T>`
-- `selectListByFieldLike("name", "%test%")` → `List<T>`
-- `selectListByFieldIn("id", ids)` → `List<T>`
-- `selectListByFields(Map<String, Object>)` → `List<T>`
+- `selectListByFieldLike("nickname", "%张%")` → `List<T>`
+- `selectListByFieldIn("status", List.of(1,2,3))` → `List<T>`
+- `selectListByFields("status", 1, "department", "IT")` → `List<T>`（AND 条件）
 - `existsByField("username", "admin")` → `boolean`
 - `countByField("status", 1)` → `long`
-- `countByField("username", "admin")` → `long`
 - `deleteByField("status", 0)` → `int`
 - `batchInsert(List<T>)` → 批量插入
 - `batchUpdateById(List<T>)` → 批量更新
+
+> **字段名约定**：`*ByField` 方法的 `field` 参数写 Java 驼峰名（如 `createTime`、`isDefault`），框架自动转为数据库列名（`create_time`、`is_default`）。传入 snake_case 也兼容。
 
 ### 4. Web 层 (fast-ddd-web)
 
@@ -226,6 +227,16 @@ public class OrderController extends BaseController<OrderService, Order> {
 ```json
 { "code": 200, "message": "操作成功", "data": {...}, "timestamp": 1704067200000 }
 ```
+
+**ID 路径变量自动类型转换**：`GET /{id}`、`PUT /{id}`、`DELETE /{id}` 端点的路径变量已自动处理类型转换。框架根据实体的 MyBatis-Plus `TableInfo.idType` 判断 ID 类型：
+
+| `id-type` 配置 | URL 路径 `/{id}` | 控制器收到的类型 |
+|----------------|-------------------|-----------------|
+| `assign_id`（雪花算法，推荐） | `/api/users/18956483271045` | `Long` |
+| `auto`（数据库自增） | `/api/users/123` | `Long` |
+| `assign_uuid` | `/api/orders/a1b2c3d4-...` | `String` |
+
+业务项目**无需任何额外配置**，ID 转换由 `BaseController.resolveId()` 自动完成。覆写端点时参数改为 `String idStr` 并调用 `resolveId(idStr)` 即可。
 
 启用自动包装: 在 `Application` 类上加 `@EnableApiResponseWrapper`
 
@@ -276,7 +287,31 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ## 安全模块 (fast-ddd-security-starter)
 
-### 配置项
+### 快速集成指南
+
+#### 1. 引入依赖
+
+```xml
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-starter</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-security-starter</artifactId>
+</dependency>
+```
+
+#### 2. 启动类
+
+```java
+@SpringBootApplication(scanBasePackages = "com.example.app")
+@MapperScan("com.example.app")    // 必须加！BaseRepository 底层是 BaseMapper，不会自动扫描
+@EnableApiResponseWrapper
+public class Application { ... }
+```
+
+#### 3. YAML 配置
 
 ```yaml
 fastddd:
@@ -284,9 +319,9 @@ fastddd:
     jwt:
       enabled: true
       secret: your-secret-key-at-least-64-bytes-long!!
-      expiration: 24h          # Duration 类型，需带单位: s/m/h/d
+      expiration: 24h          # Duration 类型，必须带单位: s/m/h/d
       refresh-expiration: 7d
-      channel: ADMIN           # 多端通道: DEFAULT/ADMIN/CUSTOMER/MERCHANT
+      channel: DEFAULT         # 多端通道: DEFAULT/ADMIN/CUSTOMER/MERCHANT
       strict-channel: false    # 严格模式下 DEFAULT 令牌也会被拒绝
     cors:
       enabled: true
@@ -298,51 +333,143 @@ fastddd:
         - PUT
         - DELETE
         - OPTIONS
-      max-age: 3600s           # Duration 类型，需带单位
+      max-age: 3600s           # Duration 类型，必须带单位
     http:
-      permit-all-paths:
-        - /api/auth/**
+      permit-all-paths:        # 精确放行，不要用 /api/auth/** 通配符
+        - /api/auth/login
+        - /api/auth/refresh
         - /actuator/health
 ```
 
-### SPI 接口（业务实现）
+**配置注意点**:
+- 前缀是 `fastddd:`，不是 `fast-ddd:`
+- 所有 Duration 字段必须带单位后缀 (`s`/`m`/`h`/`d`)
+- `permit-all-paths` 不要写 `/api/auth/**`，否则 `/api/auth/userinfo` 也会被跳过 JWT 认证，导致 principal 为 `anonymousUser`
 
-安全模块使用 `@AutoConfiguration`（deferred import），确保 `@ConditionalOnMissingBean` 能正确检测到业务项目中通过 `@Service` 注册的 SPI 实现。业务项目无需添加 `@Import`，只需正常声明 `@Service` 即可自动替换框架默认实现。
+#### 4. 实体类
+
+```java
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
+@TableName("t_user")
+public class User extends BasePO {
+    // 不要重新声明 id 字段！BasePO 已有 protected Serializable id
+    // 框架通过 SerializableTypeHandler 自动处理 Long ↔ Serializable 转换
+
+    private String username;
+    private String passwordHash;
+    private String nickname;
+    private String role;
+    private Integer status;
+}
+```
+
+#### 5. 实现 SPI（两个 @Service）
+
+安全模块使用 `@AutoConfiguration`（deferred import），业务项目只需 `@Service` 声明即可自动替换框架默认实现，无需 `@Import`。
 
 ```java
 // 1. 身份服务 — 替换 DefaultSecurityIdentityService
 @Service
+@RequiredArgsConstructor
 public class AppIdentityService implements SecurityIdentityService {
+
+    private final UserMapper userMapper;
+
     @Override
-    public SecurityUserDetails loadUserByUsername(String username) { ... }
+    public SecurityUserDetails loadUserByUsername(String username) {
+        return userMapper.selectOneByField("username", username)   // 字段名用 Java 驼峰
+                .map(user -> SecurityUserDetails.builder()
+                        .userId((Long) user.getId())               // userId 会写入 JWT claims
+                        .username(user.getUsername())
+                        .password(user.getPasswordHash())
+                        .enabled(user.getStatus() != null && user.getStatus() == 1)
+                        .authorities(List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())))
+                        .build())
+                .orElse(null);
+    }
+
     @Override
-    public SecurityUserInfo getUserInfo(Long userId) { ... }
+    public SecurityUserInfo getUserInfo(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) return null;
+        return SecurityUserInfo.builder()
+                .id((Long) user.getId())
+                .username(user.getUsername())
+                .realName(user.getNickname())
+                .enabled(user.getStatus() != null && user.getStatus() == 1)
+                .status(user.getStatus())
+                .build();
+    }
 }
 
 // 2. 权限服务 — 替换 DefaultSecurityPermissionService
 @Service
+@RequiredArgsConstructor
 public class AppPermissionService implements SecurityPermissionService {
+
+    private final UserMapper userMapper;
+
     @Override
-    public List<String> getPermissionsByUserId(Long userId) { ... }
+    public List<String> getPermissionsByUserId(Long userId) {
+        return List.of("*");
+    }
+
     @Override
-    public List<String> getRolesByUserId(Long userId) { ... }
+    public List<String> getRolesByUserId(Long userId) {
+        User user = userMapper.selectById(userId);
+        return user != null ? List.of(user.getRole()) : List.of();
+    }
+}
+```
+
+**关键**：`SecurityUserDetails.builder()` 必须设置 `userId`，框架会将其写入 JWT claims。后续请求中 `JwtAuthenticationFilter` 自动从 Token 提取 userId 作为 principal，`/api/auth/userinfo` 无需再通过 username 回查。
+
+#### 6. 自动获得的能力
+
+完成上述配置后，框架自动提供:
+
+| 能力 | 说明 |
+|------|------|
+| `POST /api/auth/login` | 登录，返回 accessToken + refreshToken + 用户信息 + 权限 |
+| `POST /api/auth/logout` | 登出（清除 SecurityContext） |
+| `POST /api/auth/refresh` | Token 续期 |
+| `GET /api/auth/userinfo` | 当前用户信息（需 Bearer Token，优先用 JWT 中的 userId） |
+| `createUser/updateUser` | CRUD 审计字段自动填充当前登录用户名 |
+| `SecurityFilterChain` | JWT 验证 + CORS + 路径白名单 |
+
+#### 7. 在业务代码中获取当前用户
+
+```java
+import com.gallop.fastddd.security.spi.SecurityUserDetails;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+// 方式一：从 Authentication principal 获取（推荐，零 DB 查询）
+Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+if (auth.getPrincipal() instanceof SecurityUserDetails details) {
+    Long userId = details.getUserId();       // 来自 JWT claims
+    String username = details.getUsername();
 }
 
-// 3. 认证策略 — 自动注册到 AuthStrategyRegistry
+// 方式二：仅获取用户名
+String username = auth.getName();
+
+// 方式三：审计字段自动填充 — 直接使用 CurrentUserProvider
+@Autowired private CurrentUserProvider currentUserProvider;
+String currentUserId = currentUserProvider.getCurrentUserId();
+```
+
+### 认证策略扩展
+
+```java
+// 自动注册到 AuthStrategyRegistry
 @Component
 public class SmsAuthStrategy implements AuthStrategy {
     @Override public String getType() { return "sms"; }
     @Override public Authentication authenticate(AuthenticationRequest request) { ... }
 }
 ```
-
-### 内置认证端点
-
-框架自动注册 `AuthController` (`/api/auth/*`)，支持策略路由:
-- `POST /api/auth/login` — 登录（自动识别 password/sms/wechat-mini 策略）
-- `POST /api/auth/logout` — 登出
-- `POST /api/auth/refresh` — 刷新 Token
-- `GET /api/auth/userinfo` — 获取当前用户信息
 
 ### 审计日志
 
@@ -870,7 +997,11 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
 | BasePO 子类 | 不重复声明 id/createTime/updateTime/deleted | 重复声明导致类型冲突 |
 | 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
-| Security SPI 实现 | 用 `@Service` 即可，框架通过 `@AutoConfiguration` 自动检测 | 加 `@Import` 或 `@Component`（多此一举） |
+| Security SPI 实现 | 用 `@Service` 即可，框架自动检测 | 加 `@Import` 或 `@Component` |
+| SecurityUserDetails | builder 必须设 userId（写入 JWT） | 不设 userId → /userinfo 无法直接查询 |
+| permit-all-paths | 精确放行 `/api/auth/login` | 写 `/api/auth/**`（userinfo 被跳过认证） |
+| @MapperScan | 启动类必须加 | 缺失 → BaseRepository 不注册 |
+| *ByField 字段名 | 传 Java 驼峰 `"createTime"` | 传数据库列名 `"create_time"`（也兼容，但不推荐） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
 
 ---

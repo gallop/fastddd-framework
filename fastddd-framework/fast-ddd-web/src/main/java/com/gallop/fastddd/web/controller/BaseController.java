@@ -1,6 +1,8 @@
 package com.gallop.fastddd.web.controller;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gallop.fastddd.crud.service.IService;
 import com.gallop.fastddd.model.po.BasePO;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.io.Serializable;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +42,57 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
 
     @Autowired
     protected S service;
+
+    private final Class<?> entityClass;
+
+    protected BaseController() {
+        this.entityClass = resolveEntityClass();
+    }
+
+    private Class<?> resolveEntityClass() {
+        Class<?> clazz = this.getClass();
+        while (clazz != Object.class) {
+            Type type = clazz.getGenericSuperclass();
+            if (type instanceof ParameterizedType pt) {
+                Type[] args = pt.getActualTypeArguments();
+                if (args.length > 1 && args[1] instanceof Class<?> c) {
+                    return c;
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
+    }
+
+    /**
+     * 根据实体 MyBatis-Plus TableInfo 的 ID 策略，将 URL 路径字符串转换为正确的 ID 类型。
+     * - ASSIGN_ID / AUTO (数字型) → Long
+     * - ASSIGN_UUID / INPUT (字符串型) → 保持 String
+     * - 无 TableInfo → 启发式尝试 Long，失败则保持 String
+     */
+    protected Serializable resolveId(String idStr) {
+        if (entityClass != null) {
+            var tableInfo = TableInfoHelper.getTableInfo(entityClass);
+            if (tableInfo != null) {
+                IdType idType = tableInfo.getIdType();
+                if (idType == IdType.ASSIGN_ID || idType == IdType.AUTO) {
+                    try {
+                        return Long.parseLong(idStr);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Invalid numeric ID: " + idStr);
+                    }
+                }
+                // ASSIGN_UUID / INPUT / NONE → keep String
+                return idStr;
+            }
+        }
+        // Fallback: no metadata available
+        try {
+            return Long.parseLong(idStr);
+        } catch (NumberFormatException e) {
+            return idStr;
+        }
+    }
 
     // ==================== Lifecycle Hooks ====================
     // Hooks run at the Controller layer (outside @Transactional).
@@ -124,8 +179,9 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      * @return 实体对象
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<T>> getById(@PathVariable("id") @NotNull Serializable id) {
+    public ResponseEntity<ApiResponse<T>> getById(@PathVariable("id") @NotNull String idStr) {
         try {
+            Serializable id = resolveId(idStr);
             Optional<T> entityOpt = service.getById(id);
             if (entityOpt.isPresent()) {
                 return ResponseEntity.ok(ApiResponse.success(entityOpt.get(), Messages.get("web.crud.query.success")));
@@ -188,9 +244,10 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<T>> updateById(
-            @PathVariable("id") @NotNull Serializable id,
+            @PathVariable("id") @NotNull String idStr,
             @Valid @RequestBody T entity) {
         try {
+            Serializable id = resolveId(idStr);
             // URL path id is authoritative — overwrites any id from request body
             entity.setId(id);
             beforeUpdate(id, entity);
@@ -274,8 +331,9 @@ public abstract class BaseController<S extends IService<T>, T extends BasePO> {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "未找到指定实体")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Boolean>> delete(@PathVariable("id") @NotNull Serializable id) {
+    public ResponseEntity<ApiResponse<Boolean>> delete(@PathVariable("id") @NotNull String idStr) {
         try {
+            Serializable id = resolveId(idStr);
             beforeDelete(id);
             boolean success = service.removeById(id);
             if (success) {
