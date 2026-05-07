@@ -168,11 +168,17 @@ public class OrderRepositoryImpl implements EntityRepository<Order, Long> {
 
 ```java
 // Mapper — 继承 BaseRepository 获得通用查询方法
+// BaseRepository<T> 不要求 T 继承 BasePO，任何实体都能用
 public interface OrderMapper extends BaseRepository<Order> {
     // 自动继承: selectOneByField, selectListByField, existsByField, deleteByField 等
 }
 
-// Service 接口
+// 不继承 BasePO 的纯数据表也能直接用 BaseRepository
+public interface VaccineScheduleMapper extends BaseRepository<VaccineSchedule> {
+    // 便捷查询方法同样可用，无需 BasePO 审计字段
+}
+
+// Service 接口 — 框架 IService 要求 T extends BasePO
 public interface OrderService extends IService<Order> {
     // 继承: save, removeById, updateById, getById, list, page, getByField 等
 }
@@ -197,6 +203,8 @@ public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implem
 - `batchUpdateById(List<T>)` → 批量更新
 
 > **字段名约定**：`*ByField` 方法的 `field` 参数写 Java 驼峰名（如 `createTime`、`isDefault`），框架自动转为数据库列名（`create_time`、`is_default`）。传入 snake_case 也兼容。
+
+> **泛型约束说明**：`BaseRepository<T>` 对 `T` 无约束（不要求继承 BasePO），便捷查询方法适用于任何实体表。`BaseServiceImpl<M, T>` 和 `IService<T>` 仍要求 `T extends BasePO`，因为 Service 层需要审计字段自动填充。纯数据表（无审计字段）用 Mapper 层即可，不需要走框架 Service 层。
 
 ### 4. Web 层 (fast-ddd-web)
 
