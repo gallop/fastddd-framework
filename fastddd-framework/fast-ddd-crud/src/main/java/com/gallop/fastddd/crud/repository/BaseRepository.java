@@ -2,7 +2,6 @@ package com.gallop.fastddd.crud.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.gallop.fastddd.model.po.BasePO;
 
 import java.io.Serializable;
 import java.util.List;
@@ -10,14 +9,18 @@ import java.util.Optional;
 
 /**
  * 扩展MyBatis Plus BaseMapper的基础仓储接口。
- * 为扩展BasePO的实体提供额外的常用查询方法。
- * 
- * @param <T> 扩展BasePO的实体类型
+ * 提供按字段查询、批量操作等便捷方法，不要求实体继承 BasePO。
+ *
+ * <p>继承 BasePO 的实体可通过 {@code BaseRepository<XxxPO>} 配合框架 IService 使用；
+ * 纯数据表（无审计字段、无软删除）可直接使用 {@code BaseRepository<XxxTable>}，
+ * 享受便捷查询方法而无需继承 BasePO。</p>
+ *
+ * @param <T> 实体类型
  * @author gallop
  * @since 2025-08-31
  * @version 1.0.0-SNAPSHOT
  */
-public interface BaseRepository<T extends BasePO> extends BaseMapper<T> {
+public interface BaseRepository<T> extends BaseMapper<T> {
 
     /**
      * 将 Java 字段名转为数据库列名（camelCase → snake_case）。
