@@ -55,7 +55,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 AuthChannel appChannel = jwtProperties.getChannel();
                 boolean strictMode = jwtProperties.isStrictChannel();
                 boolean channelMismatch = appChannel != null && appChannel != AuthChannel.DEFAULT
-                        && tokenChannel != appChannel;
+                        && tokenChannel != appChannel
+                        && !(tokenChannel == AuthChannel.DEFAULT && !strictMode);
                 boolean blockedByStrictMode = strictMode && tokenChannel == AuthChannel.DEFAULT
                         && appChannel != AuthChannel.DEFAULT;
                 if (channelMismatch || blockedByStrictMode) {
