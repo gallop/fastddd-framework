@@ -113,6 +113,12 @@ public class SecurityAutoConfiguration {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
 
+            // Security 6.x 默认不自动保存 SecurityContext，导致 DeferredResult 等
+            // 异步分派丢失认证信息。启用隐式保存以支持异步请求。
+            .securityContext(context -> context
+                .requireExplicitSave(false)
+            )
+
             // 配置异常处理
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
