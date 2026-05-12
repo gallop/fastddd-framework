@@ -345,14 +345,23 @@ fastddd:
     http:
       permit-all-paths:        # 精确放行，不要用 /api/auth/** 通配符
         - /api/auth/login
+        - /api/auth/code/send
         - /api/auth/refresh
         - /actuator/health
+    code:
+      enabled: true
+      length: 6
+      ttl: 5m                  # 验证码有效期
+      max-attempts: 5          # 单个验证码最大校验次数
+      resend-interval: 60s     # 同一目标重复发送间隔
+      dev-mode: false          # true 时注册 Noop sender，仅打印验证码日志
 ```
 
 **配置注意点**:
 - 前缀是 `fastddd:`，不是 `fast-ddd:`
 - 所有 Duration 字段必须带单位后缀 (`s`/`m`/`h`/`d`)
 - `permit-all-paths` 不要写 `/api/auth/**`，否则 `/api/auth/userinfo` 也会被跳过 JWT 认证，导致 principal 为 `anonymousUser`
+- 验证码发送接口 `/api/auth/code/send` 必须允许未登录访问；生产环境必须提供真实的 `VerificationCodeSender`
 
 #### 4. 实体类
 
@@ -434,6 +443,57 @@ public class AppPermissionService implements SecurityPermissionService {
 
 **关键**：`SecurityUserDetails.builder()` 必须设置 `userId`，框架会将其写入 JWT claims。后续请求中 `JwtAuthenticationFilter` 自动从 Token 提取 userId 作为 principal，`/api/auth/userinfo` 无需再通过 username 回查。
 
+如需支持短信验证码或邮箱验证码登录，实现 `CodeLoginIdentityService`，提供手机号/邮箱到用户的查询能力:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class AppIdentityService implements SecurityIdentityService, CodeLoginIdentityService {
+    private final UserMapper userMapper;
+
+    @Override
+    public SecurityUserDetails loadUserByPhone(String phone) {
+        return userMapper.selectOneByField("phone", phone)
+                .map(this::toUserDetails)
+                .orElse(null);
+    }
+
+    @Override
+    public SecurityUserDetails loadUserByEmail(String email) {
+        return userMapper.selectOneByField("email", email)
+                .map(this::toUserDetails)
+                .orElse(null);
+    }
+
+    private SecurityUserDetails toUserDetails(User user) {
+        return SecurityUserDetails.builder()
+                .userId((Long) user.getId())
+                .username(user.getUsername())
+                .password(user.getPasswordHash())
+                .enabled(user.getStatus() != null && user.getStatus() == 1)
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())))
+                .build();
+    }
+}
+```
+
+验证码发送通道通过 `VerificationCodeSender` 接入，框架不绑定具体短信/邮件服务商:
+
+```java
+@Component
+public class EmailVerificationCodeSender implements VerificationCodeSender {
+    @Override
+    public VerificationCodeType getType() {
+        return VerificationCodeType.EMAIL;
+    }
+
+    @Override
+    public void send(String target, String code, VerificationCodePurpose purpose) {
+        // 调用邮件服务商发送验证码
+    }
+}
+```
+
 #### 6. 自动获得的能力
 
 完成上述配置后，框架自动提供:
@@ -441,6 +501,7 @@ public class AppPermissionService implements SecurityPermissionService {
 | 能力 | 说明 |
 |------|------|
 | `POST /api/auth/login` | 登录，返回 accessToken + refreshToken + 用户信息 + 权限 |
+| `POST /api/auth/code/send` | 发送短信/邮箱验证码，默认未登录可访问 |
 | `POST /api/auth/logout` | 登出（清除 SecurityContext） |
 | `POST /api/auth/refresh` | Token 续期 |
 | `GET /api/auth/userinfo` | 当前用户信息（需 Bearer Token，优先用 JWT 中的 userId） |
@@ -470,11 +531,71 @@ String currentUserId = currentUserProvider.getCurrentUserId();
 
 ### 认证策略扩展
 
+框架内置三种登录策略:
+
+| type | 说明 | 请求参数 |
+|------|------|----------|
+| `password` | 账号密码登录，未指定 `type` 时默认使用 | `username` + `password` |
+| `sms_code` | 手机短信验证码登录 | `extra.phone` + `extra.code` |
+| `email_code` | 邮箱验证码登录 | `extra.email` + `extra.code` |
+
+发送验证码:
+
+```http
+POST /api/auth/code/send
+Content-Type: application/json
+
+{
+  "type": "email",
+  "target": "user@example.com",
+  "purpose": "login"
+}
+```
+
+邮箱验证码登录:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "type": "email_code",
+  "extra": {
+    "email": "user@example.com",
+    "code": "123456"
+  }
+}
+```
+
+短信验证码登录:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "type": "sms_code",
+  "extra": {
+    "phone": "13800138000",
+    "code": "123456"
+  }
+}
+```
+
+验证码登录注意:
+- `AuthenticationRequest.type` 是认证策略的显式路由字段，不再通过 `extra.smsCode` 等字段猜测策略
+- 验证码会哈希存储，校验成功后立即消费，失败次数超过 `max-attempts` 会删除
+- 默认 `InMemoryVerificationCodeStore` 适合单体/开发环境；分布式生产环境建议自定义 `VerificationCodeStore` 或接入 Redis
+- 如需 IP、设备、每日次数等防刷策略，实现 `VerificationCodeRateLimiter`
+- `fastddd.security.code.dev-mode=true` 会注册 Noop sender，仅用于开发环境日志查看验证码
+
+自定义认证策略仍可通过 `AuthStrategy` 扩展:
+
 ```java
 // 自动注册到 AuthStrategyRegistry
 @Component
-public class SmsAuthStrategy implements AuthStrategy {
-    @Override public String getType() { return "sms"; }
+public class CustomAuthStrategy implements AuthStrategy {
+    @Override public String getType() { return "custom"; }
     @Override public Authentication authenticate(AuthenticationRequest request) { ... }
 }
 ```
@@ -908,8 +1029,9 @@ generated-project/
 ```
 
 每个子应用自动生成:
-- Security SPI 实现 (`AppIdentityService`)
-- 按需生成认证策略 (`SmsAuthStrategy`, `WechatMiniAuthStrategy`)
+- Security SPI 实现 (`AppIdentityService`，多端模板会实现 `CodeLoginIdentityService`)
+- 短信/邮箱验证码策略由 `fast-ddd-security-starter` 内置，业务项目按需实现 `VerificationCodeSender`
+- 按需生成微信认证策略 (`WechatMiniAuthStrategy`)
 - 独立 JWT Secret + Channel 隔离
 - Dockerfile + nginx 配置
 
@@ -1007,7 +1129,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
 | Security SPI 实现 | 用 `@Service` 即可，框架自动检测 | 加 `@Import` 或 `@Component` |
 | SecurityUserDetails | builder 必须设 userId（写入 JWT） | 不设 userId → /userinfo 无法直接查询 |
-| permit-all-paths | 精确放行 `/api/auth/login` | 写 `/api/auth/**`（userinfo 被跳过认证） |
+| permit-all-paths | 精确放行 `/api/auth/login`、`/api/auth/code/send` | 写 `/api/auth/**`（userinfo 被跳过认证） |
 | @MapperScan | 启动类必须加 | 缺失 → BaseRepository 不注册 |
 | *ByField 字段名 | 传 Java 驼峰 `"createTime"` | 传数据库列名 `"create_time"`（也兼容，但不推荐） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |

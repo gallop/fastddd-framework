@@ -990,7 +990,7 @@ my-project/                        ← Maven 父工程
 │   ├── src/.../security/          ← AppIdentityService
 │   └── src/.../controller/
 ├── customer-api/                  ← 客户端 (8081)
-│   ├── src/.../security/          ← AppIdentityService + SmsAuthStrategy
+│   ├── src/.../security/          ← AppIdentityService
 │   └── src/.../controller/
 ├── docker-compose.yml
 └── docker/nginx/default.conf
@@ -1032,18 +1032,33 @@ fast-ddd:
 
 | 策略 | type | 触发条件 | 生成条件 |
 |------|------|---------|---------|
-| 密码 | `password` | 默认 | 框架内置，无需生成 |
-| 短信验证码 | `sms` | extra 中含 `smsCode` | 通道策略含 `sms` |
-| 微信小程序 | `wechat-mini` | extra 中含 `wechatCode` | 通道策略含 `wechat-mini` |
+| 密码 | `password` | 未指定 type 时默认 | 框架内置，无需生成 |
+| 短信验证码 | `sms_code` | 显式传入 `type=sms_code`，extra 中含 `phone` + `code` | 框架内置，业务实现 `VerificationCodeSender` |
+| 邮箱验证码 | `email_code` | 显式传入 `type=email_code`，extra 中含 `email` + `code` | 框架内置，业务实现 `VerificationCodeSender` |
+| 微信小程序 | `wechat-mini` | 显式传入 `type=wechat-mini`，extra 中含 `wechatCode` | 通道策略含 `wechat-mini` |
 
-登录接口统一为 `POST /api/auth/login`，框架自动根据请求参数路由到对应策略。
+登录接口统一为 `POST /api/auth/login`，框架根据请求中的 `type` 路由到对应策略；未传 `type` 时使用 `password`。
+
+验证码发送接口:
+
+```text
+POST /api/auth/code/send
+```
+
+```json
+{
+  "type": "email",
+  "target": "user@example.com",
+  "purpose": "login"
+}
+```
 
 ### 生成的 Security 组件
 
 每个子应用会生成:
 
 - `AppIdentityService.java` — 实现 `SecurityIdentityService`，连接 common-user 模块
-- `SmsAuthStrategy.java` — (可选) 短信验证码认证
+- `AppIdentityService.java` 同时实现 `CodeLoginIdentityService`，提供手机号/邮箱验证码登录所需查询
 - `WechatMiniAuthStrategy.java` — (可选) 微信小程序认证
 
 ### 部署

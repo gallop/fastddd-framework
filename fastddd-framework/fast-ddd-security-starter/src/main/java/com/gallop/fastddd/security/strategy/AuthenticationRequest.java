@@ -15,6 +15,12 @@ import java.util.Map;
 @Data
 public class AuthenticationRequest {
 
+    /**
+     * 认证策略类型：password / sms_code / email_code / wechat_mini 等。
+     * 未设置时默认使用 password，避免通过 extra 字段隐式猜测认证方式。
+     */
+    private String type;
+
     private String username;
     private String password;
     private AuthChannel channel;

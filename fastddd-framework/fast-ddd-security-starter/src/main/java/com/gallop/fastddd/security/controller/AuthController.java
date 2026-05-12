@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -78,7 +77,9 @@ public class AuthController {
 
             // 3. 获取用户详情
             String authenticatedUsername = authentication.getName();
-            SecurityUserDetails userDetails = identityService.loadUserByUsername(authenticatedUsername);
+            SecurityUserDetails userDetails = authentication.getPrincipal() instanceof SecurityUserDetails details
+                    ? details
+                    : identityService.loadUserByUsername(authenticatedUsername);
             if (userDetails == null) {
                 return ApiResponse.error(401, Messages.get("security.auth.user-not-found"));
             }
@@ -218,13 +219,11 @@ public class AuthController {
     }
 
     /**
-     * 根据 extra 内容自动识别策略类型
+     * 根据请求中的显式 type 选择认证策略。
      */
     private String resolveStrategyType(AuthenticationRequest request) {
-        Map<String, String> extra = request.getExtra();
-        if (extra != null) {
-            if (extra.containsKey("wechatCode")) return "wechat-mini";
-            if (extra.containsKey("smsCode")) return "sms";
+        if (request.getType() != null && !request.getType().isBlank()) {
+            return request.getType();
         }
         return "password";
     }

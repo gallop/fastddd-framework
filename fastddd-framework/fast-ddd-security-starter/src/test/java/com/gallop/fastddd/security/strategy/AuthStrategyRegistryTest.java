@@ -28,7 +28,8 @@ class AuthStrategyRegistryTest {
     void setUp() {
         List<AuthStrategy> strategies = Arrays.asList(
                 new MockPasswordStrategy(),
-                new MockSmsStrategy(),
+                new MockSmsCodeStrategy(),
+                new MockEmailCodeStrategy(),
                 new MockWechatStrategy()
         );
         registry = new AuthStrategyRegistry(strategies);
@@ -39,8 +40,9 @@ class AuthStrategyRegistryTest {
     @Test
     void testGetStrategyByType() {
         assertNotNull(registry.getStrategy("password"));
-        assertNotNull(registry.getStrategy("sms"));
-        assertNotNull(registry.getStrategy("wechat-mini"));
+        assertNotNull(registry.getStrategy("sms_code"));
+        assertNotNull(registry.getStrategy("email_code"));
+        assertNotNull(registry.getStrategy("wechat_mini"));
         assertNull(registry.getStrategy("unknown"));
     }
 
@@ -60,10 +62,10 @@ class AuthStrategyRegistryTest {
     void testGetStrategiesForChannel() {
         // wechat-mini 不支持 ADMIN 通道
         List<AuthStrategy> adminStrategies = registry.getStrategiesForChannel(AuthChannel.ADMIN);
-        assertEquals(2, adminStrategies.size()); // password + sms
+        assertEquals(3, adminStrategies.size()); // password + sms_code + email_code
 
         List<AuthStrategy> customerStrategies = registry.getStrategiesForChannel(AuthChannel.CUSTOMER);
-        assertEquals(3, customerStrategies.size()); // password + sms + wechat-mini
+        assertEquals(4, customerStrategies.size()); // password + sms_code + email_code + wechat_mini
     }
 
     // ---- AuthenticationRequest 测试 ----
@@ -71,13 +73,13 @@ class AuthStrategyRegistryTest {
     @Test
     void testAuthenticationRequestExtraParams() {
         AuthenticationRequest request = new AuthenticationRequest();
-        assertNull(request.getExtraParam("smsCode"));
+        assertNull(request.getExtraParam("code"));
 
         Map<String, String> extra = new HashMap<>();
-        extra.put("smsCode", "123456");
+        extra.put("code", "123456");
         request.setExtra(extra);
 
-        assertEquals("123456", request.getExtraParam("smsCode"));
+        assertEquals("123456", request.getExtraParam("code"));
         assertNull(request.getExtraParam("wechatCode"));
     }
 
@@ -96,27 +98,44 @@ class AuthStrategyRegistryTest {
     }
 
     @Test
-    void testSmsStrategyAuthenticate() {
+    void testSmsCodeStrategyAuthenticate() {
         AuthenticationRequest request = new AuthenticationRequest();
+        request.setType("sms_code");
         request.setUsername("13800138000");
         Map<String, String> extra = new HashMap<>();
-        extra.put("smsCode", "123456");
+        extra.put("code", "123456");
         request.setExtra(extra);
 
-        AuthStrategy strategy = registry.getStrategy("sms");
+        AuthStrategy strategy = registry.getStrategy("sms_code");
         Authentication auth = strategy.authenticate(request);
 
         assertEquals("13800138000", auth.getName());
     }
 
     @Test
+    void testEmailCodeStrategyAuthenticate() {
+        AuthenticationRequest request = new AuthenticationRequest();
+        request.setType("email_code");
+        request.setUsername("user@example.com");
+        Map<String, String> extra = new HashMap<>();
+        extra.put("code", "123456");
+        request.setExtra(extra);
+
+        AuthStrategy strategy = registry.getStrategy("email_code");
+        Authentication auth = strategy.authenticate(request);
+
+        assertEquals("user@example.com", auth.getName());
+    }
+
+    @Test
     void testWechatStrategyAuthenticate() {
         AuthenticationRequest request = new AuthenticationRequest();
+        request.setType("wechat_mini");
         Map<String, String> extra = new HashMap<>();
         extra.put("wechatCode", "0a1b2c3d");
         request.setExtra(extra);
 
-        AuthStrategy strategy = registry.getStrategy("wechat-mini");
+        AuthStrategy strategy = registry.getStrategy("wechat_mini");
         Authentication auth = strategy.authenticate(request);
 
         assertEquals("wechat_user_001", auth.getName());
@@ -143,9 +162,19 @@ class AuthStrategyRegistryTest {
         }
     }
 
-    static class MockSmsStrategy implements AuthStrategy {
+    static class MockSmsCodeStrategy implements AuthStrategy {
         @Override
-        public String getType() { return "sms"; }
+        public String getType() { return "sms_code"; }
+
+        @Override
+        public Authentication authenticate(AuthenticationRequest request) {
+            return new TestingAuthenticationToken(request.getUsername(), null, "ROLE_USER");
+        }
+    }
+
+    static class MockEmailCodeStrategy implements AuthStrategy {
+        @Override
+        public String getType() { return "email_code"; }
 
         @Override
         public Authentication authenticate(AuthenticationRequest request) {
@@ -155,7 +184,7 @@ class AuthStrategyRegistryTest {
 
     static class MockWechatStrategy implements AuthStrategy {
         @Override
-        public String getType() { return "wechat-mini"; }
+        public String getType() { return "wechat_mini"; }
 
         @Override
         public Authentication authenticate(AuthenticationRequest request) {

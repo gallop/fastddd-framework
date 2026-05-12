@@ -3,8 +3,19 @@ package com.gallop.fastddd.security;
 import com.gallop.fastddd.security.audit.AuditLogAspect;
 import com.gallop.fastddd.security.audit.AuditLogService;
 import com.gallop.fastddd.security.audit.AuditLogServiceImpl;
+import com.gallop.fastddd.security.code.DefaultVerificationCodeService;
+import com.gallop.fastddd.security.code.InMemoryVerificationCodeStore;
+import com.gallop.fastddd.security.code.NoopVerificationCodeSender;
+import com.gallop.fastddd.security.code.NoopVerificationCodeRateLimiter;
+import com.gallop.fastddd.security.code.VerificationCodeProperties;
+import com.gallop.fastddd.security.code.VerificationCodeRateLimiter;
+import com.gallop.fastddd.security.code.VerificationCodeSender;
+import com.gallop.fastddd.security.code.VerificationCodeService;
+import com.gallop.fastddd.security.code.VerificationCodeStore;
+import com.gallop.fastddd.security.code.VerificationCodeType;
 import com.gallop.fastddd.security.config.AuditLogConfiguration;
 import com.gallop.fastddd.security.config.SecurityAutoConfiguration;
+import com.gallop.fastddd.security.controller.VerificationCodeController;
 import com.gallop.fastddd.security.controller.AuthController;
 import com.gallop.fastddd.security.provider.SecurityCurrentUserProvider;
 import com.gallop.fastddd.security.handler.JwtAccessDeniedHandler;
@@ -18,16 +29,21 @@ import com.gallop.fastddd.security.spi.SecurityPermissionService;
 import com.gallop.fastddd.security.spi.SecurityUserDetails;
 import com.gallop.fastddd.security.strategy.AuthStrategy;
 import com.gallop.fastddd.security.strategy.AuthStrategyRegistry;
+import com.gallop.fastddd.security.strategy.EmailCodeAuthStrategy;
 import com.gallop.fastddd.security.strategy.PasswordAuthStrategy;
+import com.gallop.fastddd.security.strategy.SmsCodeAuthStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -46,6 +62,7 @@ import java.util.List;
  * @date 2025-01-10 15:30:00
  */
 @AutoConfiguration
+@EnableConfigurationProperties(VerificationCodeProperties.class)
 @Import({
     SecurityAutoConfiguration.class,
     AuditLogConfiguration.class
@@ -122,6 +139,59 @@ public class FastDddSecurityAutoConfiguration {
         return new PasswordAuthStrategy(authenticationManager);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public VerificationCodeStore verificationCodeStore() {
+        return new InMemoryVerificationCodeStore();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public VerificationCodeRateLimiter verificationCodeRateLimiter() {
+        return new NoopVerificationCodeRateLimiter();
+    }
+
+    @Bean
+    @ConditionalOnBean(PasswordEncoder.class)
+    @ConditionalOnMissingBean
+    public VerificationCodeService verificationCodeService(VerificationCodeProperties properties,
+                                                           VerificationCodeStore store,
+                                                           PasswordEncoder passwordEncoder,
+                                                           VerificationCodeRateLimiter rateLimiter,
+                                                           @Autowired(required = false) List<VerificationCodeSender> senders) {
+        return new DefaultVerificationCodeService(properties, store, passwordEncoder, rateLimiter, senders);
+    }
+
+    @Bean
+    @ConditionalOnBean(VerificationCodeService.class)
+    @ConditionalOnMissingBean
+    public SmsCodeAuthStrategy smsCodeAuthStrategy(VerificationCodeService verificationCodeService,
+                                                   SecurityIdentityService identityService) {
+        return new SmsCodeAuthStrategy(verificationCodeService, identityService);
+    }
+
+    @Bean
+    @ConditionalOnBean(VerificationCodeService.class)
+    @ConditionalOnMissingBean
+    public EmailCodeAuthStrategy emailCodeAuthStrategy(VerificationCodeService verificationCodeService,
+                                                       SecurityIdentityService identityService) {
+        return new EmailCodeAuthStrategy(verificationCodeService, identityService);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.security.code", name = "dev-mode", havingValue = "true")
+    @ConditionalOnMissingBean(name = "noopSmsVerificationCodeSender")
+    public VerificationCodeSender noopSmsVerificationCodeSender() {
+        return new NoopVerificationCodeSender(VerificationCodeType.SMS);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.security.code", name = "dev-mode", havingValue = "true")
+    @ConditionalOnMissingBean(name = "noopEmailVerificationCodeSender")
+    public VerificationCodeSender noopEmailVerificationCodeSender() {
+        return new NoopVerificationCodeSender(VerificationCodeType.EMAIL);
+    }
+
     @Configuration
     @ConditionalOnClass(name = "com.gallop.fastddd.crud.provider.CurrentUserProvider")
     static class CrudBridgeConfiguration {
@@ -141,5 +211,13 @@ public class FastDddSecurityAutoConfiguration {
                                                    SecurityPermissionService permissionService,
                                                    AuthStrategyRegistry strategyRegistry) {
         return new AuthController(jwtTokenProvider, jwtProperties, identityService, permissionService, strategyRegistry);
+    }
+
+    @Bean
+    @ConditionalOnClass(name = "com.gallop.fastddd.web.response.ApiResponse")
+    @ConditionalOnBean(VerificationCodeService.class)
+    @ConditionalOnMissingBean(name = "verificationCodeController")
+    public VerificationCodeController verificationCodeController(VerificationCodeService verificationCodeService) {
+        return new VerificationCodeController(verificationCodeService);
     }
 }

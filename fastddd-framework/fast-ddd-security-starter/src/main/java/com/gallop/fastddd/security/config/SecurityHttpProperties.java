@@ -14,6 +14,7 @@ public class SecurityHttpProperties {
             "/public/**",
             "/auth/**",
             "/api/auth/login",
+            "/api/auth/code/send",
             "/api/auth/refresh",
             "/actuator/**",
             "/api/initializr/**",
