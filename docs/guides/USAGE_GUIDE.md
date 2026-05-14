@@ -277,32 +277,63 @@ public interface UserRepository extends BaseMapper<User> {
 
 | 功能 | 说明 |
 |------|------|
-| BaseController | 通用控制器基类 |
+| BaseAdminCrudController | 管理端完整 CRUD 控制器基类（1.1 新增） |
+| BaseReadOnlyController | 只读查询控制器基类（1.1 新增） |
+| BaseController | 通用控制器基类（已 @Deprecated，保留兼容） |
 | 自动响应包装 | ApiResponse 包装 |
 | 统一异常处理 | 全局异常捕获 |
 | 请求日志 | 自动请求/响应日志 |
 
-**使用示例：**
+**Controller 基类选择：**
+
+| 场景 | 推荐基类 | 示例 |
+|------|---------|------|
+| 后台管理 CRUD | `BaseAdminCrudController` | 字典表、配置表、低风险资源 |
+| 只读查询 | `BaseReadOnlyController` | 下拉选项、数据展示 |
+| 敏感业务 API | 不继承 CRUD 基类 | 认证、支付、订单 |
+| 旧项目兼容 | `BaseController`（已废弃） | 已有项目，暂不迁移 |
+
+**管理端 CRUD 示例：**
 
 ```java
-// Controller 层继承 BaseController
+@RestController
+@RequestMapping("/api/admin/users")
+public class UserAdminController
+    extends BaseAdminCrudController<UserService, User> {
+
+    // 自动继承完整 CRUD 端点：
+    // GET    /api/admin/users        - 列表
+    // GET    /api/admin/users/{id}   - 详情
+    // GET    /api/admin/users/page   - 分页
+    // POST   /api/admin/users        - 创建
+    // PUT    /api/admin/users/{id}   - 更新
+    // DELETE /api/admin/users/{id}   - 删除
+    // + 批量操作端点
+}
+```
+
+**只读查询示例：**
+
+```java
+@RestController
+@RequestMapping("/api/dictionaries")
+public class DictionaryController
+    extends BaseReadOnlyController<DictionaryService, DictionaryPO> {
+
+    // 仅暴露 GET 端点，无写操作风险
+    // GET    /api/dictionaries        - 列表
+    // GET    /api/dictionaries/{id}   - 详情
+    // GET    /api/dictionaries/page   - 分页
+}
+```
+
+**兼容旧项目（不推荐新项目使用）：**
+
+```java
+// BaseController 已 @Deprecated(since="1.1")，仍可编译使用
 @RestController
 @RequestMapping("/api/users")
-public class UserController
-    extends BaseController<UserService, User> {
-
-    // 自动继承 CRUD 端点：
-    // GET    /api/users        - 列表
-    // GET    /api/users/{id}   - 详情
-    // POST   /api/users        - 创建
-    // PUT    /api/users/{id}   - 更新
-    // DELETE /api/users/{id}   - 删除
-
-    // 自定义端点
-    @GetMapping("/search")
-    public Result<List<User>> search(@RequestParam String keyword) {
-        return Result.success(service.search(keyword));
-    }
+public class UserController extends BaseController<UserService, User> {
 }
 ```
 
@@ -1038,6 +1069,26 @@ fast-ddd:
 | 微信小程序 | `wechat-mini` | 显式传入 `type=wechat-mini`，extra 中含 `wechatCode` | 通道策略含 `wechat-mini` |
 
 登录接口统一为 `POST /api/auth/login`，框架根据请求中的 `type` 路由到对应策略；未传 `type` 时使用 `password`。
+
+#### 自定义策略覆盖框架默认策略
+
+应用层可通过 `@Component` 注册同 type 的 `AuthStrategy` 来覆盖框架默认实现。`AuthStrategyRegistry` 在检测到冲突时，**优先保留应用层定义的策略**，框架内置策略自动退让。
+
+```java
+@Service
+@ConditionalOnProperty(name = "app.auth.dev-mode", havingValue = "true")
+public class DevPasswordAuthStrategy implements AuthStrategy {
+    @Override
+    public String getType() { return "password"; }  // 同 type 覆盖框架 PasswordAuthStrategy
+
+    @Override
+    public Authentication authenticate(AuthenticationRequest request) {
+        // 自定义认证逻辑
+    }
+}
+```
+
+> 框架通过包名判断策略来源：`com.gallop.fastddd.security.strategy` 包下的为框架内置，其余为用户自定义。
 
 验证码发送接口:
 

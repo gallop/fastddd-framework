@@ -208,28 +208,70 @@ public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implem
 
 ### 4. Web 层 (fast-ddd-web)
 
+#### Controller 基类层次结构
+
+```
+AbstractBaseController              ← 基础设施（service、resolveId、resolveEntityClass），无端点
+├── BaseReadOnlyController          ← 只读查询（getById、list、page）
+│   └── BaseAdminCrudController     ← 完整 CRUD + 8 个 lifecycle hooks
+│       └── BaseController          ← @Deprecated 兼容入口
+```
+
+#### 后台管理 CRUD（推荐）
+
 ```java
 @RestController
-@RequestMapping("/api/orders")
-public class OrderController extends BaseController<OrderService, Order> {
+@RequestMapping("/api/admin/orders")
+public class OrderAdminController extends BaseAdminCrudController<OrderService, Order> {
     // 自动继承以下 REST 端点:
-    // POST /                            — 新增单条
-    // POST /batch                       — 批量新增
-    // GET /{id}                         — 按ID查询
-    // GET /                             — 列表查询
-    // GET /page?current=1&size=10       — 分页查询
-    // PUT /{id}                         — 按ID更新
-    // PUT /                             — 条件更新
-    // PUT /batch                        — 批量更新
-    // DELETE /{id}                      — 按ID删除
-    // DELETE /batch                     — 批量删除
-    // GET /count                        — 总数统计
+    // GET    /{id}                     — 按ID查询
+    // GET    /                         — 列表查询
+    // GET    /page?current=1&size=10   — 分页查询
+    // POST   /                         — 新增单条
+    // POST   /batch                    — 批量新增
+    // PUT    /{id}                     — 按ID更新
+    // PUT    /                         — 条件更新
+    // PUT    /batch                    — 批量更新
+    // DELETE /{id}                     — 按ID删除
+    // DELETE /batch                    — 批量删除
 
     // 可覆写生命周期 Hook:
     // beforeCreate / afterCreate / beforeUpdate / afterUpdate
     // beforeDelete / afterDelete / beforeCreateBatch / beforeUpdateBatch
 }
 ```
+
+#### 只读查询
+
+```java
+@RestController
+@RequestMapping("/api/dictionaries")
+public class DictionaryController extends BaseReadOnlyController<DictionaryService, DictionaryPO> {
+    // 仅暴露 GET 端点:
+    // GET /{id}                       — 按ID查询
+    // GET /                           — 列表查询
+    // GET /page?current=1&size=10     — 分页查询
+}
+```
+
+#### 兼容旧项目（不推荐新项目使用）
+
+```java
+// BaseController 已 @Deprecated(since="1.1")，仍可编译使用
+@RestController
+@RequestMapping("/api/users")
+public class UserController extends BaseController<UserService, User> {
+}
+```
+
+#### 使用建议
+
+| 场景 | 推荐基类 | 说明 |
+|------|---------|------|
+| 后台管理 CRUD | `BaseAdminCrudController` | 完整增删改查，路径应放在 `/api/admin/**` |
+| 只读字典/查询 | `BaseReadOnlyController` | 仅 GET 方法，无写操作风险 |
+| 敏感业务 API | 不继承任何 CRUD 基类 | 显式声明每个端点，避免隐式暴露 |
+| 旧项目兼容 | `BaseController`（已废弃） | 保持编译通过，建议逐步迁移 |
 
 **统一响应格式** (`ApiResponse<T>`):
 ```json
@@ -244,7 +286,7 @@ public class OrderController extends BaseController<OrderService, Order> {
 | `auto`（数据库自增） | `/api/users/123` | `Long` |
 | `assign_uuid` | `/api/orders/a1b2c3d4-...` | `String` |
 
-业务项目**无需任何额外配置**，ID 转换由 `BaseController.resolveId()` 自动完成。覆写端点时参数改为 `String idStr` 并调用 `resolveId(idStr)` 即可。
+业务项目**无需任何额外配置**，ID 转换由 `AbstractBaseController.resolveId()` 自动完成。覆写端点时参数改为 `String idStr` 并调用 `resolveId(idStr)` 即可。
 
 启用自动包装: 在 `Application` 类上加 `@EnableApiResponseWrapper`
 
@@ -600,6 +642,8 @@ public class CustomAuthStrategy implements AuthStrategy {
 }
 ```
 
+> **策略覆盖**: 如果自定义策略的 `getType()` 与框架内置策略相同（如 `password`），`AuthStrategyRegistry` 会自动优先保留应用层策略，框架内置策略退让。无需额外配置。
+
 ### 审计日志
 
 框架提供 `@AuditLog` 注解，用于记录操作审计日志（自动脱敏 password/secret/token 字段）:
@@ -901,7 +945,7 @@ com.example.{module}
 ├── mapper/          # extends BaseRepository<T>
 ├── service/         # extends IService<T>
 │   └── impl/        # extends BaseServiceImpl<M, T>
-└── controller/      # extends BaseController<S, T>
+└── controller/      # extends BaseAdminCrudController<S, T> 或 BaseReadOnlyController<S, T>
 ```
 
 ### 充血模型
