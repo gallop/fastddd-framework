@@ -11,8 +11,8 @@
 |------|------|---------|
 | Breaking Change | 5 项 | 编译失败或运行时行为变更 |
 | 配置变更 | 2 项 | 应用启动失败或功能异常 |
-| 废弃 API | 1 项 | 编译警告，2.0 移除 |
-| 新增功能 | 2 项 | 可选采用 |
+| 废弃 API | 2 项 | 编译警告，2.0 移除 |
+| 新增功能 | 3 项 | 可选采用 |
 | 安全修复 | 1 项 | 强烈建议升级 |
 
 ---
@@ -274,11 +274,63 @@ mybatis-plus:
 
 **注意**：`Result` 类在 1.1 版本仍然可用，只是会产生编译警告。建议在 2.0 发布前完成迁移。
 
+### 3.2 BaseController 废弃
+
+**变更内容**：`BaseController<S, T>` 标记为 `@Deprecated(since = "1.1", forRemoval = false)`，改为继承 `BaseAdminCrudController` 的空壳类。
+
+**替代方案**：
+
+| 场景 | 替代基类 | 说明 |
+|------|---------|------|
+| 后台管理完整 CRUD | `BaseAdminCrudController<S, T>` | 与原 `BaseController` 行为一致，命名带 Admin 语义 |
+| 只读查询 | `BaseReadOnlyController<S, T>` | 仅暴露 GET 端点，无写操作风险 |
+| 敏感业务 API | 不继承任何 CRUD 基类 | 显式声明每个端点 |
+
+**迁移步骤**：
+
+```diff
+ // 后台管理资源（推荐迁移）
+ @RestController
+-@RequestMapping("/api/users")
+-public class UserController extends BaseController<UserService, User> {
++@RequestMapping("/api/admin/users")
++public class UserAdminController extends BaseAdminCrudController<UserService, User> {
+ }
+
+ // 只读资源（推荐迁移）
+ @RestController
+ @RequestMapping("/api/dictionaries")
+-public class DictionaryController extends BaseController<DictionaryService, DictionaryPO> {
++public class DictionaryController extends BaseReadOnlyController<DictionaryService, DictionaryPO> {
+ }
+```
+
+**注意**：`BaseAdminCrudController` 和 `BaseReadOnlyController` 本身不带 `@RestController`，具体子类需要自己加。
+
+**影响**：现有继承 `BaseController` 的代码**无需修改**，编译和运行均不受影响，仅产生 IDE 警告。
+
 ---
 
 ## 四、新增功能（可选采用）
 
-### 4.1 BaseController 生命周期 Hook
+### 4.1 分层 Controller 基类
+
+**新增内容**：`BaseController` 拆分为分层结构：
+
+```
+AbstractBaseController              ← 基础设施（service、resolveId），无端点
+├── BaseReadOnlyController          ← 只读查询（GET /{id}、GET /、GET /page）
+│   └── BaseAdminCrudController     ← 完整 CRUD + 8 个 lifecycle hooks
+│       └── BaseController          ← @Deprecated 兼容入口
+```
+
+**使用建议**：
+
+- 后台管理 CRUD → `BaseAdminCrudController`（路径建议 `/api/admin/**`）
+- 只读查询 → `BaseReadOnlyController`
+- 敏感资源 → 不继承 CRUD 基类，显式声明端点
+
+### 4.2 BaseController 生命周期 Hook
 
 **新增内容**：`BaseController` 新增 8 个 `protected` 空方法，子类可按需覆写：
 
@@ -323,7 +375,7 @@ public class OrderController extends BaseController<OrderService, OrderPO> {
 - 适用于参数校验、权限检查、审计字段填充等非事务场景
 - 需要事务保证的逻辑应在 Service 层实现
 
-### 4.2 SecurityCurrentUserProvider 自动桥接
+### 4.3 SecurityCurrentUserProvider 自动桥接
 
 **新增内容**：当项目同时引入 `fast-ddd-security-starter` 和 `fast-ddd-crud` 时，框架自动桥接 Spring Security 认证信息到 CRUD 模块的 `CurrentUserProvider`。
 
@@ -405,7 +457,9 @@ public class OrderController extends BaseController<OrderService, OrderPO> {
 
 ### 第六步：可选优化
 
-- [ ] 按需覆写 BaseController 生命周期 Hook
+- [ ] 将 `BaseController` 子类迁移为 `BaseAdminCrudController` 或 `BaseReadOnlyController`
+- [ ] 管理端 CRUD 路径调整到 `/api/admin/**`
+- [ ] 按需覆写 lifecycle Hook
 - [ ] 确认 SecurityCurrentUserProvider 自动桥接生效（查看 `createUser` 字段值）
 
 ---

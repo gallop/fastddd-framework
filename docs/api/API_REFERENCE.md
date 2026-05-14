@@ -445,20 +445,66 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ---
 
-### 4.3 BaseController\<S, T\>（贫血模型）
+### 4.3 Controller 基类层次（贫血模型）
+
+框架提供分层 Controller 基类，按需选择：
+
+```
+AbstractBaseController              ← 基础设施（service、resolveId），无端点
+├── BaseReadOnlyController          ← 只读查询（GET）
+│   └── BaseAdminCrudController     ← 完整 CRUD（1.1 推荐使用）
+│       └── BaseController          ← @Deprecated 兼容入口
+```
+
+#### BaseAdminCrudController\<S, T\>（推荐）
+
+**位置**: `com.gallop.fastddd.web.controller.BaseAdminCrudController`
+
+管理端完整 CRUD 控制器，包含 8 个 lifecycle hooks。
+
+| 端点 | HTTP 方法 | 说明 |
+|------|----------|------|
+| `/{id}` | GET | 根据ID查询 |
+| `/` | GET | 查询列表 |
+| `/page` | GET | 分页查询 |
+| `/` | POST | 创建 |
+| `/batch` | POST | 批量创建 |
+| `/{id}` | PUT | 根据ID更新 |
+| `/` | PUT | 条件更新 |
+| `/batch` | PUT | 批量更新 |
+| `/{id}` | DELETE | 删除 |
+| `/batch` | DELETE | 批量删除 |
+
+**Lifecycle Hooks**（protected 空方法，子类按需覆写）：
+
+| Hook | 触发时机 | 典型用途 |
+|------|---------|---------|
+| `beforeCreate(T)` | 创建前 | 参数校验、审计字段填充 |
+| `afterCreate(T)` | 创建后 | 发送通知、事件发布 |
+| `beforeUpdate(Serializable, T)` | 更新前 | 权限检查 |
+| `afterUpdate(Serializable, T)` | 更新后 | 缓存清理 |
+| `beforeDelete(Serializable)` | 删除前 | 关联检查 |
+| `afterDelete(Serializable)` | 删除后 | 关联数据清理 |
+| `beforeCreateBatch(List<T>)` | 批量创建前 | 参数预处理 |
+| `beforeUpdateBatch(List<T>)` | 批量更新前 | 参数预处理 |
+
+#### BaseReadOnlyController\<S, T\>
+
+**位置**: `com.gallop.fastddd.web.controller.BaseReadOnlyController`
+
+只暴露 GET 查询端点，适合字典、下拉选项、数据展示等只读场景。
+
+| 端点 | HTTP 方法 | 说明 |
+|------|----------|------|
+| `/{id}` | GET | 根据ID查询 |
+| `/` | GET | 查询列表 |
+| `/page` | GET | 分页查询 |
+
+#### BaseController\<S, T\>（@Deprecated）
 
 **位置**: `com.gallop.fastddd.web.controller.BaseController`
 
-基础控制器，提供标准 CRUD 端点。
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `POST /` | `insert(@RequestBody T entity)` | 创建 |
-| `PUT /` | `update(@RequestBody T entity)` | 更新 |
-| `DELETE /{id}` | `deleteById(@PathVariable ID id)` | 删除 |
-| `GET /{id}` | `getById(@PathVariable ID id)` | 根据ID查询 |
-| `GET /list` | `list()` | 查询列表 |
-| `GET /page` | `page(Page\<T\> page)` | 分页查询 |
+> **已废弃**（since 1.1），继承自 `BaseAdminCrudController`，行为不变。新项目请使用 `BaseAdminCrudController` 或 `BaseReadOnlyController`。
 
 ---
 
