@@ -104,7 +104,7 @@ class CodeAuthStrategyTest {
         }
 
         @Override
-        public SecurityUserInfo getUserInfo(Long userId) {
+        public SecurityUserInfo getUserInfo(String userId) {
             return null;
         }
 
@@ -113,7 +113,7 @@ class CodeAuthStrategyTest {
                 return null;
             }
             return SecurityUserDetails.builder()
-                    .userId(1L)
+                    .userId("1")
                     .username(username)
                     .enabled(true)
                     .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))

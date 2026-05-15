@@ -21,7 +21,7 @@ public class DefaultSecurityIdentityService implements SecurityIdentityService {
     }
 
     @Override
-    public SecurityUserInfo getUserInfo(Long userId) {
+    public SecurityUserInfo getUserInfo(String userId) {
         throw new UnsupportedOperationException(
                 "请配置 SecurityIdentityService Bean 或启用 RBAC 模块（security 模块 + 模板生成）");
     }

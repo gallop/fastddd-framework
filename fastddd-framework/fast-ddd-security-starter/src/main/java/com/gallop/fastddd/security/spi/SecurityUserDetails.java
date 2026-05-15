@@ -22,7 +22,7 @@ import java.util.Collections;
 @EqualsAndHashCode(of = "username")
 public class SecurityUserDetails implements UserDetails {
 
-    private Long userId;
+    private String userId;
     private String username;
     @ToString.Exclude
     private String password;

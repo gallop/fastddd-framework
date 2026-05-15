@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SecurityUserInfo {
 
-    private Long id;
+    private String id;
     private String username;
     private String realName;
     private String email;

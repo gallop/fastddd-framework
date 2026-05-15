@@ -49,7 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtTokenProvider.getUsernameFromToken(jwt);
                 List<String> authorities = jwtTokenProvider.getAuthoritiesFromToken(jwt);
                 AuthChannel tokenChannel = jwtTokenProvider.getChannelFromToken(jwt);
-                Long userId = jwtTokenProvider.getUserIdFromToken(jwt);
+                String userId = jwtTokenProvider.getUserIdFromToken(jwt);
 
                 // 通道校验：仅当应用配置了非 DEFAULT 通道时启用
                 AuthChannel appChannel = jwtProperties.getChannel();

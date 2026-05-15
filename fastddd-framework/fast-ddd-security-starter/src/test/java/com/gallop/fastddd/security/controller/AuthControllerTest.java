@@ -28,7 +28,7 @@ class AuthControllerTest {
     @Test
     void loginUsesSecurityUserDetailsPrincipalWithoutUsernameReload() {
         SecurityUserDetails details = SecurityUserDetails.builder()
-                .userId(42L)
+                .userId("42")
                 .username("user@example.com")
                 .enabled(true)
                 .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
@@ -51,7 +51,7 @@ class AuthControllerTest {
 
         assertTrue(response.isSuccess());
         assertNotNull(response.getData().getAccessToken());
-        assertEquals(42L, identityService.userInfoId);
+        assertEquals("42", identityService.userInfoId);
     }
 
     private JwtProperties jwtProperties() {
@@ -83,7 +83,7 @@ class AuthControllerTest {
 
     static class ThrowingLoadIdentityService implements SecurityIdentityService {
 
-        private Long userInfoId;
+        private String userInfoId;
 
         @Override
         public SecurityUserDetails loadUserByUsername(String username) {
@@ -91,7 +91,7 @@ class AuthControllerTest {
         }
 
         @Override
-        public SecurityUserInfo getUserInfo(Long userId) {
+        public SecurityUserInfo getUserInfo(String userId) {
             this.userInfoId = userId;
             return SecurityUserInfo.builder()
                     .id(userId)
@@ -104,12 +104,12 @@ class AuthControllerTest {
     static class TestPermissionService implements SecurityPermissionService {
 
         @Override
-        public List<String> getPermissionsByUserId(Long userId) {
+        public List<String> getPermissionsByUserId(String userId) {
             return List.of("user:read");
         }
 
         @Override
-        public List<String> getRolesByUserId(Long userId) {
+        public List<String> getRolesByUserId(String userId) {
             return List.of("USER");
         }
     }

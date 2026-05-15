@@ -18,7 +18,7 @@ public interface SecurityPermissionService {
      * @param userId 用户ID
      * @return 权限码列表（如 system:user:view）
      */
-    List<String> getPermissionsByUserId(Long userId);
+    List<String> getPermissionsByUserId(String userId);
 
     /**
      * 根据用户ID查询角色标识列表
@@ -26,5 +26,5 @@ public interface SecurityPermissionService {
      * @param userId 用户ID
      * @return 角色标识列表（如 ADMIN, USER）
      */
-    List<String> getRolesByUserId(Long userId);
+    List<String> getRolesByUserId(String userId);
 }

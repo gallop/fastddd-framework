@@ -182,7 +182,7 @@ public class AuthController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         // 优先从 token principal 获取 userId（新 Token）
-        Long userId = null;
+        String userId = null;
         String username = authentication.getName();
 
         if (authentication.getPrincipal() instanceof SecurityUserDetails) {

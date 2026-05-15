@@ -24,5 +24,5 @@ public interface SecurityIdentityService {
      * @param userId 用户ID
      * @return 用户信息，不存在返回 null
      */
-    SecurityUserInfo getUserInfo(Long userId);
+    SecurityUserInfo getUserInfo(String userId);
 }

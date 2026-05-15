@@ -96,7 +96,7 @@ public class JwtTokenProvider {
                 .collect(Collectors.toList()));
         claims.put("channel", channel.getCode());
         if (userDetails instanceof SecurityUserDetails) {
-            Long userId = ((SecurityUserDetails) userDetails).getUserId();
+            String userId = ((SecurityUserDetails) userDetails).getUserId();
             if (userId != null) {
                 claims.put("userId", userId);
             }
@@ -141,13 +141,13 @@ public class JwtTokenProvider {
      * @param token JWT Token
      * @return 用户ID，旧 Token 返回 null
      */
-    public Long getUserIdFromToken(String token) {
+    public String getUserIdFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         Object userId = claims.get("userId");
-        if (userId instanceof Number) {
-            return ((Number) userId).longValue();
+        if (userId == null) {
+            return null;
         }
-        return null;
+        return userId.toString();
     }
 
     /**

@@ -8,13 +8,13 @@ import java.util.List;
 public class DefaultSecurityPermissionService implements SecurityPermissionService {
 
     @Override
-    public List<String> getPermissionsByUserId(Long userId) {
+    public List<String> getPermissionsByUserId(String userId) {
         throw new UnsupportedOperationException(
                 "请配置 SecurityPermissionService Bean 或启用 RBAC 模块（security 模块 + 模板生成）");
     }
 
     @Override
-    public List<String> getRolesByUserId(Long userId) {
+    public List<String> getRolesByUserId(String userId) {
         throw new UnsupportedOperationException(
                 "请配置 SecurityPermissionService Bean 或启用 RBAC 模块（security 模块 + 模板生成）");
     }
