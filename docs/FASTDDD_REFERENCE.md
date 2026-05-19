@@ -440,7 +440,7 @@ public class AppIdentityService implements SecurityIdentityService {
     public SecurityUserDetails loadUserByUsername(String username) {
         return userMapper.selectOneByField("username", username)   // 字段名用 Java 驼峰
                 .map(user -> SecurityUserDetails.builder()
-                        .userId((Long) user.getId())               // userId 会写入 JWT claims
+                        .userId(String.valueOf(user.getId()))      // userId 会写入 JWT claims
                         .username(user.getUsername())
                         .password(user.getPasswordHash())
                         .enabled(user.getStatus() != null && user.getStatus() == 1)
@@ -450,11 +450,11 @@ public class AppIdentityService implements SecurityIdentityService {
     }
 
     @Override
-    public SecurityUserInfo getUserInfo(Long userId) {
-        User user = userMapper.selectById(userId);
+    public SecurityUserInfo getUserInfo(String userId) {
+        User user = userMapper.selectById(Long.valueOf(userId));
         if (user == null) return null;
         return SecurityUserInfo.builder()
-                .id((Long) user.getId())
+                .id(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .realName(user.getNickname())
                 .enabled(user.getStatus() != null && user.getStatus() == 1)
@@ -471,13 +471,13 @@ public class AppPermissionService implements SecurityPermissionService {
     private final UserMapper userMapper;
 
     @Override
-    public List<String> getPermissionsByUserId(Long userId) {
+    public List<String> getPermissionsByUserId(String userId) {
         return List.of("*");
     }
 
     @Override
-    public List<String> getRolesByUserId(Long userId) {
-        User user = userMapper.selectById(userId);
+    public List<String> getRolesByUserId(String userId) {
+        User user = userMapper.selectById(Long.valueOf(userId));
         return user != null ? List.of(user.getRole()) : List.of();
     }
 }
@@ -509,7 +509,7 @@ public class AppIdentityService implements SecurityIdentityService, CodeLoginIde
 
     private SecurityUserDetails toUserDetails(User user) {
         return SecurityUserDetails.builder()
-                .userId((Long) user.getId())
+                .userId(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .password(user.getPasswordHash())
                 .enabled(user.getStatus() != null && user.getStatus() == 1)
@@ -559,7 +559,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 // 方式一：从 Authentication principal 获取（推荐，零 DB 查询）
 Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 if (auth.getPrincipal() instanceof SecurityUserDetails details) {
-    Long userId = details.getUserId();       // 来自 JWT claims
+    String userId = details.getUserId();       // 来自 JWT claims
     String username = details.getUsername();
 }
 
@@ -644,6 +644,58 @@ public class CustomAuthStrategy implements AuthStrategy {
 
 > **策略覆盖**: 如果自定义策略的 `getType()` 与框架内置策略相同（如 `password`），`AuthStrategyRegistry` 会自动优先保留应用层策略，框架内置策略退让。无需额外配置。
 
+### JWT 签名策略（JwtSigner）
+
+框架通过 `JwtSigner` 策略接口将签名/验签算法与 `JwtTokenProvider` 解耦。默认使用 HMAC-SHA512 对称签名，业务层可通过 `@Component` 覆盖为 RSA/EC 等非对称签名。
+
+```java
+public interface JwtSigner {
+    String sign(JwtBuilder builder);                          // 签名并序列化
+    Claims parse(String token) throws JwtException;           // 验签并解析 Claims
+}
+```
+
+| 实现 | 算法 | 适用场景 | 注册方式 |
+|------|------|----------|----------|
+| `HmacJwtSigner`（框架内置） | HMAC-SHA512 | 单体应用，默认 | `@ConditionalOnMissingBean` 自动注册 |
+| 自定义实现 | RS256 / ES256 等 | 跨子系统 SSO | `@Component` 声明即可覆盖 |
+
+**默认 HMAC 路径**（零配置）：
+
+```yaml
+fastddd:
+  security:
+    jwt:
+      secret: your-secret-key-at-least-64-bytes-long!!   # HmacJwtSigner 自动使用
+```
+
+**RSA 路径**（覆盖默认）：
+
+```java
+@Component
+public class RsaJwtSigner implements JwtSigner {
+    private final KeyPair keyPair;
+
+    public RsaJwtSigner(KeyPair keyPair) {
+        this.keyPair = keyPair;
+    }
+
+    @Override
+    public String sign(JwtBuilder builder) {
+        return builder.signWith(keyPair.getPrivate(), SignatureAlgorithm.RS256).compact();
+    }
+
+    @Override
+    public Claims parse(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(keyPair.getPublic())
+                .build().parseClaimsJws(token).getBody();
+    }
+}
+```
+
+声明 `@Component` 后，`@ConditionalOnMissingBean(JwtSigner.class)` 会跳过框架的 `HmacJwtSigner`，`JwtTokenProvider` 自动使用自定义签名器。子类也可通过 `protected signToken(JwtBuilder)` 和 `protected getClaimsFromToken(String)` 扩展点定制签名流程。
+
 ### 审计日志
 
 框架提供 `@AuditLog` 注解，用于记录操作审计日志（自动脱敏 password/secret/token 字段）:
@@ -688,31 +740,58 @@ public class OrderEventHandler {
 
 ### Outbox 事务性事件
 
-创建 `outbox_events` 表并注册 `OutboxEventRepository` Bean 即可启用:
+创建 `outbox_events` 表并注册 `OutboxEventRepository` Bean 即可启用。
+MySQL 和 PostgreSQL 的完整 DDL 见 `fast-ddd-event/src/main/resources/sql/` 目录，以下为 PostgreSQL 版本：
 
 ```sql
 CREATE TABLE outbox_events (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    event_id    VARCHAR(64) NOT NULL UNIQUE,
-    aggregate_id   VARCHAR(128),
-    aggregate_type VARCHAR(64),
-    event_type     VARCHAR(128),
-    event_data     TEXT,
-    status      VARCHAR(20) DEFAULT 'PENDING',  -- PENDING/PROCESSING/PUBLISHED/FAILED/CANCELLED
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    published_at DATETIME,
-    retry_count INT DEFAULT 0,
-    max_retry_count INT DEFAULT 3,
-    next_retry_at DATETIME,
+    id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(36) NOT NULL UNIQUE,
+    aggregate_id VARCHAR(100) NOT NULL,
+    aggregate_type VARCHAR(100) NOT NULL,
+    event_type VARCHAR(200) NOT NULL,
+    event_data TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP,
+    retry_count INT NOT NULL DEFAULT 0,
+    max_retry_count INT NOT NULL DEFAULT 3,
+    next_retry_at TIMESTAMP NULL,
     error_message TEXT,
-    version     INT DEFAULT 0,
-    INDEX idx_status (status),
-    INDEX idx_aggregate (aggregate_type, aggregate_id)
+    version BIGINT NOT NULL DEFAULT 0
 );
+
+CREATE INDEX idx_outbox_status_created ON outbox_events(status, created_at);
+CREATE INDEX idx_outbox_event_type ON outbox_events(event_type);
+CREATE INDEX idx_outbox_aggregate_id ON outbox_events(aggregate_id);
+CREATE INDEX idx_outbox_aggregate_type_id ON outbox_events(aggregate_type, aggregate_id);
+CREATE INDEX idx_outbox_published_at ON outbox_events(published_at);
+CREATE INDEX idx_outbox_next_retry_at ON outbox_events(next_retry_at);
+CREATE INDEX idx_outbox_retry_status ON outbox_events(retry_count, status);
+
+ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_status
+    CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'CANCELLED'));
+ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_retry_count
+    CHECK (retry_count >= 0 AND retry_count <= max_retry_count);
+ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_max_retry_count
+    CHECK (max_retry_count >= 0 AND max_retry_count <= 10);
+ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_version
+    CHECK (version >= 0);
 ```
 
 启用后，`eventPublisher.publishEvent()` 会在事务内先将事件持久化到 outbox 表，后台定时器负责实际投递。
+
+### Outbox 事件消费注意事项
+
+1. **不要将 `event_data` 反序列化为 `DomainEvent` 子类** — `DomainEvent` 无无参构造器（有意设计，保证不可变），Jackson 反序列化会报 `InvalidDefinitionException`
+2. **推荐模式**: 定义内部 record 只提取需要的字段，完整数据从聚合根加载
+   ```java
+   record EventPayload(String orderId) {}
+   String orderId = objectMapper.readValue(event.getEventData(), EventPayload.class).orderId();
+   Order order = orderRepository.findByOrderId(orderId).orElseThrow(...);
+   ```
+3. 事件是**触发器**（通知"发生了什么"），不作为数据载体。详见 [SPI 参考手册](./guides/SPI_REFERENCE.md) 第 4 节
 
 ---
 
@@ -1046,10 +1125,14 @@ mybatis-plus:
 业务中抛出异常:
 ```java
 Assert.notNull(user, "用户不存在");                    // 自动抛 BusinessException
-throw new BusinessException("余额不足");                // code=400
-throw new BusinessException(1001, "库存不足");          // 自定义错误码
+throw new BusinessException("余额不足");                // errorCode=400
+throw new BusinessException(1001, "库存不足");          // 自定义 errorCode
 throw new SystemException("支付网关超时");               // code=500
+
+// 下游获取错误码: exception.getErrorCode() / exception.getErrorMessage()
 ```
+
+> **提示**: `BusinessException` 已内置 `errorCode`（Integer）和 `errorMessage`（String）两个字段。推荐为不同业务领域规划错误码范围（如 1xxx 订单、2xxx 支付、3xxx 交付），下游通过 `getErrorCode()` 做结构化处理。详见 [SPI 参考手册](./guides/SPI_REFERENCE.md) 第 3 节。
 
 ---
 
@@ -1190,6 +1273,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | `JsonUtils` | JSON 序列化/反序列化 |
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
 | `Result<T>` | 通用结果包装（**已废弃**，请使用 `ApiResponse<T>`） |
+| `ApiResponse<T>` | 统一响应包装（推荐），位于 `com.gallop.fastddd.web.response`，配合 `@EnableApiResponseWrapper` 自动包装 Controller 返回值 |
 | `PageResult<T>` | 分页结果包装 |
 | `SearchService` | 全文搜索 SPI (SQL/Meilisearch 双后端) |
 | `SearchQuery` | 搜索查询构建器 (关键词+字段+过滤+排序+分页) |

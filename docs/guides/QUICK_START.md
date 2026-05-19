@@ -264,8 +264,21 @@ src/main/java/com/example/
 
 ---
 
+## 替换默认安全配置
+
+如果项目需要自定义安全配置（如接入 SSO、使用 Cookie 认证等）：
+
+1. **YAML 关闭默认**: `fastddd.security.jwt.enabled: false`
+2. **创建自定义 SecurityConfiguration** 定义自己的 `SecurityFilterChain` Bean
+3. **注意 `matchIfMissing=true` 陷阱** — 不显式关闭就会激活默认配置，两个 FilterChain 并存时行为不可预测
+
+详见 [安全集成指南](../security/INTEGRATION_GUIDE.md) 和 [SPI 参考手册](./SPI_REFERENCE.md)。
+
+---
+
 ## 下一步
 
-- [架构指南](./ARCHITECTURE.md) - 了解双轨并行架构
+- [架构指南](../architecture/ARCHITECTURE.md) - 了解双轨并行架构
 - [CQRS 指南](./CQRS_GUIDE.md) - 深入学习 CQRS 模式
-- [迁移指南](./MIGRATION_GUIDE.md) - 从贫血模型迁移到充血模型
+- [SPI 参考手册](./SPI_REFERENCE.md) - 所有 SPI 接口的定义、替换方式、示例代码
+- [迁移指南](../architecture/MIGRATION_GUIDE.md) - 从贫血模型迁移到充血模型

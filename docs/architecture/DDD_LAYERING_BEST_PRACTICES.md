@@ -647,6 +647,40 @@ public class OrderRepositoryImpl {
 }
 ```
 
+### 5.5 Converter 与 PayloadBuilder 位置规范
+
+#### Converter 位置
+
+Converter 负责 Domain ↔ PO 的双向映射，依赖 PO（infrastructure 类型），因此**必须放在 `infrastructure/persistence/`**，不能放在 `domain/`。
+
+```
+order/
+├── domain/
+│   ├── Order.java                    # 聚合根
+│   └── OrderRepository.java          # 接口
+├── infrastructure/
+│   └── persistence/
+│       ├── OrderConverter.java       # ✅ 正确位置
+│       ├── OrderPO.java
+│       └── OrderRepositoryImpl.java
+```
+
+#### PayloadBuilder / Assembler 位置
+
+PayloadBuilder 组装跨聚合查询结果（CQRS 读路径），属于应用服务逻辑，**放在 `application/`**。
+
+### 5.6 层规约自检清单
+
+每个聚合实现后逐项检查：
+
+| # | 检查项 | 如何验证 |
+|---|--------|---------|
+| 1 | Controller 不 import PO/Mapper | `grep "import.*persistence\..*PO" interfaces/` 应无结果 |
+| 2 | Service 不 import PO/Mapper | `grep "import.*persistence\..*PO" application/` 应无结果 |
+| 3 | Converter 在 infrastructure/persistence/ | 检查文件路径 |
+| 4 | Domain 不 import Spring/MyBatis | `grep "import org.springframework\|com.baomidou" domain/` 应无结果 |
+| 5 | PayloadBuilder 在 application/ | 检查文件路径 |
+
 ---
 
 ## 6. 反模式与避免
