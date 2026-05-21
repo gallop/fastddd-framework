@@ -20,7 +20,9 @@ import com.gallop.fastddd.security.controller.AuthController;
 import com.gallop.fastddd.security.provider.SecurityCurrentUserProvider;
 import com.gallop.fastddd.security.handler.JwtAccessDeniedHandler;
 import com.gallop.fastddd.security.handler.JwtAuthenticationEntryPoint;
+import com.gallop.fastddd.security.jwt.HmacJwtSigner;
 import com.gallop.fastddd.security.jwt.JwtProperties;
+import com.gallop.fastddd.security.jwt.JwtSigner;
 import com.gallop.fastddd.security.jwt.JwtTokenProvider;
 import com.gallop.fastddd.security.spi.DefaultSecurityIdentityService;
 import com.gallop.fastddd.security.spi.DefaultSecurityPermissionService;
@@ -69,10 +71,20 @@ import java.util.List;
 })
 public class FastDddSecurityAutoConfiguration {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FastDddSecurityAutoConfiguration.class);
+
+    @Bean
+    @ConditionalOnMissingBean(JwtSigner.class)
+    public JwtSigner jwtSigner(JwtProperties jwtProperties) {
+        log.info("FastDDD security: using default HmacJwtSigner (HS512)");
+        return new HmacJwtSigner(jwtProperties.getSecret());
+    }
+
     @Bean
     @ConditionalOnMissingBean
-    public JwtTokenProvider jwtTokenProvider(JwtProperties jwtProperties) {
-        return new JwtTokenProvider(jwtProperties);
+    public JwtTokenProvider jwtTokenProvider(JwtProperties jwtProperties, JwtSigner jwtSigner) {
+        log.info("FastDDD security: JwtTokenProvider initialized with JwtSigner={}", jwtSigner.getClass().getSimpleName());
+        return new JwtTokenProvider(jwtProperties, jwtSigner);
     }
 
     @Bean

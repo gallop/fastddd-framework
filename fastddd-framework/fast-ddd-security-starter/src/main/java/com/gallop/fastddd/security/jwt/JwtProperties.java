@@ -57,4 +57,10 @@ public class JwtProperties {
      * 建议迁移完成后启用
      */
     private boolean strictChannel = false;
+
+    /**
+     * JWT 签名算法标识（信息性质，框架逻辑不读取此值）。
+     * 默认 "HS512"（HmacJwtSigner），使用 RSA 签名时设为 "RS256"。
+     */
+    private String algorithm = "HS512";
 }

@@ -2,15 +2,15 @@ package com.gallop.fastddd.security.jwt;
 
 import com.gallop.fastddd.security.channel.AuthChannel;
 import com.gallop.fastddd.security.spi.SecurityUserDetails;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 /**
  * JWT Token提供者
  *
+ * <p>签名和验签委托给 {@link JwtSigner} 策略接口，
+ * 默认使用 HMAC-SHA512，业务层可替换为 RSA 等非对称实现。
+ *
  * @author gallop
  * @date 2025-01-10 15:30:00
  */
@@ -26,11 +29,22 @@ import java.util.stream.Collectors;
 public class JwtTokenProvider {
 
     private final JwtProperties jwtProperties;
-    private final SecretKey secretKey;
+    private final JwtSigner jwtSigner;
 
+    /**
+     * 向后兼容构造函数。内部创建 HmacJwtSigner，
+     * 已有代码和单元测试无需任何改动。
+     */
     public JwtTokenProvider(JwtProperties jwtProperties) {
+        this(jwtProperties, new HmacJwtSigner(jwtProperties.getSecret()));
+    }
+
+    /**
+     * 主构造函数，接受显式的 JwtSigner 策略。
+     */
+    public JwtTokenProvider(JwtProperties jwtProperties, JwtSigner jwtSigner) {
         this.jwtProperties = jwtProperties;
-        this.secretKey = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        this.jwtSigner = jwtSigner;
     }
 
     /**
@@ -102,13 +116,12 @@ public class JwtTokenProvider {
             }
         }
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setClaims(claims)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(secretKey, SignatureAlgorithm.HS512)
-                .compact();
+                .setExpiration(expiryDate);
+        return jwtSigner.sign(builder);
     }
 
     /**
@@ -200,12 +213,19 @@ public class JwtTokenProvider {
      * @param token JWT Token
      * @return Claims
      */
-    private Claims getClaimsFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(secretKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+    protected Claims getClaimsFromToken(String token) {
+        return jwtSigner.parse(token);
+    }
+
+    /**
+     * 使用已配置的 JwtSigner 对 JWT Builder 执行签名。
+     * 子类构建自定义 claims 时可通过此方法签名。
+     *
+     * @param builder 已设置 claims 但尚未签名的 JWT builder
+     * @return 签名后的 compact JWT 字符串
+     */
+    protected String signToken(JwtBuilder builder) {
+        return jwtSigner.sign(builder);
     }
 
     /**

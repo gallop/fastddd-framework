@@ -78,7 +78,7 @@ public class MyIdentityService implements SecurityIdentityService {
     }
 
     @Override
-    public SecurityUserInfo getUserInfo(Long userId) {
+    public SecurityUserInfo getUserInfo(String userId) {
         MyUser user = userService.getById(userId).orElse(null);
         if (user == null) return null;
         return SecurityUserInfo.builder()
@@ -103,14 +103,14 @@ public class MyIdentityService implements SecurityIdentityService {
 public class MyPermissionService implements SecurityPermissionService {
 
     @Override
-    public List<String> getPermissionsByUserId(Long userId) {
+    public List<String> getPermissionsByUserId(String userId) {
         // Phase 1: 硬编码
         return List.of("*");
         // Phase 2: 查 RBAC 表
     }
 
     @Override
-    public List<String> getRolesByUserId(Long userId) {
+    public List<String> getRolesByUserId(String userId) {
         return List.of("ROLE_ADMIN");
     }
 }
@@ -123,7 +123,7 @@ public class MyPermissionService implements SecurityPermissionService {
 ### 3.1 必须配置
 
 ```yaml
-fast-ddd:
+fastddd:
   security:
     jwt:
       enabled: true
@@ -138,7 +138,7 @@ fast-ddd:
 | 配置项 | 说明 | 踩坑记录 |
 |-------|------|---------|
 | `channel` | 当前应用的认证通道 | **必须和 login 时生成的 token channel 一致**，否则 JWT filter 会拒绝 token。框架的 `AuthController` 自动从 `jwtProperties.getChannel()` 取值，所以只要配置了就一致 |
-| `secret` | HMAC-SHA512 密钥 | 必须 ≥64 字节，否则 `Keys.hmacShaKeyFor()` 抛异常 |
+| `secret` | HMAC-SHA512 密钥（默认签名策略） | 必须 ≥64 字节，否则 `Keys.hmacShaKeyFor()` 抛异常。如需 RSA/ES256 非对称签名（如跨子系统 SSO），声明 `@Component` 实现 `JwtSigner` 接口即可覆盖默认的 `HmacJwtSigner` |
 | `expiration` | Duration 格式带单位 | `24h`、`3600s`、`7d`，不要写纯数字 |
 
 ### 3.2 放行路径配置
