@@ -1230,26 +1230,138 @@ public class LoggingConfig {
 ## 7. 安全架构
 
 ### 7.1 认证授权
+
+安全模块基于 Spring Security 6.x（Spring Boot 3.x）构建，通过 `SecurityFilterChain` Bean 替代了废弃的 `WebSecurityConfigurerAdapter`。整体采用 **SPI + 策略模式**设计，业务层通过 `@ConditionalOnMissingBean` 覆盖默认实现。
+
+#### 7.1.1 安全过滤器链
+
+框架通过 `@Import(SecurityAutoConfiguration.class)` 自动注册 `SecurityFilterChain`：
+
 ```java
-// JWT认证配置
+// FastDDD 自动配置，业务层通常无需手写
 @Configuration
-@EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
-    
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+@ConditionalOnProperty(prefix = "fastddd.security.jwt", name = "enabled", matchIfMissing = true)
+public class SecurityAutoConfiguration {
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) {
+        http.csrf().disable()
+            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             .and()
-            .addFilter(new JwtAuthenticationFilter(authenticationManager()))
-            .addFilter(new JwtAuthorizationFilter(authenticationManager()));
+            .authorizeHttpRequests()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // permitAllPaths 从配置读取，包含 /public/**、/actuator/**、Swagger 路径等
+                .requestMatchers(...permitAllPaths).permitAll()
+                .anyRequest().authenticated()
+            .and()
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .exceptionHandling()
+                .authenticationEntryPoint(jwtEntryPoint)     // 401
+                .accessDeniedHandler(jwtAccessDeniedHandler); // 403
+        return http.build();
     }
 }
+```
 
-// 权限控制
+请求流程：
+
+```
+HTTP Request
+  → JwtAuthenticationFilter（提取 JWT → 验签 → 渠道校验 → 设置 SecurityContext）
+    → Controller（@PreAuthorize 权限控制）
+      → 业务逻辑
+```
+
+#### 7.1.2 JWT 签名策略（JwtSigner）
+
+`JwtSigner` 是 JWT 签名/验签的策略接口，将密码学操作从 `JwtTokenProvider` 中解耦：
+
+```java
+public interface JwtSigner {
+    String sign(JwtBuilder builder);
+    Claims parse(String token) throws JwtException;
+}
+```
+
+| 实现 | 算法 | 适用场景 | 注册方式 |
+|------|------|----------|----------|
+| `HmacJwtSigner` | HMAC-SHA512 | 单体应用，默认 | `@ConditionalOnMissingBean` 自动注册 |
+| 自定义（如 RSA） | RS256 / ES256 | 跨子系统 SSO | `@Component` 覆盖默认 |
+
+**默认 HMAC 路径**（零配置）：
+
+```java
+// 框架自动配置，业务无需声明
+@Bean
+@ConditionalOnMissingBean(JwtSigner.class)
+public JwtSigner jwtSigner(JwtProperties jwtProperties) {
+    return new HmacJwtSigner(jwtProperties.getSecret());
+}
+```
+
+**RSA 路径**（业务层声明 `@Component` 即可覆盖）：
+
+```java
+@Component
+public class DevflowRsaJwtSigner implements JwtSigner {
+    private final KeyProvider keyProvider;
+
+    public String sign(JwtBuilder builder) {
+        return builder.setHeaderParam("kid", keyId)
+                .signWith(keyProvider.privateKey()).compact();
+    }
+
+    public Claims parse(String token) {
+        return Jwts.parserBuilder().setSigningKey(keyProvider.publicKey())
+                .build().parseClaimsJws(token).getBody();
+    }
+}
+```
+
+#### 7.1.3 SPI 接口
+
+业务层必须实现以下 SPI 以接入实际的用户/权限数据：
+
+| SPI | 方法 | 说明 |
+|-----|------|------|
+| `SecurityIdentityService` | `loadUserByUsername()`, `getUserInfo()` | 用户身份查询（默认抛异常引导实现） |
+| `SecurityPermissionService` | `getPermissionsByUserId()`, `getRolesByUserId()` | RBAC 权限查询 |
+| `CodeLoginIdentityService`（可选） | `loadUserByPhone()`, `loadUserByEmail()` | 手机/邮箱登录专用查询，扩展 `SecurityIdentityService` |
+
+#### 7.1.4 认证策略（AuthStrategy）
+
+登录方式通过 `AuthStrategy` 策略接口插拔式扩展：
+
+```java
+public interface AuthStrategy {
+    String getType();                                          // "password", "sms_code", "email_code" 等
+    Authentication authenticate(AuthenticationRequest request);
+    default boolean supports(AuthChannel channel) { return true; }
+}
+```
+
+框架内置策略：
+
+| 策略 | type | 条件 | 依赖 |
+|------|------|------|------|
+| `PasswordAuthStrategy` | `password` | `AuthenticationManager` 存在 | Spring Security |
+| `SmsCodeAuthStrategy` | `sms_code` | `VerificationCodeService` 存在 | SPI + 验证码服务 |
+| `EmailCodeAuthStrategy` | `email_code` | `VerificationCodeService` 存在 | SPI + 验证码服务 |
+
+`AuthStrategyRegistry` 自动收集所有 `AuthStrategy` Bean，`AuthController` 根据 `AuthenticationRequest.type` 分发到对应策略。
+
+#### 7.1.5 权限控制
+
+```java
+// 方法级权限控制（Spring Security @PreAuthorize）
 @PreAuthorize("hasRole('ADMIN') or hasPermission(#id, 'User', 'READ')")
 public User getUserById(Long id) {
     return userRepository.findById(id);
 }
+
+// 审计日志（AOP 自动记录）
+@AuditLog(value = "用户登录", type = AuditLog.OperationType.LOGIN)
+public ApiResponse<LoginResponse> login(...) { ... }
 ```
 
 ### 7.2 数据安全

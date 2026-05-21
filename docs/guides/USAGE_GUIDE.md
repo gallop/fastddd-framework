@@ -183,7 +183,7 @@ if (user == null) {
 **配置示例：**
 
 ```yaml
-fast-ddd:
+fastddd:
   config:
     environment: dev
     dynamic-refresh: true
@@ -420,20 +420,23 @@ public class OrderEventHandler {
 **配置示例：**
 
 ```yaml
-fast-ddd:
+fastddd:
   security:
     jwt:
       enabled: true
-      secret: your-secret-key-at-least-64-characters-long-for-hs512
-      expiration: 3600000          # 1小时
-      refresh-expiration: 604800000 # 7天
+      secret: your-secret-key-at-least-64-bytes-long!!    # HmacJwtSigner 默认使用
+      expiration: 1h             # Duration 格式，必须带单位: s/m/h/d
+      refresh-expiration: 7d
       token-prefix: "Bearer "
       header-name: "Authorization"
+      algorithm: HS512           # 信息性质，框架不读取；RSA 场景可写 RS256
     audit:
       enabled: true
       log-success: true
       log-failure: true
 ```
+
+> **签名策略**：默认使用 HMAC-SHA512（对称密钥）。如需 RSA/ES256 非对称签名（如跨子系统 SSO），声明 `@Component` 实现 `JwtSigner` 接口即可覆盖默认，详见 `FASTDDD_REFERENCE.md` 的"JWT 签名策略"章节。
 
 **使用示例：**
 
@@ -469,7 +472,7 @@ public Result<Void> deleteUser(@PathVariable Long id) {
 **配置示例：**
 
 ```yaml
-fast-ddd:
+fastddd:
   ai:
     enabled: true
     easy-code:
@@ -522,7 +525,7 @@ Map<String, Object> result = fastDocService.generate("com.example.controller");
 **配置示例：**
 
 ```yaml
-fast-ddd:
+fastddd:
   monitor:
     enabled: true
     slow-query-threshold: 1000  # 慢查询阈值 (ms)
@@ -710,7 +713,7 @@ spring:
     port: 6379
 
 # FastDDD 配置
-fast-ddd:
+fastddd:
   # 主开关
   enabled: true
 
@@ -1041,7 +1044,7 @@ my-project/                        ← Maven 父工程
 
 ```yaml
 # admin-api/application.yml
-fast-ddd:
+fastddd:
   security:
     jwt:
       channel: ADMIN
@@ -1050,7 +1053,7 @@ fast-ddd:
 
 ```yaml
 # customer-api/application.yml
-fast-ddd:
+fastddd:
   security:
     jwt:
       channel: CUSTOMER
