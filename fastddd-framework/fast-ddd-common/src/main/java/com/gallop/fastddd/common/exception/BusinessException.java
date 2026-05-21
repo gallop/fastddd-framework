@@ -14,63 +14,48 @@ public class BusinessException extends RuntimeException {
     
     private static final long serialVersionUID = 1L;
     
-    /**
-     * 错误码
-     */
     private final Integer errorCode;
-    
-    /**
-     * 错误消息
-     */
     private final String errorMessage;
-    
-    /**
-     * 构造函数
-     * 
-     * @param errorCode 错误码
-     * @param errorMessage 错误消息
-     */
+    private final String code;
+
     public BusinessException(Integer errorCode, String errorMessage) {
         super(errorMessage);
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.code = null;
     }
-    
-    /**
-     * 构造函数
-     * 
-     * @param errorCode 错误码
-     * @param errorMessage 错误消息
-     * @param cause 原因异常
-     */
+
     public BusinessException(Integer errorCode, String errorMessage, Throwable cause) {
         super(errorMessage, cause);
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.code = null;
     }
-    
-    /**
-     * 构造函数（使用默认错误码）
-     * 
-     * @param errorMessage 错误消息
-     */
+
     public BusinessException(String errorMessage) {
-        this(400, errorMessage);
+        super(errorMessage);
+        this.errorCode = 400;
+        this.errorMessage = errorMessage;
+        this.code = null;
     }
-    
-    /**
-     * 构造函数（使用默认错误码）
-     * 
-     * @param errorMessage 错误消息
-     * @param cause 原因异常
-     */
+
     public BusinessException(String errorMessage, Throwable cause) {
-        this(400, errorMessage, cause);
+        super(errorMessage, cause);
+        this.errorCode = 400;
+        this.errorMessage = errorMessage;
+        this.code = null;
     }
-    
+
+    public BusinessException(String code, String message) {
+        super(message);
+        this.code = code;
+        this.errorCode = null;
+        this.errorMessage = message;
+    }
+
     @Override
     public String toString() {
-        return String.format("BusinessException{errorCode='%s', errorMessage='%s'}", 
-                errorCode, errorMessage);
+        return String.format("BusinessException{code='%s', errorCode='%s', errorMessage='%s'}",
+                code, errorCode, errorMessage);
     }
 }
