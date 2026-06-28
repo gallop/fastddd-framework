@@ -108,7 +108,7 @@ public class CorsProperties {
      * 开发环境设置为true时，跳过所有CORS验证，无需配置allowedOrigins
      * 生产环境此选项自动失效（强制启用CORS保护）
      */
-    private boolean devDisableCORS = true;
+    private boolean devDisableCors = true;
 
     /**
      * 配置验证和启动日志
@@ -117,7 +117,7 @@ public class CorsProperties {
     @PostConstruct
     public void validateAndLog() {
         // 开发环境检查是否禁用CORS
-        if (isDevelopmentProfile() && devDisableCORS) {
+        if (isDevelopmentProfile() && devDisableCors) {
             log.info("========================================");
             log.info(" Development Mode: CORS DISABLED");
             log.info(" Skipping all CORS checks");
@@ -230,11 +230,11 @@ public class CorsProperties {
     /**
      * 判断是否应该禁用CORS
      * <p>
-     * 开发环境且devDisableCORS=true时禁用
+     * 开发环境且devDisableCors=true时禁用
      * 生产环境强制启用CORS保护
      */
     public boolean shouldDisableCors() {
-        return devDisableCORS && isDevelopmentProfile();
+        return devDisableCors && isDevelopmentProfile();
     }
 
     /**
