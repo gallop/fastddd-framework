@@ -72,23 +72,43 @@ public class GlobalExceptionHandler {
 
     /**
      * 处理业务异常
+     *
+     * <p>{@link BusinessException} 有两类构造器：
+     * <ul>
+     *   <li>{@code (Integer, String)} 等 —— {@code errorCode} 有值，{@code code} 为 null；</li>
+     *   <li>{@code (String code, String message)} —— {@code code} 有值（语义化字符串错误码），
+     *       <strong>{@code errorCode 为 null</strong>。</li>
+     * </ul>
+     * 历史实现假定 {@code errorCode} 恒非空并直接 {@code e.getErrorCode().toString()}，对后者会 NPE，
+     * 导致原始业务码丢失、异常漏成 500/401。此处 null-safe 兜底，并透传 {@code code} 到响应 {@code errCode}。
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
         log.warn("Business exception occurred: {} at {}", e.getMessage(), request.getRequestURI());
-        ApiResponse<Void> response = ApiResponse.failure(e.getErrorCode(), e.getMessage());
-        
-        // 根据错误码返回相应的HTTP状态码
-        if ("400".equals(e.getErrorCode().toString())) {
-            return ResponseEntity.badRequest().body(response);
-        } else if ("404".equals(e.getErrorCode().toString())) {
-            return ResponseEntity.notFound().build();
-        } else if ("500".equals(e.getErrorCode().toString())) {
-            return ResponseEntity.internalServerError().body(response);
+        // errorCode 可能为 null（(String,String) 构造器）；null 时业务异常默认 400 BAD_REQUEST。
+        HttpStatus httpStatus = resolveHttpStatus(e.getErrorCode());
+        // errCode 透传语义化字符串 code（前端可据此精确分支）；(Integer,String) 构造器 code=null → 字段不输出。
+        ApiResponse<Void> response = ApiResponse.failure(httpStatus.value(), e.getCode(), e.getMessage());
+        return ResponseEntity.status(httpStatus).body(response);
+    }
+
+    /**
+     * 由 BusinessException.errorCode 推导 HTTP 状态码（null-safe）。
+     * <p>null 或非 404/500 的值一律归 400（业务异常本质是客户端可处理）。
+     */
+    private HttpStatus resolveHttpStatus(Integer errorCode) {
+        if (errorCode == null) {
+            return HttpStatus.BAD_REQUEST;
         }
-        
-        // 默认返回400状态码
-        return ResponseEntity.badRequest().body(response);
+        switch (errorCode) {
+            case 404:
+                return HttpStatus.NOT_FOUND;
+            case 500:
+                return HttpStatus.INTERNAL_SERVER_ERROR;
+            case 400:
+            default:
+                return HttpStatus.BAD_REQUEST;
+        }
     }
     
     /**

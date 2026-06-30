@@ -28,7 +28,16 @@ public class ApiResponse<T> implements Serializable {
      * 响应码
      */
     private Integer code;
-    
+
+    /**
+     * 语义化错误码（可选）
+     * <p>仅失败响应承载，取自 {@code BusinessException.getCode()}（如 {@code SIGNATURE_SESSION_CANCELLED}），
+     * 供前端按业务码精确分支（区别于 HTTP/数字 code）。成功响应或未抛 BusinessException 的失败不输出此字段。
+     * <br>字段级 {@link JsonInclude.Include#NON_NULL}：null 时不序列化，保证旧端点响应 JSON 零变化。
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String errCode;
+
     /**
      * 响应消息
      */
@@ -143,7 +152,7 @@ public class ApiResponse<T> implements Serializable {
     
     /**
      * 创建失败响应
-     * 
+     *
      * @param code 错误码
      * @param message 错误消息
      * @param <T> 数据类型
@@ -151,6 +160,23 @@ public class ApiResponse<T> implements Serializable {
      */
     public static <T> ApiResponse<T> failure(Integer code, String message) {
         return error(code, message);
+    }
+
+    /**
+     * 创建失败响应（带语义化错误码）
+     * <p>用于 {@code BusinessException} 透传 {@code getCode()}（语义化字符串错误码，如
+     * {@code SIGNATURE_SESSION_CANCELLED}），使前端能按业务码精确分支。
+     *
+     * @param code    HTTP/数字错误码（写入响应 {@link #code}）
+     * @param errCode 语义化错误码（写入响应 {@link #errCode}），null 则不输出该字段
+     * @param message 错误消息
+     * @param <T>     数据类型
+     * @return 失败响应
+     */
+    public static <T> ApiResponse<T> failure(Integer code, String errCode, String message) {
+        ApiResponse<T> response = error(code, message);
+        response.setErrCode(errCode);
+        return response;
     }
     
     /**

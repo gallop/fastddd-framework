@@ -47,6 +47,15 @@ public class TestController {
     public Result<String> testBusinessError() {
         throw new BusinessException(400, "这是一个业务异常测试");
     }
+
+    /**
+     * 测试语义化错误码业务异常（(String,String) 构造器，errorCode=null）
+     * <p>复现 GlobalExceptionHandler NPE 场景：errorCode 为 null 不应崩溃，且应透传 errCode。
+     */
+    @GetMapping("/business-error-coded")
+    public Result<String> testBusinessErrorCoded() {
+        throw new BusinessException("BUSINESS_CODED_ERROR", "语义化错误码业务异常");
+    }
     
     /**
      * 测试系统异常

@@ -42,6 +42,35 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.timestamp", notNullValue()));
     }
 
+    /**
+     * (String,String) 构造器抛出的 BusinessException（errorCode=null）不应让全局处理器 NPE，
+     * 应返回 400 且透传语义化 errCode；前端可据此精确分支。
+     * 回归：历史实现因 e.getErrorCode().toString() 在此场景 NPE，异常漏成 500。
+     */
+    @Test
+    void shouldHandleCodedBusinessExceptionWithoutNpe() throws Exception {
+        mockMvc.perform(get("/test/business-error-coded"))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is(400)))
+                .andExpect(jsonPath("$.errCode", is("BUSINESS_CODED_ERROR")))
+                .andExpect(jsonPath("$.message", is("语义化错误码业务异常")))
+                .andExpect(jsonPath("$.data", nullValue()))
+                .andExpect(jsonPath("$.timestamp", notNullValue()));
+    }
+
+    /**
+     * (Integer,String) 构造器（code=null）的失败响应不应输出 errCode 字段（NON_NULL），
+     * 保证旧端点响应 JSON 零变化。
+     */
+    @Test
+    void shouldNotEmitErrCodeForIntegerCodeBusinessException() throws Exception {
+        mockMvc.perform(get("/test/business-error"))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errCode").doesNotExist());
+    }
+
     @Test
     void shouldHandleSystemException() throws Exception {
         mockMvc.perform(get("/test/system-error"))
