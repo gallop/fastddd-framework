@@ -1,10 +1,10 @@
 # FastDDD JDK 21 与 Spring Boot 3.5.16 升级改造计划
 
-> **文档版本：** v1.1
+> **文档版本：** v1.2
 >
 > **编制日期：** 2026-08-09
 >
-> **最近修订：** 2026-08-09（v1.1：补强 Spring AI / SpringDoc / Knife4j / Druid 对齐版本与三层验证、自定义 Conditional 审查、优先级边界澄清）
+> **最近修订：** 2026-08-09（v1.2：Druid 改为确定性坐标迁移至 `druid-spring-boot-3-starter` 1.2.28；Spring AI 按真实 API 清单（ChatModel/ChatResponse/Prompt/OpenAiChatOptions）验证并修正误写的 ChatClient/工具调用；`fastddd-bom` 提前到 1.0.0 作为依赖契约；排障步骤去技能依赖、写成自洽步骤）
 >
 > **状态：** 待执行
 >
@@ -51,7 +51,7 @@
 | 构建、CI、容器、生成器和文档 | 主要改动区域 |
 | 改造工期 | 5～8 人日 |
 | 外部中间件完整回归 | 另预留 1～2 人日 |
-| 综合风险 | 中低；外部集成模块为主要不确定项，其中 **Spring AI 1.0→1.1 的 API 迁移**（影响 AI/Analyzer/Studio 三个模块）是工期波动的主要来源 |
+| 综合风险 | 中低；外部集成模块为主要不确定项。Spring AI 直接调用面仅 2 个源文件（analyzer、studio），且用的是稳定核心 API（ChatModel/ChatResponse/Prompt/OpenAiChatOptions），实际迁移工作量可控；**真正的工期不确定项是 Druid 坐标迁移后的上下文测试与 SpringDoc/Knife4j 联动验证** |
 
 ---
 
@@ -193,7 +193,7 @@
 | **Spring AI BOM** | **1.0.3** | **升级到 `1.1.x`（针对 Boot 3.5.x 的 1.x 维护线）；2.0.x 才对应 Boot 4.x，不在本次范围**。见 UPG-004 第 9～11 步 | 🔴 高 |
 | **SpringDoc** | **2.2.0** | **升级到 `2.8.x`（最新 2.x 线）**。2.x 对应 Boot 3.x，但 2.2.0 针对的是 Boot 3.2，社区明确警告 2.5.0 都不保证能在 Boot 3.5 上工作 | 🔴 高 |
 | **Knife4j** | **4.5.0** | **与 SpringDoc 联动验证**。`knife4j-openapi3-*` 传递性引入自己的 springdoc，会覆盖刚设定的 2.8.x；需查 knife4j 4.5.0 锁定的 springdoc 基线，必要时升 knife4j 或排除其传递依赖 | 🟠 中高 |
-| Druid | 1.2.20 | `druid-spring-boot-3-starter` auto-config 对 Boot 小版本敏感，查最新 3-starter 版本是否支持 Boot 3.5；执行真实上下文启动 | 🟠 中 |
+| Druid | 1.2.20（**`druid-spring-boot-starter`，Boot 2 坐标**） | **确定性坐标迁移**为 `druid-spring-boot-3-starter`，候选版本 **1.2.28**。当前代码 4 处引用旧坐标（根 pom、examples、crud、code-generator），UPG-004 必须全部改掉并做完整上下文启动测试 | 🔴 高 |
 | Micrometer | 1.12.0 | 删除手工版本，交由 Boot 3.5.16 BOM 管理（**实际将升到 1.15.x，非小幅跳动**） | 🟢 低 |
 | JUnit Jupiter | 5.10.1 | 删除手工版本，交由 Boot BOM 管理 | 🟢 低 |
 | Testcontainers | 1.19.3 | 删除手工版本，交由 Boot BOM 管理 | 🟢 低 |
@@ -254,14 +254,14 @@ main（当前 Java 17 基线）
 
 ### 4.2 P1：建议在 1.0.x 周期内完成
 
-> **边界澄清（v1.1）**：以下 P1 项不再全部阻塞 1.0.0 发布。按收益与前置条件分为两组——
+> **边界澄清（v1.2）**：以下 P1 项不再全部阻塞 1.0.0 发布。按收益与前置条件分为两组——
 >
-> - **A 组（纳入 UPG-010，作为 1.0.0 发布门禁）**：Maven CI-friendly version + flatten-plugin、Maven Enforcer + JDK Toolchains。这两项是可持续发布的基础，且不依赖外部基线。
-> - **B 组（推迟到 1.0.1）**：`fastddd-bom`、japicmp / Revapi 二进制兼容性检查。**原因**：项目当前无任何正式 tag/GA 制品，japicmp 需要一个基线 jar 作对照，在 1.0.0 本次本身没有可比基准；其真正价值从 1.0.0 → 1.0.1 起才体现。`fastddd-bom` 同样更适合在 1.0.0 GA 之后作为独立交付物发布。
+> - **A 组（纳入 UPG-010，作为 1.0.0 发布门禁）**：Maven CI-friendly version + flatten-plugin、Maven Enforcer + JDK Toolchains、`fastddd-bom`。前三项是可持续发布的基础；**`fastddd-bom` 不依赖历史基线，且所有在研业务系统将随本次一起升级，应作为 1.0.0 首个正式版的依赖契约统一提供**，让业务项目只需导入一个版本入口。
+> - **B 组（推迟到 1.0.1）**：japicmp / Revapi 二进制兼容性检查。**原因**：项目当前无任何正式 tag/GA 制品，japicmp 需要一个基线 jar 作对照，在 1.0.0 本次本身没有可比基准；其真正价值从 1.0.0 → 1.0.1 起才体现。
 
 - 使用 Maven CI-friendly version，避免 27 个 POM 手工改版本；
 - 增加 Maven Enforcer 和 JDK Toolchains；
-- 增加 `fastddd-bom`，向业务项目提供统一依赖入口（**1.0.1**）；
+- 增加 `fastddd-bom`，向业务项目提供统一依赖入口；
 - 增加公共 API 二进制兼容性检查，例如 japicmp 或 Revapi（**1.0.1，需先有 1.0.0 GA 基线 jar**）；
 - 补充无直接测试模块的最小上下文测试。
 
@@ -506,14 +506,23 @@ flowchart TD
 4. **Lombok**：1.18.30 支持 JDK 21，删除手工版本交由 Boot BOM 管理时，**必须同步清理 `maven-compiler-plugin` 的 `annotationProcessorPaths` 中 `lombok` 与 `lombok-mapstruct-binding` 的 `<version>` 声明**，否则会出现 dependencyManagement 与 processor path 两套 Lombok 版本。
 5. **MySQL 驱动**：坐标从 `mysql:mysql-connector-java` 迁移为 `com.mysql:mysql-connector-j`，**同时删除手工版本**交由 Boot BOM 管理。
 6. **MyBatis-Plus / mybatis-spring**：检查 `mybatis-spring 3.0.3` 与 MyBatis-Plus 3.5.12 自带版本是否出现多版本或运行时不匹配，必要时移除手工覆盖。
-7. **Druid**：查最新 `druid-spring-boot-3-starter` 版本是否支持 Boot 3.5 auto-config，必要时升级。
+7. **Druid（🔴 确定性坐标迁移）**：将 `druid-spring-boot-starter` 迁移为 **`druid-spring-boot-3-starter`**（候选版本 **1.2.28**）。当前代码 4 处引用旧坐标——根 pom 的 `<druid.version>` 与 dependencyManagement、`fastddd-examples/pom.xml`、`fast-ddd-crud/pom.xml`、`fastddd-code-generator/pom.xml`——必须全部改掉。迁移后执行**完整 Spring 上下文启动**，确认 `DruidDataSourceAutoConfigure` 正常装配、连接池生效（旧 Boot 2 坐标在 Boot 3.5 下 auto-config 实际可能未生效）。
 8. **Elasticsearch 客户端 / RocketMQ**：按 3.3 节表格对齐，执行真实上下文启动与连接。
 9. **SpringDoc（🔴 确定性升级）**：`springdoc.version` 从 `2.2.0` 升级到 **`2.8.x`（最新 2.x 线）**。2.x 才对应 Boot 3.x，但 2.2.0 针对的是 Boot 3.2，旧版本在 Boot 3.5 下不保证工作。
 10. **Knife4j（🟠 与 SpringDoc 联动）**：`knife4j-openapi3-jakarta-spring-boot-starter` 会传递性引入自己的 springdoc，可能覆盖第 9 步设定的 2.8.x。执行 `dependency:tree` 核对 knife4j 4.5.0 锁定的 springdoc 基线：若锁定旧 springdoc，要么升 knife4j 到与 2.8.x 对齐的版本，要么 `<exclusion>` 排除其传递的 springdoc 后由根 POM 统一管理。**9、10 两步必须一起验证，否则改了等于没改。**
 11. **Spring AI（🔴 确定性升级，A 方案内联处理）**：
     - `spring-ai.version` 从 `1.0.3` 升级到 **`1.1.x`**（针对 Boot 3.5.x 的 1.x 维护线；2.0.x 对应 Boot 4.x，不在本次范围）。
     - 重新核对 `spring-ai-bom` 与 Boot BOM 的 Spring artifact 主导权：`spring-core` 必须由 Boot BOM 解析，不能被 Spring AI BOM 拉低。
-    - **1.0 → 1.1 属于 minor 升级，`ChatClient`、工具调用等 API 有少量变动**；影响 `fast-ddd-ai-spring-boot-starter`、`fast-ddd-analyzer-spring-boot-starter`、`studio-server` 三个模块。若编译报错，用 `systematic-debugging` 逐个修复 API 差异，并将每处改动记入执行记录，**不得通过降版本或注释代码绕过**。
+    - **基于真实 API 清单验证（非臆测）**：当前仓库直接调用 Spring AI 的源码仅 2 个文件、2 个模块：
+      - `fast-ddd-analyzer-.../LLMEnhancedStrategy.java`：`ChatModel`、`ChatResponse`、`ChatOptions`、`Prompt`、`OpenAiChatOptions`
+      - `studio-server/.../AiDomainDesignService.java`：`ChatModel`、`ChatResponse`、`Prompt`、`SystemMessage`、`UserMessage`、`OpenAiChatOptions`
+      - 仓库**未使用** `ChatClient` 与工具调用（function calling）API——不要把它们当作既定迁移点。升级时以这两个文件实际 import 的类为核对清单，逐类确认 1.1.x 是否有签名/包路径变动。
+    - 1.0 → 1.1 属于 minor 升级，上述 API 仍属 Spring AI 稳定核心，预期无需改动；若编译报错，按以下**自洽排障步骤**处理（不依赖任何外部 skill）：
+      1. 记录每个编译错误的文件、行号、符号与报错文本；
+      2. 查 Spring AI 1.1.x 对该类的 javadoc / 迁移说明，确认是签名变更、包移动还是废弃；
+      3. 按官方说明最小改动修复（如换方法名、补参数、改 import），不动业务逻辑；
+      4. 单文件改完立即 `mvn -pl <module> -am compile` 增量验证，再进入下一个；
+      5. 每处改动记入执行记录，**不得通过降版本、注释代码或缩小可见性绕过**。
 12. 编译所有自研 starter，重点检查 17 个自动配置类（其条件加载行为审查见 UPG-005 第 6 步）。
 13. 不引入 Boot 4 的 classic starter、Jackson 3 或 Spring Framework 7 改动。
 
@@ -705,8 +714,9 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
    - Maven 3.9.x；
    - 插件版本必须显式；
    - 禁止重复依赖声明。
-4. **`fastddd-bom`、japicmp / Revapi 推迟到 1.0.1**（见 4.2 节 B 组）：1.0.0 本次无 GA 基线 jar，japicmp 无可比基准；BOM 更适合 GA 后作为独立交付物。本任务不阻塞 1.0.0 发布，但需在 CHANGELOG/路线图登记为 1.0.1 必做项。
-5. 更新：
+4. 增加 `fastddd-bom`：聚合 framework 全部模块的版本，作为业务项目的统一依赖契约入口。所有在研业务系统随 1.0.0 一起切换到该 BOM，避免各自声明版本。
+5. **japicmp / Revapi 推迟到 1.0.1**（见 4.2 节 B 组）：1.0.0 本次无 GA 基线 jar，japicmp 无可比基准。本项不阻塞 1.0.0 发布，但需在 CHANGELOG/路线图登记为 1.0.1 必做项。
+6. 更新：
    - README；
    - CLAUDE.md；
    - FastDDD 初始化 skill；
@@ -715,7 +725,7 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
    - 兼容矩阵；
    - CHANGELOG；
    - 发布检查表。
-6. 修改 `docs/FASTDDD_REFERENCE.md` 前先读取并保留用户当前未提交内容，只追加或合并本次升级相关信息。
+7. 修改 `docs/FASTDDD_REFERENCE.md` 前先读取并保留用户当前未提交内容，只追加或合并本次升级相关信息。
 
 **兼容矩阵至少包含：**
 
@@ -728,7 +738,7 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
 **验收标准：**
 
 - 版本只从一个属性或 CI 参数进入 reactor；
-- 业务项目有明确的版本使用方式说明（独立 `fastddd-bom` 交付物登记为 1.0.1 必做项）；
+- `fastddd-bom` 已发布，业务项目有统一的单一版本入口（japicmp/Revapi 登记为 1.0.1 必做项）；
 - `1.0.x`、`1.1.x`、`2.0.x` 的变更边界明确；
 - 文档不存在把 breaking change 当作普通 minor 升级的描述。
 
