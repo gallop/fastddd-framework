@@ -238,6 +238,11 @@ public class OrderAdminController extends BaseAdminCrudController<OrderService, 
     // 可覆写生命周期 Hook:
     // beforeCreate / afterCreate / beforeUpdate / afterUpdate
     // beforeDelete / afterDelete / beforeCreateBatch / beforeUpdateBatch
+
+    // ⚠️ 安全: 空体子类继承的 7 个写端点（POST/PUT/DELETE）无方法级权限守卫，
+    // 完全依赖子类的类级注解（如 @RequiresPermission）统管。
+    // 若需按钮级细粒度控制，必须覆写写方法并加方法级权限注解。
+    // 详见下方「继承写端点的安全模型」。
 }
 ```
 
@@ -268,10 +273,47 @@ public class UserController extends BaseController<UserService, User> {
 
 | 场景 | 推荐基类 | 说明 |
 |------|---------|------|
-| 后台管理 CRUD | `BaseAdminCrudController` | 完整增删改查，路径应放在 `/api/admin/**` |
+| 后台管理 CRUD | `BaseAdminCrudController` | 完整增删改查，路径应放在 `/api/admin/**`。**继承的 7 写无方法级守卫，靠子类类级注解统管** |
 | 只读字典/查询 | `BaseReadOnlyController` | 仅 GET 方法，无写操作风险 |
 | 敏感业务 API | 不继承任何 CRUD 基类 | 显式声明每个端点，避免隐式暴露 |
 | 旧项目兼容 | `BaseController`（已废弃） | 保持编译通过，建议逐步迁移 |
+
+#### ⚠️ 继承写端点的安全模型
+
+空体子类继承自 `BaseAdminCrudController` 的 **7 个写端点（POST/PUT/DELETE）没有方法级权限守卫**，完全依赖子类的类级注解统管。这意味着：
+
+- 任何通过类级注解的角色都可以执行**所有**继承写操作（增/改/删全放行）
+- **无法在空体子类上实现按钮级细粒度权限**（如「只允许增、不允许删」）
+
+**何时需要重写写端点**：
+1. 需要按钮级细粒度权限（如 `sys_billing_rule` 表，需要区分增/改/删权限）
+2. 需要为写操作添加 `@AuditLog` 审计留痕
+3. 需要收紧权限——类级注解通写太宽，方法级独立守卫
+
+**重写示例**（与 DishController/FoodSafetyController 同范式）：
+
+```java
+@RestController
+@RequestMapping("/api/admin/sys/billing-rules")
+@RequiresPermission(value = {"system:view", "fee:billing-rule"}, logical = RequiresPermission.Logical.OR)
+public class SysBillingRuleController extends BaseAdminCrudController<SysBillingRuleService, SysBillingRule> {
+
+    @Override
+    @RequiresPermission(value = {"fee:manage", "fee:billing-rule:create"}, logical = RequiresPermission.Logical.OR)
+    @AuditLog(value = "新建计费规则", type = AuditLog.OperationType.INSERT)
+    public ResponseEntity<ApiResponse<SysBillingRule>> create(SysBillingRule entity) {
+        return super.create(entity);
+    }
+
+    // 同理覆写 createBatch / update / updateById / updateBatch / delete / deleteBatch
+    // update/updateById 可共用同一操作码（皆为 UI「编辑」按钮）
+    // 读端点（getById/list/page）不覆写，保持继承
+}
+```
+
+**不重写时默认行为**：7 个继承写端点仅受类级注解守卫。子类的类级注解 `value` 数组中任何一条匹配当前用户权限码即放行全部写操作。
+
+> 💡 **推荐做法**：敏感业务模块（费用、合同、账户等）的 `BaseAdminCrudController` 子类应从 Day 1 起重写写端点并加方法级注解。纯字典/配置类 CRUD（如 `meal:dish-tag`）可先用空体，后续按需收紧。
 
 **统一响应格式** (`ApiResponse<T>`):
 ```json
