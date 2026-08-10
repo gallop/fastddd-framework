@@ -1,10 +1,10 @@
 # FastDDD JDK 21 与 Spring Boot 3.5.16 升级改造计划
 
-> **文档版本：** v1.2
+> **文档版本：** v1.3
 >
 > **编制日期：** 2026-08-09
 >
-> **最近修订：** 2026-08-09（v1.2：Druid 改为确定性坐标迁移至 `druid-spring-boot-3-starter` 1.2.28；Spring AI 按真实 API 清单（ChatModel/ChatResponse/Prompt/OpenAiChatOptions）验证并修正误写的 ChatClient/工具调用；`fastddd-bom` 提前到 1.0.0 作为依赖契约；排障步骤去技能依赖、写成自洽步骤）
+> **最近修订：** 2026-08-09（v1.3：将 Spring AI / SpringDoc 固定为 1.1.8 / 2.8.17；修正 Lombok annotation processor、MySQL 9.7.0、Knife4j 传递依赖和自定义 Conditional 验证方案；Druid 目标版本固定为 1.2.28；更新 SpringDoc Boot 3 官方参考）
 >
 > **状态：** 待执行
 >
@@ -190,15 +190,15 @@
 
 | 依赖 | 当前版本 | 目标 / 处理原则 | 风险等级 |
 |------|----------|-----------------|----------|
-| **Spring AI BOM** | **1.0.3** | **升级到 `1.1.x`（针对 Boot 3.5.x 的 1.x 维护线）；2.0.x 才对应 Boot 4.x，不在本次范围**。见 UPG-004 第 9～11 步 | 🔴 高 |
-| **SpringDoc** | **2.2.0** | **升级到 `2.8.x`（最新 2.x 线）**。2.x 对应 Boot 3.x，但 2.2.0 针对的是 Boot 3.2，社区明确警告 2.5.0 都不保证能在 Boot 3.5 上工作 | 🔴 高 |
-| **Knife4j** | **4.5.0** | **与 SpringDoc 联动验证**。`knife4j-openapi3-*` 传递性引入自己的 springdoc，会覆盖刚设定的 2.8.x；需查 knife4j 4.5.0 锁定的 springdoc 基线，必要时升 knife4j 或排除其传递依赖 | 🟠 中高 |
-| Druid | 1.2.20（**`druid-spring-boot-starter`，Boot 2 坐标**） | **确定性坐标迁移**为 `druid-spring-boot-3-starter`，候选版本 **1.2.28**。当前代码 4 处引用旧坐标（根 pom、examples、crud、code-generator），UPG-004 必须全部改掉并做完整上下文启动测试 | 🔴 高 |
-| Micrometer | 1.12.0 | 删除手工版本，交由 Boot 3.5.16 BOM 管理（**实际将升到 1.15.x，非小幅跳动**） | 🟢 低 |
-| JUnit Jupiter | 5.10.1 | 删除手工版本，交由 Boot BOM 管理 | 🟢 低 |
-| Testcontainers | 1.19.3 | 删除手工版本，交由 Boot BOM 管理 | 🟢 低 |
-| Lombok | 1.18.30 | 1.18.30 支持 JDK 21，但删除手工版本时**必须同步清理 compiler plugin 的 `annotationProcessorPaths` 中 lombok 与 lombok-mapstruct-binding 版本**，否则出现两套 Lombok 版本 | 🟡 中 |
-| MySQL Connector | `mysql:mysql-connector-java:8.0.33` | 迁移坐标为 `com.mysql:mysql-connector-j`，**并删除手工版本**交由 Boot BOM 管理（Boot 3.5 管理 8.x 最新） | 🟢 低 |
+| **Spring AI BOM** | **1.0.3** | **确定性升级到 `1.1.8`**（Boot 3.5.x 对应的 1.1 维护线）；2.0.x 对应 Boot 4.x，不在本次范围。见 UPG-004 第 9～11 步 | 🔴 高 |
+| **SpringDoc** | **2.2.0** | **确定性升级到 `2.8.17`**。官方矩阵为 Boot 3.1.x → SpringDoc 2.2.x、Boot 3.2.x → 2.3～2.5、Boot 3.5.x → 2.8.x | 🔴 高 |
+| **Knife4j** | **4.5.0** | **与 SpringDoc 2.8.17 联动验证**。Knife4j 传递声明 SpringDoc 2.3.0，但根 dependencyManagement 会统一解析为 2.8.17；主要风险是二者的运行时兼容性，仅在依赖结构变化或无法统一版本时考虑 exclusion / 升级 Knife4j | 🟠 中高 |
+| Druid | 1.2.20（**`druid-spring-boot-starter`，Boot 2 坐标**） | **确定性迁移到 `druid-spring-boot-3-starter:1.2.28`**。当前代码 4 处引用旧坐标（根 pom、examples、crud、code-generator），UPG-004 必须全部改掉并做完整上下文启动测试 | 🔴 高 |
+| Micrometer | 1.12.0 | 删除手工版本，交由 Boot 3.5.16 BOM 管理，实际解析为 **1.15.12** | 🟢 低 |
+| JUnit Jupiter | 5.10.1 | 删除手工版本，交由 Boot 3.5.16 BOM 管理，实际解析为 **5.12.2** | 🟢 低 |
+| Testcontainers | 1.19.3 | 删除手工版本，交由 Boot 3.5.16 BOM 管理，实际解析为 **1.21.4** | 🟢 低 |
+| Lombok | 1.18.30 | 删除 Lombok 手工版本，交由 Boot 3.5.16 BOM 管理为 **1.18.46**；同步删除 `annotationProcessorPaths` 中 **Lombok 自身**的 `<version>`。`lombok-mapstruct-binding:0.2.0` 不受 Boot BOM 管理，其属性和 processor path 版本必须保留 | 🟡 中 |
+| MySQL Connector | `mysql:mysql-connector-java:8.0.33` | 迁移为 `com.mysql:mysql-connector-j` 并删除手工版本，交由 Boot 3.5.16 BOM 管理为 **9.7.0**；这是主版本跳升，必须执行真实 MySQL 连接、CRUD、事务与 Druid 连接池验证 | 🟠 中高 |
 | MyBatis Spring | 3.0.3 | 检查与 MyBatis-Plus starter 的传递版本一致性；MyBatis-Plus 3.5.12 自带 mybatis-spring，覆盖到 3.0.3 可能冲突 | 🟡 中 |
 | Elasticsearch Client | 8.11.0 | 检查与 Boot 3.5 的 Spring Data Elasticsearch 对齐后决定是否移除覆盖 | 🟡 中 |
 | Freemarker | 2.3.33 | 检查 Boot BOM；生成器如有特定需求需记录原因 | 🟢 低 |
@@ -502,24 +502,24 @@ flowchart TD
    mvn dependency:tree -Dverbose
    ```
 
-3. 对照 Boot BOM 逐项处理低风险手工覆盖（Micrometer、JUnit、Testcontainers、Freemarker）：确认受管后删除手工版本，**实际版本将随 Boot BOM 上移**（如 Micrometer → 1.15.x），不视为回归。
-4. **Lombok**：1.18.30 支持 JDK 21，删除手工版本交由 Boot BOM 管理时，**必须同步清理 `maven-compiler-plugin` 的 `annotationProcessorPaths` 中 `lombok` 与 `lombok-mapstruct-binding` 的 `<version>` 声明**，否则会出现 dependencyManagement 与 processor path 两套 Lombok 版本。
-5. **MySQL 驱动**：坐标从 `mysql:mysql-connector-java` 迁移为 `com.mysql:mysql-connector-j`，**同时删除手工版本**交由 Boot BOM 管理。
+3. 对照 Boot BOM 逐项处理低风险手工覆盖（Micrometer、JUnit、Testcontainers、Freemarker）：确认受管后删除手工版本，记录 Boot 3.5.16 的实际解析版本；其中 Micrometer、JUnit Jupiter、Testcontainers 应分别解析为 `1.15.12`、`5.12.2`、`1.21.4`。
+4. **Lombok**：删除 `lombok.version` 手工属性，交由 Boot 3.5.16 BOM 管理为 `1.18.46`；同步删除依赖声明和 `maven-compiler-plugin` 的 `annotationProcessorPaths` 中 **Lombok 自身**的 `<version>`。`lombok-mapstruct-binding:0.2.0` 不在 Boot BOM 中，必须保留根 POM 的 `lombok-mapstruct-binding.version` 以及根 POM、Studio POM processor path 中对应的 `<version>`，不得一并删除。
+5. **MySQL 驱动（🟠 主版本升级）**：坐标从 `mysql:mysql-connector-java:8.0.33` 迁移为 `com.mysql:mysql-connector-j`，删除手工版本后由 Boot 3.5.16 BOM 管理为 **`9.7.0`**。除编译外，必须使用真实 MySQL 环境验证连接建立、认证、基础 CRUD、事务提交/回滚和 Druid 连接池；不得按普通补丁升级处理。
 6. **MyBatis-Plus / mybatis-spring**：检查 `mybatis-spring 3.0.3` 与 MyBatis-Plus 3.5.12 自带版本是否出现多版本或运行时不匹配，必要时移除手工覆盖。
-7. **Druid（🔴 确定性坐标迁移）**：将 `druid-spring-boot-starter` 迁移为 **`druid-spring-boot-3-starter`**（候选版本 **1.2.28**）。当前代码 4 处引用旧坐标——根 pom 的 `<druid.version>` 与 dependencyManagement、`fastddd-examples/pom.xml`、`fast-ddd-crud/pom.xml`、`fastddd-code-generator/pom.xml`——必须全部改掉。迁移后执行**完整 Spring 上下文启动**，确认 `DruidDataSourceAutoConfigure` 正常装配、连接池生效（旧 Boot 2 坐标在 Boot 3.5 下 auto-config 实际可能未生效）。
+7. **Druid（🔴 确定性坐标迁移）**：将 `druid-spring-boot-starter:1.2.20` 迁移为 **`druid-spring-boot-3-starter:1.2.28`**。当前代码 4 处引用旧坐标——根 pom 的 `<druid.version>` 与 dependencyManagement、`fastddd-examples/pom.xml`、`fast-ddd-crud/pom.xml`、`fastddd-code-generator/pom.xml`——必须全部改掉。迁移后执行**完整 Spring 上下文启动**，确认 `DruidDataSourceAutoConfigure` 正常装配、连接池生效（旧 Boot 2 坐标在 Boot 3.5 下 auto-config 实际可能未生效）。
 8. **Elasticsearch 客户端 / RocketMQ**：按 3.3 节表格对齐，执行真实上下文启动与连接。
-9. **SpringDoc（🔴 确定性升级）**：`springdoc.version` 从 `2.2.0` 升级到 **`2.8.x`（最新 2.x 线）**。2.x 才对应 Boot 3.x，但 2.2.0 针对的是 Boot 3.2，旧版本在 Boot 3.5 下不保证工作。
-10. **Knife4j（🟠 与 SpringDoc 联动）**：`knife4j-openapi3-jakarta-spring-boot-starter` 会传递性引入自己的 springdoc，可能覆盖第 9 步设定的 2.8.x。执行 `dependency:tree` 核对 knife4j 4.5.0 锁定的 springdoc 基线：若锁定旧 springdoc，要么升 knife4j 到与 2.8.x 对齐的版本，要么 `<exclusion>` 排除其传递的 springdoc 后由根 POM 统一管理。**9、10 两步必须一起验证，否则改了等于没改。**
+9. **SpringDoc（🔴 确定性升级）**：`springdoc.version` 从 `2.2.0` 升级到 **`2.8.17`**。官方矩阵中 2.2.x 对应 Boot 3.1.x，Boot 3.5.x 应使用 2.8.x；不得继续使用 2.2.0。
+10. **Knife4j（🟠 与 SpringDoc 联动）**：保留 `knife4j.version=4.5.0` 作为首选方案。该 starter 传递声明 SpringDoc 2.3.0，但根 POM 的 dependencyManagement 应将其统一管理为第 9 步设定的 2.8.17。执行 `dependency:tree -Dverbose`，预期看到 `version managed from 2.3.0; omitted for duplicate`，而不是把 2.8.17 覆盖成旧版。随后重点验证 Knife4j 4.5.0 与 SpringDoc 2.8.17 的运行时兼容性；仅当依赖结构变化、无法统一版本或 `/doc.html` 验证失败时，才评估 exclusion 或升级 Knife4j。**9、10 两步必须一起验证。**
 11. **Spring AI（🔴 确定性升级，A 方案内联处理）**：
-    - `spring-ai.version` 从 `1.0.3` 升级到 **`1.1.x`**（针对 Boot 3.5.x 的 1.x 维护线；2.0.x 对应 Boot 4.x，不在本次范围）。
+    - `spring-ai.version` 从 `1.0.3` 确定性升级到 **`1.1.8`**（针对 Boot 3.5.x 的 1.1 维护线；2.0.x 对应 Boot 4.x，不在本次范围）。
     - 重新核对 `spring-ai-bom` 与 Boot BOM 的 Spring artifact 主导权：`spring-core` 必须由 Boot BOM 解析，不能被 Spring AI BOM 拉低。
     - **基于真实 API 清单验证（非臆测）**：当前仓库直接调用 Spring AI 的源码仅 2 个文件、2 个模块：
       - `fast-ddd-analyzer-.../LLMEnhancedStrategy.java`：`ChatModel`、`ChatResponse`、`ChatOptions`、`Prompt`、`OpenAiChatOptions`
       - `studio-server/.../AiDomainDesignService.java`：`ChatModel`、`ChatResponse`、`Prompt`、`SystemMessage`、`UserMessage`、`OpenAiChatOptions`
-      - 仓库**未使用** `ChatClient` 与工具调用（function calling）API——不要把它们当作既定迁移点。升级时以这两个文件实际 import 的类为核对清单，逐类确认 1.1.x 是否有签名/包路径变动。
+      - 仓库**未使用** `ChatClient` 与工具调用（function calling）API——不要把它们当作既定迁移点。升级时以这两个文件实际 import 的类为核对清单，逐类确认 1.1.8 是否有签名/包路径变动。
     - 1.0 → 1.1 属于 minor 升级，上述 API 仍属 Spring AI 稳定核心，预期无需改动；若编译报错，按以下**自洽排障步骤**处理（不依赖任何外部 skill）：
       1. 记录每个编译错误的文件、行号、符号与报错文本；
-      2. 查 Spring AI 1.1.x 对该类的 javadoc / 迁移说明，确认是签名变更、包移动还是废弃；
+      2. 查 Spring AI 1.1.8 对该类的 javadoc / 迁移说明，确认是签名变更、包移动还是废弃；
       3. 按官方说明最小改动修复（如换方法名、补参数、改 import），不动业务逻辑；
       4. 单文件改完立即 `mvn -pl <module> -am compile` 增量验证，再进入下一个；
       5. 每处改动记入执行记录，**不得通过降版本、注释代码或缩小可见性绕过**。
@@ -533,7 +533,9 @@ flowchart TD
 - `dependency:tree -Dverbose` 中 `spring-core`、`spring-context`、`spring-web`、`jackson-databind`、`micrometer-*`、`slf4j-api` 的解析版本与 Boot 3.5.16 BOM 一致，**不存在被 Spring AI / SpringDoc / Knife4j 覆盖成更低版本的红字**；
 - SpringDoc `/v3/api-docs` 与 Knife4j `/doc.html` 均能正常返回（运行时冒烟，非仅编译）；
 - AI/Analyzer starter 真实上下文启动无 `BeanCreationException`（OpenAI client 可用 mock/跳过真实模型）；
-- Spring AI 已为 `1.1.x`，SpringDoc 已为 `2.8.x`，且 knife4j 传递的 springdoc 已被统一收口；
+- Spring AI 已固定为 `1.1.8`，SpringDoc 已固定为 `2.8.17`，且 Knife4j 传递声明的 SpringDoc 2.3.0 已由根 dependencyManagement 统一解析为 2.8.17；
+- Lombok 解析为 `1.18.46`，`lombok-mapstruct-binding:0.2.0` 的显式版本仍保留；
+- MySQL Connector/J 解析为 `9.7.0`，真实 MySQL + Druid 连接、CRUD 和事务验证通过；
 - 每个保留的手工版本都有明确原因。
 
 ---
@@ -553,9 +555,11 @@ flowchart TD
 3. 检查 Mockito/Byte Buddy 动态 agent 警告；如本阶段配置显式 agent 会影响 JaCoCo `argLine`，必须同时验证覆盖率仍可生成。
 4. 检查 Logback `includeStackTrace` 等已有配置警告，确认是否与依赖升级相关。
 5. 统计测试套件、测试数、失败、错误和跳过数。
-6. **自定义 Conditional 类行为审查（v1.1 新增）**：框架 `fast-ddd-config` 等模块使用了 `@ConditionalOnDev`、`@ConditionalOnSystemProperty`、`@ConditionalOnClass` 等自定义条件注解。Boot 3.5 对 `@Conditional*` 求值时序、`ConfigurationCondition` 阶段和 auto-config 排序有调整，**条件加载错误通常不抛异常、只是 bean 静默不生效**。处理：
-   - 对照 Spring Boot 3.5 Release Notes 的 deprecation/behavior change 清单，逐个审查 17 个自动配置类及自定义 condition 的 `shouldSkip` / `getConfigurationPhase` 实现；
-   - 用 `--debug` 启动日志或 actuator `/conditions` 端点抽样验证关键 bean（如 dev-only 组件、监控、缓存开关）确实按预期加载/未加载。
+6. **自定义 Conditional 类行为审查（v1.3 修订）**：`fast-ddd-config` 中 `OnClassCondition`、`OnMissingClassCondition`、`OnProfileCondition`、`OnSystemPropertyCondition` 均直接实现 Spring Framework 的普通 `Condition` 接口，实际扩展点只有 `matches()`；它们不是 `SpringBootCondition` / `ConfigurationCondition`，不得检查不存在的 `shouldSkip()` 或 `getConfigurationPhase()`。条件错误可能只表现为 bean 静默缺失，因此按以下方式验证：
+   - 在 Boot 3.5.16 下扩展并执行现有 `ConditionalSystemIntegrationTest` 以及 4 个 condition 单元测试，覆盖匹配、不匹配、空属性、多条件组合、profile、system property、class present / missing 等场景；
+   - 对已有自研 starter 的 `ApplicationContextRunner` 测试补充关键开关的正反用例；没有最小上下文测试的 starter 至少为关键自动配置增加一组，直接断言 bean 存在或不存在；
+   - 对照 Spring Boot 3.5 Release Notes 审查 17 个自动配置类的排序、属性条件和 Bean 条件，但只检查代码实际实现或继承的扩展点；
+   - `--debug` 日志和 actuator `/conditions` 仅作为 Boot 内置 `SpringBootCondition` 的辅助证据。普通 `Condition` 不会自动完整记录到 `ConditionEvaluationReport`，不得仅凭 `/conditions` 端点判定上述 4 个自定义条件正确。
 
 **验收标准：**
 
@@ -564,7 +568,8 @@ flowchart TD
 - 不通过 `-Dtest` 排除失败用例；
 - JaCoCo agent 与 Mockito agent 不互相覆盖；
 - 测试报告中零失败、零错误；
-- 自定义 Conditional 类的关键 bean 加载状态已抽样确认，无静默失效。
+- `ConditionalSystemIntegrationTest`、4 个自定义 condition 单元测试和关键 starter 的 `ApplicationContextRunner` 正反用例全部通过；
+- 自定义 Conditional 类的关键 bean 加载状态已通过测试断言确认，无静默失效；`/conditions` 仅作补充证据。
 
 ---
 
@@ -806,10 +811,13 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
 - [ ] Docker 健康检查成功且无非法 JVM 参数
 - [ ] MySQL、Redis、RocketMQ、Elasticsearch smoke test 有执行证据
 - [ ] 没有显著 Spring/Jackson/Micrometer/SLF4J 多版本冲突
-- [ ] Spring AI 为 `1.1.x`、SpringDoc 为 `2.8.x`，Knife4j 传递的 springdoc 已统一收口
+- [ ] Spring AI 固定为 `1.1.8`、SpringDoc 固定为 `2.8.17`，Knife4j 传递声明的 SpringDoc 2.3.0 已由根 dependencyManagement 统一解析为 2.8.17
+- [ ] Lombok 解析为 `1.18.46`，`lombok-mapstruct-binding:0.2.0` 的显式 processor path 版本仍保留
+- [ ] MySQL Connector/J 解析为 `9.7.0`，真实 MySQL + Druid 连接、CRUD 和事务验证通过
 - [ ] `dependency:tree` 中 `spring-core` 等核心 artifact 由 Boot 3.5.16 BOM 主导，未被 Spring AI/SpringDoc 覆盖
 - [ ] `/v3/api-docs`、`/doc.html` 端点冒烟通过；AI/Analyzer starter 真实上下文启动无异常
-- [ ] 自定义 Conditional 类关键 bean 加载状态已抽样确认，无静默失效
+- [ ] `ConditionalSystemIntegrationTest`、4 个自定义 condition 单元测试以及关键 starter 的 `ApplicationContextRunner` 正反用例通过
+- [ ] 自定义 Conditional 类关键 bean 加载状态已通过测试断言确认，无静默失效；`/conditions` 仅作补充证据
 - [ ] 所有在研业务系统完成联调
 - [ ] 兼容矩阵、升级指南、CHANGELOG 和发布说明完成
 - [ ] 用户原有 `docs/FASTDDD_REFERENCE.md` 修改未丢失
@@ -884,5 +892,9 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
 - Spring Boot 3.5 Release Notes：<https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes>
 - Spring Boot 4 Migration Guide：<https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide>
 - Spring AI 版本兼容性（1.1.x↔Boot 3.5.x，2.0.x↔Boot 4.x）：<https://github.com/spring-projects/spring-ai#spring-boot-version-compatibility>
-- SpringDoc 兼容矩阵（2.x↔Boot 3.x，3.x↔Boot 4.x）：<https://springdoc.org/>
+- SpringDoc Boot 3 兼容矩阵（Boot 3.5.x → SpringDoc 2.8.x）：<https://springdoc.org/v2/>
+- Spring AI 1.1.8 Release：<https://github.com/spring-projects/spring-ai/releases/tag/v1.1.8>
+- SpringDoc 2.8.17 Release：<https://github.com/springdoc/springdoc-openapi/releases/tag/v2.8.17>
+- Spring Boot 3.5.16 受管依赖坐标：<https://docs.spring.io/spring-boot/3.5/appendix/dependency-versions/coordinates.html>
+- Maven Compiler Plugin annotationProcessorPaths：<https://maven.apache.org/plugins/maven-compiler-plugin/compile-mojo.html#annotationProcessorPaths>
 - Maven CI Friendly Versions：<https://maven.apache.org/maven-ci-friendly.html>
