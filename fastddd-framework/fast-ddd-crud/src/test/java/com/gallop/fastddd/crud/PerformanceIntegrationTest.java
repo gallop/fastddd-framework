@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,16 @@ class PerformanceIntegrationTest {
     
     @Autowired
     private UserRepository userRepository;
+
+    /**
+     * 用 JdbcTemplate 做物理删除清理。
+     * 不能用 userRepository.deleteById()：那是 MyBatis-Plus 逻辑删除（deleted=1），
+     * 行仍物理存在并占据 username/email 的 UNIQUE 约束，
+     * 会导致本测试方法中段“清理→重插相同 username”时撞唯一键（B-01）。
+     * 这里物理 DELETE，绕过逻辑删除策略，且不修改生产逻辑删除配置。
+     */
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     
     private static final String PERF_TEST_PREFIX = "perf_test_";
     private static final int BATCH_SIZE = 100;
@@ -261,19 +272,16 @@ class PerformanceIntegrationTest {
     }
     
     /**
-     * 清理性能测试数据
+     * 清理性能测试数据：物理删除 perf_test_* 行。
+     * 物理删除确保 username/email 的 UNIQUE 约束被释放，
+     * 同一测试方法内“清理→重插相同 username”不再撞唯一键（B-01）。
+     * 通过 JdbcTemplate 直接执行 SQL，绕过 MyBatis-Plus 逻辑删除。
      */
     private void cleanupPerfTestData() {
         try {
-            // 删除所有性能测试相关的数据
-            List<User> existingUsers = userRepository.selectListByFieldLike("username", PERF_TEST_PREFIX + "%");
-            if (!existingUsers.isEmpty()) {
-                for (User user : existingUsers) {
-                    userRepository.deleteById(user.getId());
-                }
-            }
+            jdbcTemplate.update("DELETE FROM t_user WHERE username LIKE ?", PERF_TEST_PREFIX + "%");
         } catch (Exception e) {
-            // 忽略清理过程中的异常
+            // 忽略清理过程中的异常（如表尚未创建等）
             System.out.println("Warning: Failed to cleanup performance test data: " + e.getMessage());
         }
     }
