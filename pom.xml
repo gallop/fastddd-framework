@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.gallop.fastddd</groupId>
   <artifactId>fastddd</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.0-jdk21-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>FastDDD Framework</name>
   <description>A comprehensive DDD framework based on Spring Boot Starters for rapid development</description>

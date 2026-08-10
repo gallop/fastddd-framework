@@ -872,7 +872,7 @@ docker build -t fastddd/studio:1.0.0-jdk21-SNAPSHOT .
 |------|------|------|-----------|----------|----------|
 | 2026-08-09 | UPG-000 | 已完成 | `main` 79c5c82（基线文档）；tag `baseline/jdk17-boot3.4.5` @ 79c5c82；升级分支 `upgrade/jdk21-boot3.5.16` | 工作区基线干净；`FASTDDD_REFERENCE.md` 用户修改已纳入基线未丢失；升级方案文档已纳入升级分支 | tag 与升级分支均为本地，**未 push**（待用户确认远程操作） |
 | 2026-08-10 | UPG-001 | 已完成 | `upgrade/jdk21-boot3.5.16`（仅文档登记，无代码改动） | JDK 17.0.11 + Maven 3.9.11；`clean compile` **27/27 SUCCESS**（2:18）；`test` **唯一失败 = `PerformanceIntegrationTest.testBatchInsertPerformance`（B-01，升级前已知）**；排除该用例后 `BUILD SUCCESS`，11 个有测试模块共 **294 测试全绿**；依赖基线：Spring 6.2.6、Jackson 2.18.3、Micrometer 1.14.6、slf4j 2.0.17、MyBatis-Plus 3.5.12、MySQL 已重定位为 `com.mysql:mysql-connector-j:8.0.33`、Druid `druid-spring-boot-starter:1.2.20`（Boot2 坐标）、SpringDoc 2.2.0；环境警告：`nexus` profile 不存在、Maven4 beta 插件被忽略、GBK 编码、mysql 坐标重定位 ×5 | ①B-01 由 UPG-005 修复；②**Micrometer 版本分裂**：commons/observation=1.14.6（Boot 管），但 `micrometer-registry-prometheus` 被 root `<micrometer.version>` pin 到 1.12.0，需 UPG-004 统一；③mysql 坐标虽已重定位仍需 UPG-004 显式迁移并升 9.x；④测试总数 294 与方案 2.2 节"352"不符，待 UPG-005 复核 |
-| 待填写 | UPG-002 | 待执行 | - | - | - |
+| 2026-08-10 | UPG-002 | 已完成 | `upgrade/jdk21-boot3.5.16`（`build: 切换 JDK 21 升级中间版本`） | `versions:set` 将 reactor 27 模块统一改为 `1.0.0-jdk21-SNAPSHOT`，0 个 `versionsBackup` 残留；archetype 模板 `<fastddd.version>` 按要求**未动**（留 UPG-006）；`help:evaluate` 输出中间版本；`compile` 27/27 SUCCESS | ①修复 `fast-ddd-examples/pom.xml` **预先存在的 relativePath bug**（`../../pom.xml` → `../pom.xml`，唯一写错的顶层模块，旧版被本地仓库缓存掩盖，版本切换后暴露）；该修复使 `mvn install` 前的独立/reactor 解析不再依赖本地仓库缓存 |
 | 待填写 | UPG-003 | 待执行 | - | - | - |
 | 待填写 | UPG-004 | 待执行 | - | - | - |
 | 待填写 | UPG-005 | 待执行 | - | - | - |
