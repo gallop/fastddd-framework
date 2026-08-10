@@ -39,7 +39,7 @@
 <dependency>
     <groupId>com.gallop.fastddd</groupId>
     <artifactId>fast-ddd-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-jdk21-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -56,7 +56,7 @@ spring:
 #### 3. 生成代码
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \
@@ -557,7 +557,7 @@ CREATE TABLE t_user (
 #### 2. 生成代码
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \

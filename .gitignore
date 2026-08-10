@@ -12,6 +12,9 @@ node_modules/
 # Maven build output
 target/
 
+# flatten-maven-plugin generated POMs (CI-friendly 版本解析产物，构建时自动生成，不入库)
+.flattened-pom.xml
+
 # Environment variables
 .env
 

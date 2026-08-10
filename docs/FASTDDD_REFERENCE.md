@@ -6,9 +6,11 @@
 
 FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
 
-**Maven 坐标**: `com.gallop.fastddd:fast-ddd-*:1.0.0-SNAPSHOT`
-**Java 版本**: 17+
-**Spring Boot 版本**: 3.4.x
+**Maven 坐标**: `com.gallop.fastddd:fast-ddd-*:1.0.0-jdk21-SNAPSHOT`（业务项目通过 import [`fastddd-bom`](../README.md) 统一管理版本）
+**Java 版本**: 21+
+**Spring Boot 版本**: 3.5.x
+
+> 版本基线与兼容线详见 [兼容矩阵](COMPATIBILITY_MATRIX.md)，升级步骤见 [升级指南](UPGRADE_GUIDE.md)。
 
 ---
 
@@ -946,7 +948,7 @@ fastddd:
 <dependency>
     <groupId>com.gallop.fastddd</groupId>
     <artifactId>fast-ddd-search</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-jdk21-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -1024,7 +1026,7 @@ fastddd:
 
 ```bash
 # 单表代码生成
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=123456 \
@@ -1032,7 +1034,7 @@ mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:generate-code \
   -Dcodegen.tablePrefix=t_
 
 # 项目初始化
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:init-project \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=my-app \
   -Dinit.modelType=RICH \

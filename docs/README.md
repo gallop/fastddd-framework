@@ -69,6 +69,18 @@ docs/
 | [框架 API 参考](api/API_REFERENCE.md) | FastDDD 各层（应用层/领域层/基础设施层/接口层/事件层）的 API 参考 |
 | [一体化生成器评审](api/UNIFIED_GENERATOR_REVIEW.md) | 一体化代码生成器的代码评审报告，分析框架模块与生成器的集成情况 |
 
+## 版本治理与发布
+
+| 文档 | 说明 |
+|------|------|
+| [框架完整参考](FASTDDD_REFERENCE.md) | FastDDD 完整 API 参考，可复制到业务项目 CLAUDE.md 使用 |
+| [SPI 参考手册](guides/SPI_REFERENCE.md) | 所有 SPI 接口的定义、替换方式、默认行为与示例 |
+| [兼容矩阵](COMPATIBILITY_MATRIX.md) | 各版本线运行时基线、维护状态与变更边界（PATCH/MINOR/MAJOR 约定） |
+| [升级指南](UPGRADE_GUIDE.md) | 业务系统从旧基线升级到 JDK 21 / Boot 3.5.16 的步骤（对接 UPG-011） |
+| [发布检查清单](RELEASE_CHECKLIST.md) | 1.0.0 及后续 GA 版本的发布门禁项 |
+| [变更日志](../CHANGELOG.md) | 全部显著变更（Keep a Changelog 格式） |
+| [JDK21/Boot3.5 升级方案](architecture/JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md) | 升级总方案与 UPG-000～012 执行记录 |
+
 ---
 
 ## 项目记录
@@ -79,4 +91,4 @@ docs/
 
 ---
 
-> 文档最后更新：2026-04-20
+> 文档最后更新：2026-08-10

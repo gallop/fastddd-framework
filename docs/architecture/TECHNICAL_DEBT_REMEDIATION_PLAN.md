@@ -247,7 +247,7 @@ mvn clean package -DskipTests
 # Maven 插件端到端验证（验证 D3 修复）
 # 在 examples 目录下验证插件可以正常解析
 cd fastddd-examples
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:help
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:help
 ```
 
 **门禁：** `mvn clean package -DskipTests` 成功，maven-plugin help goal 正常输出
@@ -346,7 +346,7 @@ mvn spring-boot:run
 ```bash
 # 验证代码生成插件可独立运行（不依赖 studio）
 cd fastddd-examples
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-SNAPSHOT:help -Ddetail=true
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:help -Ddetail=true
 # 预期：输出所有 goal 和参数说明，无 ClassNotFoundException 或 TemplateNotFoundException
 ```
 
