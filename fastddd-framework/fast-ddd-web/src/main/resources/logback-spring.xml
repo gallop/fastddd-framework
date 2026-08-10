@@ -3,8 +3,7 @@
     <!-- 控制台输出 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <!-- 包含堆栈跟踪信息 -->
-            <includeStackTrace>true</includeStackTrace>
+            <!-- LogstashEncoder 7.x 默认在 stack_trace 字段包含异常堆栈，无需 includeStackTrace（该属性已废弃并被忽略） -->
             <!-- 包含MDC信息 -->
             <includeMdc>true</includeMdc>
             <!-- 自定义字段 -->
@@ -18,7 +17,6 @@
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/fast-ddd-web.log</file>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <includeStackTrace>true</includeStackTrace>
             <includeMdc>true</includeMdc>
             <customFields>{"service":"fast-ddd-web"}</customFields>
             <timestampPattern>yyyy-MM-dd HH:mm:ss.SSS</timestampPattern>
