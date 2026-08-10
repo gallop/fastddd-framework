@@ -10,7 +10,7 @@ on:
       java-version:
         description: 'Java version to use'
         required: false
-        default: '17'
+        default: '21'
         type: string
       maven-profile:
         description: 'Maven profile to activate'
@@ -69,24 +69,24 @@ jobs:
     - name: Validate Maven project
       run: |
         echo "🔍 Validating Maven project structure..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} validate
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} validate
         
         echo "📋 Analyzing dependencies..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} dependency:analyze
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} dependency:analyze
         
         echo "🔧 Checking for dependency conflicts..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} dependency:tree
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} dependency:tree
     
     - name: Compile source code
       run: |
         echo "🏗️ Compiling source code..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} clean compile -P${{ inputs.maven-profile }}
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} clean compile -P${{ inputs.maven-profile }}
     
     - name: Run unit tests
       if: ${{ !inputs.skip-tests }}
       run: |
         echo "🧪 Running unit tests..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} test -P${{ inputs.maven-profile }} \
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} test -P${{ inputs.maven-profile }} \
           -Dmaven.test.failure.ignore=false \
           -Dsurefire.useFile=false
     
@@ -94,7 +94,7 @@ jobs:
       if: ${{ !inputs.skip-tests }}
       run: |
         echo "🔗 Running integration tests..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} verify -P${{ inputs.maven-profile }} \
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} verify -P${{ inputs.maven-profile }} \
           -DskipUnitTests=true \
           -Dfailsafe.useFile=false
       continue-on-error: true
@@ -103,19 +103,19 @@ jobs:
       if: ${{ !inputs.skip-tests }}
       run: |
         echo "📊 Generating test coverage report..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} jacoco:report -P${{ inputs.maven-profile }}
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} jacoco:report -P${{ inputs.maven-profile }}
     
     - name: Package application
       run: |
         echo "📦 Packaging application..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} package -P${{ inputs.maven-profile }} \
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} package -P${{ inputs.maven-profile }} \
           ${{ inputs.skip-tests && '-DskipTests' || '' }}
     
     - name: Generate project documentation
       run: |
         echo "📚 Generating project documentation..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} javadoc:aggregate -P${{ inputs.maven-profile }}
-        mvn ${{ env.MAVEN_CLI_OPTS }} site:site -P${{ inputs.maven-profile }}
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} javadoc:aggregate -P${{ inputs.maven-profile }}
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} site:site -P${{ inputs.maven-profile }}
       continue-on-error: true
     
     - name: Collect build artifacts
@@ -214,7 +214,7 @@ jobs:
     - name: Run OWASP Dependency Check
       run: |
         echo "🔒 Running OWASP Dependency Check..."
-        mvn ${{ env.MAVEN_CLI_OPTS }} org.owasp:dependency-check-maven:check \
+        ./mvnw ${{ env.MAVEN_CLI_OPTS }} org.owasp:dependency-check-maven:check \
           -DfailBuildOnCVSS=7 \
           -DsuppressionsLocation=.github/dependency-check-suppressions.xml
       continue-on-error: true

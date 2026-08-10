@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   MAVEN_OPTS: '-Dmaven.repo.local=.m2/repository -Xmx1024m'
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
     
     - name: OWASP Dependency Check
       run: |
-        mvn org.owasp:dependency-check-maven:check \
+        ./mvnw org.owasp:dependency-check-maven:check \
           -DfailBuildOnCVSS=7 \
           -DsuppressionsLocation=.github/dependency-check-suppressions.xml \
           -DretireJsAnalyzerEnabled=false \
@@ -127,7 +127,7 @@ jobs:
     
     - name: Build project for CodeQL
       run: |
-        mvn clean compile -DskipTests
+        ./mvnw clean compile -DskipTests
     
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
@@ -136,7 +136,7 @@ jobs:
     
     - name: SpotBugs Security Analysis
       run: |
-        mvn spotbugs:check \
+        ./mvnw spotbugs:check \
           -Dspotbugs.effort=Max \
           -Dspotbugs.threshold=Low \
           -Dspotbugs.includeFilterFile=.github/spotbugs-security-include.xml
@@ -152,7 +152,7 @@ jobs:
     
     - name: PMD Security Analysis
       run: |
-        mvn pmd:check \
+        ./mvnw pmd:check \
           -Dpmd.rulesets=category/java/security.xml \
           -Dpmd.failOnViolation=false
     
@@ -220,13 +220,13 @@ jobs:
     
     - name: License Check with Maven
       run: |
-        mvn license:check \
+        ./mvnw license:check \
           -Dlicense.failIfMissing=false \
           -Dlicense.failIfUnknown=false
     
     - name: Generate License Report
       run: |
-        mvn license:aggregate-third-party-report
+        ./mvnw license:aggregate-third-party-report
     
     - name: Upload License Report
       uses: actions/upload-artifact@v4

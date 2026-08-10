@@ -10,7 +10,7 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   MAVEN_OPTS: '-Xmx1024m'
 
 jobs:
@@ -40,27 +40,27 @@ jobs:
     
     - name: Validate Maven project structure
       run: |
-        mvn validate -B
-        mvn dependency:analyze -B
+        ./mvnw validate -B
+        ./mvnw dependency:analyze -B
     
     - name: Compile and run tests
       run: |
-        mvn clean compile -B
-        mvn test -B
+        ./mvnw clean compile -B
+        ./mvnw test -B
     
     - name: Run code style checks
       run: |
-        mvn checkstyle:check -B
+        ./mvnw checkstyle:check -B
       continue-on-error: true
     
     - name: Check for security vulnerabilities
       run: |
-        mvn org.owasp:dependency-check-maven:check -B
+        ./mvnw org.owasp:dependency-check-maven:check -B
       continue-on-error: true
     
     - name: Build application
       run: |
-        mvn package -DskipTests -B
+        ./mvnw package -DskipTests -B
     
     - name: Validate Docker build
       run: |
