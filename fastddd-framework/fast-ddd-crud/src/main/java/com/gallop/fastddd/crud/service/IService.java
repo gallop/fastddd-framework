@@ -14,13 +14,18 @@ import java.util.Optional;
 /**
  * 通用服务接口，提供标准的CRUD操作。
  * 扩展了MyBatis Plus的基础功能，为业务层提供统一的数据访问接口。
- * 
- * @param <T> 实体类型，必须继承BasePO
+ *
+ * <p>（ID-004）类型参数 {@code ID} 把 {@code getById}/{@code removeById}/{@code listByIds} 等
+ * 主键方法从 {@code Serializable} 收窄为强类型——错误 ID 类型在编译期失败。{@code ID} 透传自
+ * {@code T extends BasePO<ID>}，实体与其 ID 类型在签名层绑定。
+ *
+ * @param <T> 实体类型，必须继承 {@code BasePO<ID>}
+ * @param <ID> 主键类型（透传自实体）
  * @author gallop
  * @since 2025-01-02
  * @version 1.0.0-SNAPSHOT
  */
-public interface IService<T extends BasePO> {
+public interface IService<T extends BasePO<ID>, ID extends Serializable> {
 
     /**
      * 保存实体（插入）
@@ -74,15 +79,15 @@ public interface IService<T extends BasePO> {
 
     /**
      * 根据ID删除
-     * 
-     * @param id 主键ID
+     *
+     * @param id 主键ID（强类型 {@code ID}）
      * @return 是否删除成功
      */
-    boolean removeById(Serializable id);
+    boolean removeById(ID id);
 
     /**
      * 根据条件删除
-     * 
+     *
      * @param queryWrapper 查询条件
      * @return 是否删除成功
      */
@@ -90,11 +95,11 @@ public interface IService<T extends BasePO> {
 
     /**
      * 根据ID批量删除
-     * 
-     * @param idList ID列表
+     *
+     * @param idList ID列表（强类型 {@code ID}）
      * @return 是否删除成功
      */
-    boolean removeByIds(Collection<? extends Serializable> idList);
+    boolean removeByIds(Collection<? extends ID> idList);
 
     /**
      * 根据ID更新
@@ -132,19 +137,19 @@ public interface IService<T extends BasePO> {
 
     /**
      * 根据ID查询
-     * 
-     * @param id 主键ID
+     *
+     * @param id 主键ID（强类型 {@code ID}）
      * @return 实体对象
      */
-    Optional<T> getById(Serializable id);
+    Optional<T> getById(ID id);
 
     /**
      * 根据ID批量查询
-     * 
-     * @param idList ID列表
+     *
+     * @param idList ID列表（强类型 {@code ID}）
      * @return 实体列表
      */
-    List<T> listByIds(Collection<? extends Serializable> idList);
+    List<T> listByIds(Collection<? extends ID> idList);
 
     /**
      * 根据条件查询一条记录

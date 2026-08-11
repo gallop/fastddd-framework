@@ -38,16 +38,15 @@ class AbstractBaseControllerIdResolutionTest {
      * IdType 由 MP 默认 ASSIGN_ID 提供——本 fixture 刻画"无字段注解"分支）。
      */
     @TableName("t_assign_id")
-    static class AssignIdFixture extends BasePO {
+    static class AssignIdFixture extends BasePO<Long> {
     }
 
     /**
      * 重声明 id 为 INPUT 策略（刻画"子类字段级 @TableId 重声明"机制）。
-     * ID-003 后字段类型须与 BasePO 强类型 Long 对齐（字段隐藏仅用于挂载 @TableId，
-     * resolveId 只读 TableInfo 的 IdType，对隐藏字段本身无副作用）。
+     * 字段隐藏仅用于挂载 @TableId(INPUT)；类型与 BasePO<Long> 对齐，resolveId 只读 TableInfo 的 IdType。
      */
     @TableName("t_input")
-    static class InputFixture extends BasePO {
+    static class InputFixture extends BasePO<Long> {
         @TableId(type = IdType.INPUT)
         private Long id;
 
@@ -58,9 +57,9 @@ class AbstractBaseControllerIdResolutionTest {
         public void setId(Long id) { this.id = id; }
     }
 
-    /** 重声明 id 为 AUTO 策略（字段类型对齐 BasePO 强类型 Long）。 */
+    /** 重声明 id 为 AUTO 策略（字段类型对齐 BasePO<Long>）。 */
     @TableName("t_auto")
-    static class AutoFixture extends BasePO {
+    static class AutoFixture extends BasePO<Long> {
         @TableId(type = IdType.AUTO)
         private Long id;
 
@@ -73,20 +72,20 @@ class AbstractBaseControllerIdResolutionTest {
 
     /** 无 TableInfo 注册的实体——用于刻画 fallback 分支。 */
     @TableName("t_unregistered")
-    static class UnregisteredFixture extends BasePO {
+    static class UnregisteredFixture extends BasePO<Long> {
     }
 
     /** 每个实体一个具体控制器子类：使 resolveEntityClass 经参数化超类解析到 args[1]=实体 Class。 */
-    static class AssignIdController extends AbstractBaseController<IService<AssignIdFixture>, AssignIdFixture> {
+    static class AssignIdController extends AbstractBaseController<IService<AssignIdFixture, Long>, AssignIdFixture> {
     }
 
-    static class AutoController extends AbstractBaseController<IService<AutoFixture>, AutoFixture> {
+    static class AutoController extends AbstractBaseController<IService<AutoFixture, Long>, AutoFixture> {
     }
 
-    static class InputController extends AbstractBaseController<IService<InputFixture>, InputFixture> {
+    static class InputController extends AbstractBaseController<IService<InputFixture, Long>, InputFixture> {
     }
 
-    static class UnregisteredController extends AbstractBaseController<IService<UnregisteredFixture>, UnregisteredFixture> {
+    static class UnregisteredController extends AbstractBaseController<IService<UnregisteredFixture, Long>, UnregisteredFixture> {
     }
 
     @BeforeAll

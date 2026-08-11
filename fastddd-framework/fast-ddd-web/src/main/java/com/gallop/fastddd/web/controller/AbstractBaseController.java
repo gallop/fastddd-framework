@@ -21,7 +21,7 @@ import java.lang.reflect.Type;
  * @since 1.1
  */
 @Validated
-public abstract class AbstractBaseController<S extends IService<T>, T extends BasePO> {
+public abstract class AbstractBaseController<S extends IService<T, Long>, T extends BasePO<Long>> {
 
     @Autowired
     protected S service;

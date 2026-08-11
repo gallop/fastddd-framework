@@ -31,7 +31,7 @@ import java.util.List;
  */
 @Slf4j
 @Tag(name = "Admin CRUD")
-public abstract class BaseAdminCrudController<S extends IService<T>, T extends BasePO>
+public abstract class BaseAdminCrudController<S extends IService<T, Long>, T extends BasePO<Long>>
         extends BaseReadOnlyController<S, T> {
 
     // ==================== Lifecycle Hooks ====================
@@ -169,7 +169,8 @@ public abstract class BaseAdminCrudController<S extends IService<T>, T extends B
         try {
             Serializable id = resolveId(idStr);
             beforeDelete(id);
-            boolean success = service.removeById(id);
+            // ID-004：service.removeById 收窄为 Long；ID-005 以 IdCodec 替换 resolveId 后强转消失。
+            boolean success = service.removeById((Long) id);
             if (success) {
                 afterDelete(id);
                 return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.delete.success")));
@@ -186,7 +187,7 @@ public abstract class BaseAdminCrudController<S extends IService<T>, T extends B
 
     @Operation(summary = "[Admin CRUD] 批量删除实体")
     @DeleteMapping("/batch")
-    public ResponseEntity<ApiResponse<Boolean>> deleteBatch(@RequestBody List<? extends Serializable> ids) {
+    public ResponseEntity<ApiResponse<Boolean>> deleteBatch(@RequestBody List<Long> ids) {
         try {
             boolean success = service.removeByIds(ids);
             if (success) {

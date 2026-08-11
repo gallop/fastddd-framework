@@ -298,7 +298,7 @@ class ComprehensiveIntegrationTest {
         User user = createTestUser(TEST_USERNAME_PREFIX + "transaction", "transaction@example.com", "ACTIVE", "IT");
         userRepository.insert(user);
         
-        Long userId = (Long) user.getId();
+        Long userId = user.getId();
         assertNotNull(userId, "User should be inserted with ID");
         
         // 在事务中修改数据

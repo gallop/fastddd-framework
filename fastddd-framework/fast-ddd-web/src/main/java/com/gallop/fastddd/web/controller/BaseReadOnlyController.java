@@ -28,14 +28,15 @@ import java.util.Optional;
  */
 @Slf4j
 @Tag(name = "Read-Only API")
-public abstract class BaseReadOnlyController<S extends IService<T>, T extends BasePO>
+public abstract class BaseReadOnlyController<S extends IService<T, Long>, T extends BasePO<Long>>
         extends AbstractBaseController<S, T> {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<T>> getById(@PathVariable("id") @NotNull String idStr) {
         try {
             Serializable id = resolveId(idStr);
-            Optional<T> entityOpt = service.getById(id);
+            // ID-004：service.getById 收窄为 Long（控制器侧主键恒 Long）；ID-005 以 IdCodec 替换 resolveId 后强转消失。
+            Optional<T> entityOpt = service.getById((Long) id);
             if (entityOpt.isPresent()) {
                 return ResponseEntity.ok(ApiResponse.success(entityOpt.get(), Messages.get("web.crud.query.success")));
             } else {

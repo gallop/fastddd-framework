@@ -21,15 +21,21 @@ import java.util.Optional;
 /**
  * 通用服务实现基类，提供标准CRUD操作的默认实现。
  * 业务服务类可以继承此类来获得基础的数据访问功能。
- * 
+ *
+ * <p>（ID-004）类型参数 {@code ID} 与 {@link IService} 对齐，把主键方法收窄为强类型。
+ * <b>MP 桥接</b>：MyBatis-Plus 的 {@code BaseMapper} 主键方法仍接受 {@code Serializable}，
+ * 因 {@code ID extends Serializable}，下方 {@code baseMapper.selectById(id)} 等调用由编译器
+ * 自动上转，无需显式强转。
+ *
  * @param <M> Repository类型，必须继承BaseRepository
- * @param <T> 实体类型，必须继承BasePO
+ * @param <T> 实体类型，必须继承 {@code BasePO<ID>}
+ * @param <ID> 主键类型（透传自实体）
  * @author gallop
  * @since 2025-01-02
  * @version 1.0.0-SNAPSHOT
  */
 @Slf4j
-public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends BasePO> implements IService<T> {
+public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends BasePO<ID>, ID extends Serializable> implements IService<T, ID> {
 
     @Autowired
     protected M baseMapper;
@@ -130,7 +136,7 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeById(Serializable id) {
+    public boolean removeById(ID id) {
         return baseMapper.deleteById(id) > 0;
     }
 
@@ -142,7 +148,7 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeByIds(Collection<? extends Serializable> idList) {
+    public boolean removeByIds(Collection<? extends ID> idList) {
         if (CollectionUtils.isEmpty(idList)) {
             return false;
         }
@@ -190,12 +196,12 @@ public abstract class BaseServiceImpl<M extends BaseRepository<T>, T extends Bas
     }
 
     @Override
-    public Optional<T> getById(Serializable id) {
+    public Optional<T> getById(ID id) {
         return Optional.ofNullable(baseMapper.selectById(id));
     }
 
     @Override
-    public List<T> listByIds(Collection<? extends Serializable> idList) {
+    public List<T> listByIds(Collection<? extends ID> idList) {
         if (CollectionUtils.isEmpty(idList)) {
             return List.of();
         }

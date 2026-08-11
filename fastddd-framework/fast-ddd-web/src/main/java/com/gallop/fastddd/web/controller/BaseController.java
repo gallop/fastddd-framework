@@ -16,6 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Deprecated(since = "1.1", forRemoval = false)
 @RestController
-public abstract class BaseController<S extends IService<T>, T extends BasePO>
+public abstract class BaseController<S extends IService<T, Long>, T extends BasePO<Long>>
         extends BaseAdminCrudController<S, T> {
 }

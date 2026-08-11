@@ -2337,3 +2337,65 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **`BasePO` 同一性等价保留**：ID-002 §D 曾登记"BasePO 侧同一性等价待 ID-003 统一"。ID-003 评估后**决定保留**同一性等价（持久化对象以主键+表为身份，跨聚合字段相等比较有副作用风险），并在 BasePO javadoc 明确记录为有意决策（与领域侧 DomainEntity 身份等价是两套并行契约）。
 - **下一任务**：ID-004（Repository/Service/Controller ID 泛型化，依赖 ID-002 ✅ + ID-003 ✅，现已解锁）—— `BasePO<ID>` 泛型化 + `IService<T,ID>` + Controller `<ID>` + 清理 20 处 cast；ID-005（IdCodec，消除 resolveId + 过渡强转）、ID-006（移除 SerializableTypeHandler）随后；SPLIT-003 亦仍解锁可并行。
 
+
+### 16.21 ID-004 Repository/Service ID 泛型化快照
+
+将持久化与 service SPI 的主键从 ID-003 的"硬编码 `Long`"泛型化为"`BasePO<ID extends Serializable>` + `IService<T, ID>`"，使 ADR-001 §2.3 的 Long/String/UUID/业务键/值对象五种主键形态在签名层可表达。修复 ID-003 §16.20 登记的"UUID/String/值对象主键未泛型化"遗留，并清理 ID-003 留下的 16 处 `(Long)getId()` 多余强转。**本任务改生产 API 签名**（`BasePO`/`IService`/`BaseServiceImpl` 新增 `ID` 类型参数；`getById/removeById/listByIds` 由 `Serializable` 收窄为 `ID`），为二进制不兼容变更（1.0 SNAPSHOT，无 GA 消费者）。
+
+**A. SPI 泛型化（核心改动）**
+
+| 改动 | 证据 |
+|---|---|
+| `BasePO<ID>` | `fast-ddd-model/.../po/BasePO.java`：`public abstract class BasePO<ID extends Serializable> extends AuditedPO`；`protected ID id`；`public ID getId()` / `public void setId(ID)`。Javadoc 记录 MP 桥接（`ID` 在 `baseMapper.selectById/deleteById` 边界上扩为 `Serializable`，因 `ID extends Serializable` 为干净上扩，无需显式强转）。 |
+| `VersionedPO<ID>` | `fast-ddd-model/.../po/VersionedPO.java`：`extends BasePO<ID>`，`@Version Long version`。补 `import java.io.Serializable`。 |
+| `IService<T, ID>` | `fast-ddd-crud/.../service/IService.java`：`<T extends BasePO<ID>, ID extends Serializable>`；`getById(ID)` / `removeById(ID)` / `listByIds(Collection<? extends ID>)` / `removeByIds(Collection<? extends ID>)` 收窄（`save/updateById(T)` 不变）。**不**继承 MP `IService<T>`（独立接口）。 |
+| `BaseServiceImpl<M, T, ID>` | `fast-ddd-crud/.../service/impl/BaseServiceImpl.java`：`<M extends BaseRepository<T>, T extends BasePO<ID>, ID extends Serializable> implements IService<T, ID>`；同收窄四个主键方法；内部 `baseMapper.selectById(id)` 等 MP 调用不变（`ID` 上扩）。 |
+| `BaseRepository<T>` | **不变**（仍 `<T> extends BaseMapper<T>`，仅标记 FastDDD mapper，不需 `ID`）。 |
+
+**B. Controller 边界（硬编码 Long，ID-005 泛型化）**
+
+Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编码 `Long`（ID-005 用 `IdCodec` + `<S,T,ID>` 泛化）：
+
+| 类 | bounds | 过渡强转 |
+|---|---|---|
+| `AbstractBaseController` | `<S extends IService<T, Long>, T extends BasePO<Long>>` | — |
+| `BaseReadOnlyController` | 同上 | `service.getById((Long) id)`（`resolveId` 返 `Serializable`） |
+| `BaseAdminCrudController` | 同上 | `service.removeById((Long) id)` + `deleteBatch(List<Long> ids)`（原 `List<? extends Serializable>`）+ `entity.setId((Long) id)`（ID-003 既有） |
+| `BaseController` / `CrudController` | 同上 | — |
+
+控制器维持 `<S,T>`（2 参数），`resolveEntityClass` 的 args[1] 反射逻辑不动。
+
+**C. 消费面迁移**
+
+- **实体**：17 个 studio/examples 实体 `extends BasePO`→`BasePO<Long>`、`extends VersionedPO`→`VersionedPO<Long>`（FieldLibrary/Project/TableDesign/TableTemplate/Sys*/TableDesign*/DataSource/AiDesignDraft/Order*/examples User）；**1 个原始 `extends BasePO`（crud 测试实体 `User`）补 `<Long>`**——全仓 `grep "extends (Base|Versioned)PO\s*\{"` 零残留。
+- **FastDDD-IService**：4 个 studio service 接口（TableTemplate/TableDesign/Project/FieldLibrary）→`extends IService<Xxx, Long>`；4 个 impl→`extends BaseServiceImpl<XxxMapper, Xxx, Long>`；examples `UserService`/`UserServiceImpl` 同；`GeneratorController:314` 代码发射器→`"extends IService<" + className + ", Long>"`。
+- **MP-IService（不动）**：`SysRoleService`/`SysUserService` 仍 `extends com.baomidou...IService`（安全模块独立性，见 SysUserService javadoc），**不在泛型化范围**（曾误编辑 SysRoleService 触发 Lombok 级联编译失败，已回退确认）。
+- **String-id 调用点**：4 个 studio impl（FieldLibrary/Project/TableDesign/TableTemplate）的 `updateXxx(String id,...)`/`deleteXxx(String id)`/`batchDelete(List<String>)` 内部调 `getById/removeById/removeByIds` 处补 `Long.valueOf(id)`（与既有 `setId(Long.valueOf(id))` 模式一致）；`batchDeleteFields(List<String>)`→`ids.stream().map(Long::valueOf).toList()`；`TableDesignServiceImpl` 批量方法 `getById(id.toString())`（`id` 已 Long）简化为 `getById(id)`。
+- **Controller resolveId 调用点**：`FieldLibraryController`（getById/removeById 各 1）、`TableDesignController`（getById 13 处）补 `(Long)` 过渡强转。
+
+**D. 多余强转清理（ID-003 遗留 16 处 + 1 往返）**
+
+`BasePO<Long>.getId()` 已返 `Long`，以下 `(Long) x.getId()` 强转 / `Long.valueOf(x.getId().toString())` 往返全部移除：`TableDesignServiceImpl`（11）、`SystemTemplateSuiteServiceImpl`（3）、`DataSourceServiceImpl`（1）、`OrderRepositoryImpl`（1）、`ComprehensiveIntegrationTest`（1）、`AiDomainDesignService`（`Long.valueOf(d.getId().toString())`→`TableDesign::getId`）。全仓 `grep "(Long)\s*\w+\.getId()"` 零残留（仅 BasePO javadoc 反例文本）。
+
+**E. 测试**
+
+- `BasePOIdContractTest`（model，重写）：fixture `LongPO/StringPO/UuidPO extends BasePO<...>` + `VersionedLongPO extends VersionedPO<Long>`，验证三种主键类型 round-trip + `@Version` + 审计字段 + 同一性相等。
+- **新增 `IServiceIdTypeContractTest`（crud，8 用例）**：以**方法引用**绑定 `service::getById/removeById/listByIds` 到 `Function<Long,...>`/`Function<String,...>`/`Function<UUID,...>`——若主键参数回退 `Serializable` 则绑定编译失败（编译期契约锁）。绑定到非 null `NoopService`（28 方法空实现），运行期安全。覆盖 ADR-001 §2.3 Long/String/UUID 三形态。
+- `AbstractBaseControllerIdResolutionTest` fixture 全部 `extends BasePO<Long>` + 控制器 fixture `extends AbstractBaseController<IService<Fixture, Long>, Fixture>`。
+
+**F. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 30/30 SUCCESS（含 fastddd-bom 共 30 模块）
+→ Tests: 0 Failures / 0 Errors / ~10 Skipped（Testcontainers 类 @EnabledIfSystemProperty 门控）
+→ crud 模块 40→48 用例（+8 IService 契约测试），0 回归
+```
+
+**G. 登记与遗留**
+
+- **Controller 仍硬编码 Long**：5 个 web 基类 bounds 写死 `<..., Long>`，多主键类型控制器需 ID-005 泛型化（`<S,T,ID>`）。
+- **`resolveId` + 过渡 `(Long)` 强转**：`AbstractBaseController.resolveId(String)` 返 `Serializable` + 4 处 `(Long)` 强转为 ID-003/004 过渡态，ID-005 `IdCodec` 收口（消除 resolveId、DTO String 序列化、强转）。
+- **String-id 服务方法保留**：`updateField(String id,...)` 等 API 形参仍为 String，服务内部 `Long.valueOf` 解析——String↔Long 转换属表现层关切，ID-005 可上移至 codec。
+- **`SysRoleService`/`SysUserService` MP-IService**：安全模块独立性，有意不接入 FastDDD `IService`，登记不在 ID 链范围。
+- **下一任务**：ID-005（IdCodec + Controller `<S,T,ID>` 泛化，依赖 ID-004 ✅ 已解锁）——消除 `resolveId`/过渡强转、DTO String 序列化、Controller 多 ID 类型支持；ID-006（移除 `SerializableTypeHandler`）随后；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）亦仍解锁可并行。

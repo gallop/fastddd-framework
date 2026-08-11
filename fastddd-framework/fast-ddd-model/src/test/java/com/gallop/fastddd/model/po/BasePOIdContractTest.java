@@ -6,124 +6,132 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * ID-003 特征测试：锁定 {@link BasePO} / {@link VersionedPO} 重构后的强类型 ID 契约。
+ * ID-004 特征测试：锁定 {@link BasePO} 泛型化（{@code BasePO<ID extends Serializable>}）后的主键契约。
  *
- * <p>本测试在 ID-003 重构后验证<b>新契约</b>（取代 ID-001 刻画的弱类型现状）：
+ * <p>验证维度：
  * <ul>
- *   <li>{@code BasePO.id} 类型为 {@code Long}（不再是 {@code Serializable}）——消费方无需强转，
- *       MyBatis-Plus 内置 {@code LongTypeHandler} 处理主键读写。</li>
- *   <li>{@code BasePO.id} 字段<b>不</b>携带 {@code @TableId}——生成策略交由全局配置
- *       {@code id-type}（默认 {@code assign_id}），修复 ID-001 锁定的"字段注解覆盖全局配置"矛盾。</li>
- *   <li>{@code setId} 收窄为 {@code Long}：此前可塞入 String/UUID 的弱类型缺陷被编译期关闭。</li>
- *   <li>审计字段已上移到 {@link AuditedPO}，{@code BasePO} 仅额外承载主键。</li>
+ *   <li><b>类型绑定</b>：{@code BasePO<Long>} 的 getId/setId 为 Long，{@code BasePO<String>} 为 String，
+ *       {@code BasePO<UUID>} 为 UUID——主键类型在签名层绑定，消费方无需强转。</li>
+ *   <li><b>字段注解</b>：{@code BasePO.id} 不携带字段级 {@code @TableId}（ID 策略由全局 {@code id-type} 决定），
+ *       修复 ID-001/ADR-001 §M1 的矛盾。</li>
+ *   <li><b>审计字段</b>：上移到 {@link AuditedPO}，{@code BasePO} 仅额外承载主键。</li>
+ *   <li><b>{@link VersionedPO}</b>：透传 {@code ID}，{@code @Version} 字段保留。</li>
  * </ul>
+ * 编译期类型安全（错误 ID 类型在编译失败）由 {@code IServiceIdTypeCompileTest} 在 service 层另行锁定；
+ * 本测试聚焦 PO 基类的运行时行为与结构契约。
  *
  * @author gallop
  * @since 1.0.0-jdk21
  */
 class BasePOIdContractTest {
 
-    /** 最小 PO 子类（BasePO 为抽象类，需具体子类才能实例化）。 */
-    static class SamplePO extends BasePO {
+    /** Long 主键 PO（框架默认形态）。 */
+    static class LongPO extends BasePO<Long> {
         private String name;
-
         public String getName() { return name; }
-
         public void setName(String name) { this.name = name; }
     }
 
-    static class SampleVersionedPO extends VersionedPO {
+    /** String 业务键主键 PO。 */
+    static class StringPO extends BasePO<String> {
         private String code;
-
         public String getCode() { return code; }
-
         public void setCode(String code) { this.code = code; }
     }
 
+    /** UUID 主键 PO。 */
+    static class UuidPO extends BasePO<UUID> {
+    }
+
+    /** VersionedPO 透传 Long 主键。 */
+    static class VersionedLongPO extends VersionedPO<Long> {
+        private String doc;
+        public String getDoc() { return doc; }
+        public void setDoc(String doc) { this.doc = doc; }
+    }
+
     @Nested
-    @DisplayName("getId 契约：返回强类型 Long（消费方无需强转）")
-    class GetIdContract {
+    @DisplayName("类型绑定：BasePO<ID> 的 getId/setId 按 ID 类型收窄")
+    class TypedIdContract {
 
         @Test
-        @DisplayName("getId() 返回类型为 Long，不再是 Serializable")
-        void getId_returnType_isLong() throws NoSuchMethodException {
-            Method getId = BasePO.class.getMethod("getId");
-            // 新契约：返回 Long——此前所有 (Long) x.getId() 强转的根源已消除
-            assertThat(getId.getReturnType()).isEqualTo(Long.class);
-        }
-
-        @Test
-        @DisplayName("getId/setId 强类型 Long 往返")
-        void getId_setId_typedLongRoundTrip() {
-            SamplePO po = new SamplePO();
+        @DisplayName("BasePO<Long>：getId/setId 为 Long，无需强转")
+        void longPo_typedIdRoundTrip() {
+            LongPO po = new LongPO();
             assertThat(po.getId()).isNull();
             po.setId(1L);
             assertThat(po.getId()).isEqualTo(1L).isInstanceOf(Long.class);
         }
 
         @Test
-        @DisplayName("setId 拒绝非 Long（编译期关闭弱类型——String/UUID 不再可塞入）")
-        void setId_rejectsNonLong() {
-            SamplePO po = new SamplePO();
-            // 编译期类型安全： setId(String) / setId(UUID) 不再存在
-            assertThatThrownBy(() -> SamplePO.class.getMethod("setId", String.class))
-                    .isInstanceOf(NoSuchMethodException.class);
-            assertThatThrownBy(() -> SamplePO.class.getMethod("setId", java.util.UUID.class))
-                    .isInstanceOf(NoSuchMethodException.class);
+        @DisplayName("BasePO<String>：getId/setId 为 String（业务键形态）")
+        void stringPo_typedIdRoundTrip() {
+            StringPO po = new StringPO();
+            po.setId("ORD-2026-0001");
+            assertThat(po.getId()).isEqualTo("ORD-2026-0001").isInstanceOf(String.class);
+        }
+
+        @Test
+        @DisplayName("BasePO<UUID>：getId/setId 为 UUID（UUID 主键形态）")
+        void uuidPo_typedIdRoundTrip() {
+            UuidPO po = new UuidPO();
+            UUID id = UUID.randomUUID();
+            po.setId(id);
+            assertThat(po.getId()).isEqualTo(id).isInstanceOf(UUID.class);
+        }
+
+        @Test
+        @DisplayName("VersionedPO<Long>：透传 Long 主键 + @Version 字段")
+        void versionedPo_inheritsTypedId() {
+            VersionedLongPO po = new VersionedLongPO();
+            po.setId(42L);
+            assertThat(po.getId()).isInstanceOf(Long.class).isEqualTo(42L);
+            assertThat(po.getVersion()).isNotNull();
         }
     }
 
     @Nested
-    @DisplayName("ID 策略：BasePO.id 不携带字段级 @TableId（交由全局 id-type 决定）")
+    @DisplayName("ID 策略：BasePO.id 不携带字段级 @TableId（全局 id-type 驱动）")
     class IdStrategyAnnotation {
 
         @Test
         @DisplayName("BasePO.id 字段不携带 @TableId（修复字段注解覆盖全局配置的矛盾）")
         void idField_hasNoTableIdAnnotation() throws NoSuchFieldException {
             Field idField = BasePO.class.getDeclaredField("id");
-            TableId tableId = idField.getAnnotation(TableId.class);
-            // 新契约：字段级 @TableId 已移除——策略由全局 id-type（默认 assign_id）决定，
-            // 子类需要不同策略时自行重声明 id + @TableId。修复 ID-001/ADR-001 §M1 的矛盾。
-            assertThat(tableId).as("BasePO.id 不应携带字段级 @TableId").isNull();
-        }
-
-        @Test
-        @DisplayName("id 字段类型为 Long（对应 BIGINT 列）")
-        void idField_typeIsLong() throws NoSuchFieldException {
-            Field idField = BasePO.class.getDeclaredField("id");
-            assertThat(idField.getType()).isEqualTo(Long.class);
+            // 字段级 @TableId 已移除——策略由全局 id-type（默认 assign_id）决定。
+            // 子类需不同策略时自行重声明 id + @TableId(type=...)。修复 ID-001/ADR-001 §M1。
+            assertThat(idField.getAnnotation(TableId.class))
+                    .as("BasePO.id 不应携带字段级 @TableId").isNull();
         }
     }
 
     @Nested
-    @DisplayName("审计字段：已上移到 AuditedPO，BasePO 不直接声明")
+    @DisplayName("审计字段：已上移到 AuditedPO，BasePO 仅承载主键")
     class AuditFieldsExtraction {
 
         @Test
-        @DisplayName("审计字段在 AuditedPO 声明，BasePO 继承")
-        void auditFields_declaredOnAuditedPO() throws NoSuchFieldException {
-            // 审计字段定义在 AuditedPO
-            assertThat(AuditedPO.class.getDeclaredField("createTime")).isNotNull();
-            assertThat(AuditedPO.class.getDeclaredField("updateTime")).isNotNull();
-            assertThat(AuditedPO.class.getDeclaredField("createUser")).isNotNull();
-            assertThat(AuditedPO.class.getDeclaredField("updateUser")).isNotNull();
-            assertThat(AuditedPO.class.getDeclaredField("deleted")).isNotNull();
-            // BasePO 自身不再声明这些字段（继承自 AuditedPO）
+        @DisplayName("审计字段在 AuditedPO 声明，BasePO 继承但不重复声明")
+        void auditFields_declaredOnAuditedPO() {
+            assertThat(fieldOrNull(AuditedPO.class, "createTime")).isNotNull();
+            assertThat(fieldOrNull(AuditedPO.class, "updateTime")).isNotNull();
+            assertThat(fieldOrNull(AuditedPO.class, "createUser")).isNotNull();
+            assertThat(fieldOrNull(AuditedPO.class, "updateUser")).isNotNull();
+            assertThat(fieldOrNull(AuditedPO.class, "deleted")).isNotNull();
+            // BasePO 自身不再声明审计字段（继承自 AuditedPO）
             assertThat(fieldOrNull(BasePO.class, "createTime")).isNull();
             assertThat(fieldOrNull(BasePO.class, "deleted")).isNull();
         }
 
         @Test
-        @DisplayName("AuditedPO 不包含 id；BasePO 在 AuditedPO 之上添加 id")
-        void auditedPO_hasNoId_basePOAddsId() throws NoSuchFieldException {
+        @DisplayName("AuditedPO 不含 id；BasePO 在 AuditedPO 之上添加主键")
+        void auditedPO_hasNoId_basePOAddsId() {
             assertThat(fieldOrNull(AuditedPO.class, "id")).isNull();
-            assertThat(BasePO.class.getDeclaredField("id")).isNotNull();
+            assertThat(fieldOrNull(BasePO.class, "id")).isNotNull();
         }
 
         private Field fieldOrNull(Class<?> clazz, String name) {
@@ -142,26 +150,26 @@ class BasePOIdContractTest {
         @Test
         @DisplayName("两个相同 id 的 PO 实例不相等（对象同一性）")
         void equals_isIdentityBased() {
-            SamplePO a = new SamplePO();
-            SamplePO b = new SamplePO();
+            LongPO a = new LongPO();
+            LongPO b = new LongPO();
             a.setId(1L);
             b.setId(1L);
             a.setName("x");
             b.setName("x");
-            // 持久化对象不按字段值相等——退化为 Object 同一性（与领域侧 DomainEntity 身份等价是两套并行契约）
+            // 持久化对象退化为 Object 同一性（与领域侧 DomainEntity 身份等价是两套并行契约）
             assertThat(a).isNotEqualTo(b);
         }
 
         @Test
         @DisplayName("同一实例自等")
         void equals_selfEquality() {
-            SamplePO a = new SamplePO();
+            LongPO a = new LongPO();
             assertThat(a).isEqualTo(a);
         }
     }
 
     @Nested
-    @DisplayName("VersionedPO：在 BasePO 基础上增加 @Version，继承 Long id")
+    @DisplayName("VersionedPO.@Version 注解")
     class VersionedPoContract {
 
         @Test
@@ -170,14 +178,6 @@ class BasePOIdContractTest {
             Field versionField = VersionedPO.class.getDeclaredField("version");
             assertThat(versionField.getAnnotation(com.baomidou.mybatisplus.annotation.Version.class))
                     .as("VersionedPO.version 必须有 @Version").isNotNull();
-        }
-
-        @Test
-        @DisplayName("VersionedPO 继承 BasePO 的强类型 Long id")
-        void versionedPo_inheritsLongId() {
-            SampleVersionedPO po = new SampleVersionedPO();
-            po.setId(1L);
-            assertThat(po.getId()).isInstanceOf(Long.class).isEqualTo(1L);
         }
     }
 }

@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-public abstract class CrudController<S extends IService<T>, T extends BasePO> extends BaseController<S, T> {
+public abstract class CrudController<S extends IService<T, Long>, T extends BasePO<Long>> extends BaseController<S, T> {
 
     /**
      * 获取实体类型名称，用于日志和错误消息
