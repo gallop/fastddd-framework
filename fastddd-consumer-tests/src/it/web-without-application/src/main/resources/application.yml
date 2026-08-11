@@ -1,4 +1,4 @@
-# P0-2 复现场景配置：与 web-minimal 一致的最小可装配配置。
+# WEB-001 验收场景配置：与 web-minimal 一致的最小可装配配置（无 application）。
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE

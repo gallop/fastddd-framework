@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  FRM-002 验收场景②：复现审计 P0-2——Web 缺 application 的当前失败。
+  WEB-001 正向验收场景：fast-ddd-web 在无 fast-ddd-application 时可启动。
   消费者依赖 fast-ddd-starter（传递 web/crud），但【不】显式引入 fast-ddd-application。
-  web 的 GlobalExceptionHandler 硬引用 application 的 CommandValidationException（optional），
-  在 application 缺席时上下文启动抛 ClassNotFoundException/NoClassDefFoundError。
+  历史（FRM-002）此处复现 P0-2——GlobalExceptionHandler 硬引用 application 的
+  CommandValidationException（optional），缺席时启动失败。WEB-001 已将 CQRS 异常处理抽离至
+  CqrsExceptionAdvice（@ConditionalOnClass(CommandValidationException.class)），
+  GlobalExceptionHandler 不再引用 application 包，context 正常启动（WebWithoutAppStartsTest）。
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -18,7 +20,7 @@
   <groupId>com.gallop.fastddd.consumer</groupId>
   <artifactId>web-without-application</artifactId>
   <version>1.0.0-SNAPSHOT</version>
-  <name>FastDDD Consumer :: Web Without Application (P0-2 reproduction)</name>
+  <name>FastDDD Consumer :: Web Without Application (WEB-001 acceptance)</name>
 
   <properties>
     <java.version>21</java.version>

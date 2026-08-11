@@ -1,6 +1,5 @@
 package com.gallop.fastddd.web.exception;
 
-import com.gallop.fastddd.application.exception.CommandValidationException;
 import com.gallop.fastddd.common.exception.BusinessException;
 import com.gallop.fastddd.common.exception.SystemException;
 import com.gallop.fastddd.common.i18n.Messages;
@@ -26,49 +25,17 @@ import java.util.stream.Collectors;
  * 全局异常处理器
  * 统一处理应用程序中的各种异常，返回统一的响应格式
  *
+ * <p>WEB-001：CommandValidationException（fast-ddd-application optional 类）的专门处理已抽离至
+ * {@link CqrsExceptionAdvice}，该 advice 带 {@code @ConditionalOnClass(CommandValidationException.class)}，
+ * 仅在 classpath 存在 application 时装配。本类不再持有对 application 包任何类型的引用，
+ * 故 fast-ddd-web 可在无 fast-ddd-application 的 classpath 下启动。
+ *
  * @author FastDDD Framework Team
- * @version 1.1.0 - 添加 CommandValidationException 专门处理
+ * @version 1.0.0-jdk21 - WEB-001 抽离 CQRS 异常处理至 CqrsExceptionAdvice
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    /**
-     * 处理 Command 验证异常
-     *
-     * 此异常包含字段级别的验证错误，需要特殊格式化处理。
-     *
-     * @param e Command 验证异常
-     * @param request HTTP 请求
-     * @return 包含字段错误详情的响应
-     */
-    @ExceptionHandler(CommandValidationException.class)
-    public ResponseEntity<ApiResponse<Map<String, List<String>>>> handleCommandValidationException(
-            CommandValidationException e, HttpServletRequest request) {
-        log.warn("Command validation exception occurred at {}: {} errors",
-                request.getRequestURI(), e.getErrors().size());
-
-        // 将验证错误按字段分组
-        Map<String, List<String>> fieldErrors = e.getErrors().stream()
-                .collect(Collectors.groupingBy(
-                        CommandValidationException.ValidationError::getField,
-                        Collectors.mapping(
-                                CommandValidationException.ValidationError::getMessage,
-                                Collectors.toList())
-                ));
-
-        // 构建错误消息
-        String errorSummary = e.getErrors().stream()
-                .map(error -> error.getField() + ": " + error.getMessage())
-                .collect(Collectors.joining("; "));
-
-        ApiResponse<Map<String, List<String>>> response = ApiResponse.error(
-                400,
-                Messages.get("web.error.command-validation", errorSummary),
-                fieldErrors);
-
-        return ResponseEntity.badRequest().body(response);
-    }
 
     /**
      * 处理业务异常

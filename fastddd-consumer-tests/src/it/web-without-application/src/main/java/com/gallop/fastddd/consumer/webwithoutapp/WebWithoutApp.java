@@ -4,8 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * P0-2 复现载体：依赖 fast-ddd-starter 但不引 fast-ddd-application。
- * 启动时 GlobalExceptionHandler 装配触发 CommandValidationException 类加载失败。
+ * WEB-001 验收载体：依赖 fast-ddd-starter 但不引 fast-ddd-application。
+ * WEB-001 修复后 context 正常启动（GlobalExceptionHandler 已 application-free）。
  */
 @SpringBootApplication
 public class WebWithoutApp {
