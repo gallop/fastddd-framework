@@ -1461,6 +1461,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | CFG-001 | ✅ 核心完成 | 提交 `docs(cfg): 配置契约清单与错配分析 (CFG-001 步骤1-3)` f04e793；`feat(cfg): fast-ddd.* 旧根启动期 fail-fast guard (步骤6)` 94ef8a4；`feat(cfg): 优先属性类补声明式数值约束 + 绑定期校验单测 (步骤4)` ab187e3 | 配置契约单一事实源（16 前缀/14 类字段/错配分析）；`fast-ddd.*` 旧根启动期 fail-fast guard（fast-ddd-config，经 starter 传递，3 单测）；2 优先类补 `@Validated` 数值约束 + 绑定期校验实证（cache 4 / code 5 用例）（详见 §16.5） | 步骤4 残留扩展：Duration 字段需自定义 `@PositiveDuration`（独立小任务）+ 其余类按需补；步骤5 metadata 快照低优先；未绑定配置（cqrs/event）+ id-type 移交 CFG-002 |
 | 2026-08-11 | CFG-002 | ✅ 已完成 | 提交 `fix(cfg): 修复生成模板配置契约 + 渲染期校验 (CFG-002)` eb3ef0c | 3 生成模板（单项目/多端/archetype）修复：根前缀 `fast-ddd→fastddd`、删除未绑定 cqrs/event、JWT secret 改环境变量、`slow-threshold→slow-query-threshold`、多端 http/cors 嵌套修正、`id-type auto→assign_id`；新增 `ProjectConfigContractTest`（snakeyaml 渲染期键路径契约，3 用例）+ archetype 生成冒烟实证（详见 §16.6） | DB `your_password` 占位符（dev 便利，非功能凭据）保留；event/cqrs 真实绑定待 EVT/ADR-003；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 契约测试（覆盖 ANEMIC/RICH）替代，全组合留 QA-001 |
 | 2026-08-11 | SPLIT-002 | ✅ 已完成 | 提交 `refactor(split-002): 移除 Framework 对 FastDoc 反向依赖，FastDoc HTTP 适配上移至 Tooling Starter (SPLIT-002 #38)` 2c1da8a | 新建 `fastddd-fastdoc-spring-boot-starter`（Tooling）；fast-ddd-web 移除 fastdoc-core 依赖 + 删除嵌套 FastDocConfiguration/Controller；框架级源码扫描门禁 `FrameworkLayeringDirectionTest`；fastdoc-minimal 消费者实证装配（详见 §16.7） | 框架子模块 parent=root 致聚合器级 enforcer 无法继承，门禁改用测试级源码扫描（持久 per-submodule enforcer 门禁留 OSS-001）；顺带修正原 web 嵌套配置的 `@ConditionalOnBean(DataSource)` 排序存量缺陷 |
+| 2026-08-11 | WEB-001 | ✅ 已完成 | 提交 `refactor(web-001): 隔离 fast-ddd-web 对 fast-ddd-application 的 optional 硬依赖 (WEB-001 #39)` fad9661 | 新建 `CqrsExceptionAdvice`（@ConditionalOnClass）抽离 CommandValidationException 处理；GlobalExceptionHandler 瘦身为 application-free；web-without-application 特征测试翻转为正向 contextLoads；web-minimal 加强 CqrsExceptionAdvice 装配断言（详见 §16.8） | CommandController/QueryController（abstract）仍 import application 包，属组件扫描 ASM 不触发加载的软耦合（实证可启动）；GlobalExceptionHandlerTest 类名历史遗留未改（行为已验证） |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1737,3 +1738,38 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **顺带修正的存量缺陷**：原 fast-ddd-web 嵌套 `FastDocConfiguration` 的 `fastDocService` @Bean 标注 `@ConditionalOnBean(DataSource.class)` 但**未声明 `@AutoConfigureAfter(DataSourceAutoConfiguration.class)`**——条件在 DataSource 注册前求值被跳过，该配置**从未在真实消费者中激活**（FRM-002 取证佐证）。新 starter 补排序注解，消费者测试实证 FastDoc 首次真正装配。此为 SPLIT-002 的附带收益，非新增风险。
 - **消费者门禁纳入**：fastdoc-minimal 已纳入 `fastddd-consumer-tests`，默认 `invoker.skip=true`，需 `-Pconsumer-tests -Dinvoker.test=fastdoc-*` 触发（与 FRM-002 骨架一致）。
 - WEB-001（Web optional application 隔离）依赖项 FRM-002 + SPLIT-002 均已完成，**已解锁**，作为下一 M1 任务。
+
+### 16.8 WEB-001 Web optional application 隔离快照
+
+消除 fast-ddd-web 对 optional 依赖 fast-ddd-application 的硬耦合，使 web 可在无 application 时启动（P0-2）。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 新建 advice | `web/exception/CqrsExceptionAdvice`：`@RestControllerAdvice` + `@ConditionalOnClass(CommandValidationException.class)`，承载 `handleCommandValidationException`（自 GlobalExceptionHandler 抽离，逻辑原样） |
+| GlobalExceptionHandler 瘦身 | 移除 `CommandValidationException` import 与 handler 方法，仅保留 common/web 异常处理（BusinessException/SystemException/校验/绑定/类型/运行时等），application-free |
+| web-without-application 消费者 | FRM-002 特征测试 `ReproducesP02Test`（缺陷存在时通过）翻转后删除；改为正向 `WebWithoutAppStartsTest`（contextLoads + GlobalExceptionHandler 装配断言）；invoker.properties/pom/app/yml 注释同步 |
+| web-minimal 消费者 | `ContextLoadsTest` 加强：新增 `cqrsExceptionMappingIsActiveWhenApplicationPresent` 断言 CqrsExceptionAdvice 装配（证明 application 在 classpath 时 CQRS 异常映射仍生效） |
+
+**B. 命令级证据**
+
+- **翻转验证（TDD 闭环）**：修复前 web-without-application 特征测试 Passed:1（断言启动抛 CommandValidationException）；修复后翻转 Failed:1（`Expected Throwable to be thrown, but nothing was thrown`——上下文成功启动）；改为正向后 Passed:1。
+- web-* 双消费者：**Passed:2 / Failed:0**（web-without-application 无 application 启动成功 + web-minimal 有 application CqrsExceptionAdvice 装配）。
+- fast-ddd-web 单测：**36 tests / 0 failures**，含 `GlobalExceptionHandlerTest` 6 用例（`shouldHandleCommandValidationException` 经 CqrsExceptionAdvice 仍生效，HTTP 响应不变）。
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，380 tests / 0 failures / 0 errors**。
+- GlobalExceptionHandler 源 application import grep **零命中**。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| ① | 无 application 时启动成功 | ✅ | web-without-application contextLoads（WebWithoutAppStartsTest） |
+| ② | 有 application 时异常映射仍生效 | ✅ | web-minimal CqrsExceptionAdvice 装配断言 + GlobalExceptionHandlerTest shouldHandleCommandValidationException |
+
+**D. 移交与残留**
+
+- **软耦合保留（设计决策）**：`CommandController`/`QueryController`（abstract CQRS 基类）仍 import `com.gallop.fastddd.application.{command,query}`。二者为抽象类，Spring 组件扫描经 ASM `MetadataReader` 读取注解元数据时不触发类加载，且 abstract 类非候选 bean；仅在被消费者子类化（消费者必有 application）时才加载。web-without-application 成功启动实证此软耦合不阻塞验收。**未删 CQRS 异常处理、未把 application 改必选**（遵守禁止条款）。
+- **门禁形态**：P0-2 回归防护由 web-without-application 消费者（正向 contextLoads）+ FrameworkLayeringDirectionTest（SPLIT-002，防 application 包 import 回流至非 advice 类）共同覆盖；@ConditionalOnClass 缺失可在该消费者立即暴露（启动失败）。
+- **测试命名遗留**：`GlobalExceptionHandlerTest` 类名含历史 "CommandValidationException 测试" 注释，行为已迁移至 CqrsExceptionAdvice 但 MockMvc 端到端验证仍归属"全局异常处理"语义，未改名（避免无谓 churn）；如需精确可在 QA-001 统一重命名。
+- **下一 M1 任务**：CACHE-001（L1 缓存命名空间隔离，FRM-002 已隔离复现 P0-x）、MON-001（SQL 监控属性 Bean 修复，FRM-002 已隔离复现 P0-4）。
