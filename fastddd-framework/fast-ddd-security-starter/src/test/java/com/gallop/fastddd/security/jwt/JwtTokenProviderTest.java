@@ -82,6 +82,8 @@ class JwtTokenProviderTest {
         // 验证Token
         assertNotNull(refreshToken);
         assertTrue(jwtTokenProvider.validateToken(refreshToken));
+        assertTrue(jwtTokenProvider.validateRefreshToken(refreshToken));
+        assertFalse(jwtTokenProvider.validateAccessToken(refreshToken));
         assertEquals("testuser", jwtTokenProvider.getUsernameFromToken(refreshToken));
     }
 
@@ -204,5 +206,39 @@ class JwtTokenProviderTest {
 
         String token = jwtTokenProvider.generateAccessToken(authentication);
         assertEquals(AuthChannel.DEFAULT, jwtTokenProvider.getChannelFromToken(token));
+    }
+
+    @Test
+    void accessAndRefreshTokensCannotBeUsedInterchangeably() {
+        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new User("testuser", "password", authorities), null, authorities);
+
+        String accessToken = jwtTokenProvider.generateAccessToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+
+        assertTrue(jwtTokenProvider.validateAccessToken(accessToken));
+        assertFalse(jwtTokenProvider.validateRefreshToken(accessToken));
+        assertTrue(jwtTokenProvider.validateRefreshToken(refreshToken));
+        assertFalse(jwtTokenProvider.validateAccessToken(refreshToken));
+    }
+
+    @Test
+    void consumedOrRevokedTokensAreRejected() {
+        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new User("testuser", "password", authorities), null, authorities);
+        String accessToken = jwtTokenProvider.generateAccessToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+
+        assertTrue(jwtTokenProvider.revokeToken(accessToken));
+        assertFalse(jwtTokenProvider.validateAccessToken(accessToken));
+        assertTrue(jwtTokenProvider.consumeRefreshToken(refreshToken));
+        assertFalse(jwtTokenProvider.consumeRefreshToken(refreshToken));
+    }
+
+    @Test
+    void missingHmacSecretRefusesTokenProviderCreation() {
+        assertThrows(IllegalStateException.class, () -> new JwtTokenProvider(new JwtProperties()));
     }
 }

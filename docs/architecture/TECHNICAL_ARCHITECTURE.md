@@ -1250,7 +1250,7 @@ public class SecurityAutoConfiguration {
             .and()
             .authorizeHttpRequests()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // permitAllPaths 从配置读取，包含 /public/**、/actuator/**、Swagger 路径等
+                // permitAllPaths 从配置读取；Actuator 仅默认公开 health、info，其他端点须认证
                 .requestMatchers(...permitAllPaths).permitAll()
                 .anyRequest().authenticated()
             .and()

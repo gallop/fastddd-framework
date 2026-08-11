@@ -730,7 +730,8 @@ fastddd:
   security:
     jwt:
       enabled: true
-      secret: ${JWT_SECRET:your-secret-key-at-least-64-characters-long-for-hs512-algorithm-please-change-in-production}
+      # Required. Inject a random secret of at least 64 bytes at deployment time.
+      secret: ${JWT_SECRET}
       expiration: 3600000
     audit:
       enabled: true

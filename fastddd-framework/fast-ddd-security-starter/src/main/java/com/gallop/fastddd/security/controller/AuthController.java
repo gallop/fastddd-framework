@@ -119,10 +119,16 @@ public class AuthController {
 
     @PostMapping("/logout")
     @AuditLog(value = "用户登出", type = AuditLog.OperationType.LOGOUT)
-    public ApiResponse<String> logout() {
+    public ApiResponse<String> logout(HttpServletRequest httpRequest,
+                                      @RequestBody(required = false) RefreshRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication != null ? authentication.getName() : "unknown";
 
+        jwtTokenProvider.revokeToken(jwtTokenProvider.extractTokenFromHeader(
+                httpRequest.getHeader(jwtProperties.getHeaderName())));
+        if (request != null && request.getRefreshToken() != null) {
+            jwtTokenProvider.revokeToken(request.getRefreshToken());
+        }
         log.info("用户 {} 登出", username);
         SecurityContextHolder.clearContext();
         return ApiResponse.success(null, Messages.get("security.auth.logout.success"));
@@ -132,7 +138,7 @@ public class AuthController {
     public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         String refreshToken = request.getRefreshToken();
 
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
+        if (!jwtTokenProvider.consumeRefreshToken(refreshToken)) {
             return ApiResponse.error(401, Messages.get("security.auth.refresh.invalid"));
         }
 
@@ -159,12 +165,13 @@ public class AuthController {
                 channel = jwtProperties.getChannel();
             }
             String newAccessToken = jwtTokenProvider.generateAccessToken(authentication, channel);
+            String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication, channel);
 
             log.info("用户 {} Token刷新成功", username);
 
             TokenResponse response = TokenResponse.builder()
                     .accessToken(newAccessToken)
-                    .refreshToken(refreshToken)
+                    .refreshToken(newRefreshToken)
                     .tokenType("Bearer")
                     .expiresIn(jwtProperties.getExpiration().getSeconds())
                     .build();

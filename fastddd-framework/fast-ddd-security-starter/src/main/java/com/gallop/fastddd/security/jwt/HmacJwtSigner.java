@@ -22,6 +22,9 @@ public class HmacJwtSigner implements JwtSigner {
     private final SecretKey secretKey;
 
     public HmacJwtSigner(String secret) {
+        JwtProperties properties = new JwtProperties();
+        properties.setSecret(secret);
+        properties.validateHmacSecret();
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 

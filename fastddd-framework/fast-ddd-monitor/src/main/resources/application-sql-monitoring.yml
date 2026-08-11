@@ -30,7 +30,7 @@ management:
           - sql-monitoring
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
     metrics:
       enabled: true
     prometheus:

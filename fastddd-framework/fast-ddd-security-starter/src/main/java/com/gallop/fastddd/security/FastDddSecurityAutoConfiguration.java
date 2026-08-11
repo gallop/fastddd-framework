@@ -21,8 +21,10 @@ import com.gallop.fastddd.security.provider.SecurityCurrentUserProvider;
 import com.gallop.fastddd.security.handler.JwtAccessDeniedHandler;
 import com.gallop.fastddd.security.handler.JwtAuthenticationEntryPoint;
 import com.gallop.fastddd.security.jwt.HmacJwtSigner;
+import com.gallop.fastddd.security.jwt.InMemoryJwtTokenRevocationStore;
 import com.gallop.fastddd.security.jwt.JwtProperties;
 import com.gallop.fastddd.security.jwt.JwtSigner;
+import com.gallop.fastddd.security.jwt.JwtTokenRevocationStore;
 import com.gallop.fastddd.security.jwt.JwtTokenProvider;
 import com.gallop.fastddd.security.spi.DefaultSecurityIdentityService;
 import com.gallop.fastddd.security.spi.DefaultSecurityPermissionService;
@@ -82,9 +84,17 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public JwtTokenProvider jwtTokenProvider(JwtProperties jwtProperties, JwtSigner jwtSigner) {
+    public JwtTokenRevocationStore jwtTokenRevocationStore() {
+        return new InMemoryJwtTokenRevocationStore();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JwtTokenProvider jwtTokenProvider(JwtProperties jwtProperties,
+                                             JwtSigner jwtSigner,
+                                             JwtTokenRevocationStore tokenRevocationStore) {
         log.info("FastDDD security: JwtTokenProvider initialized with JwtSigner={}", jwtSigner.getClass().getSimpleName());
-        return new JwtTokenProvider(jwtProperties, jwtSigner);
+        return new JwtTokenProvider(jwtProperties, jwtSigner, tokenRevocationStore);
     }
 
     @Bean

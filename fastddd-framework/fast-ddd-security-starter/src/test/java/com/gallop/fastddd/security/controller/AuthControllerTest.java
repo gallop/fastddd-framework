@@ -2,6 +2,8 @@ package com.gallop.fastddd.security.controller;
 
 import com.gallop.fastddd.security.channel.AuthChannel;
 import com.gallop.fastddd.security.dto.LoginResponse;
+import com.gallop.fastddd.security.dto.RefreshRequest;
+import com.gallop.fastddd.security.dto.TokenResponse;
 import com.gallop.fastddd.security.jwt.JwtProperties;
 import com.gallop.fastddd.security.jwt.JwtTokenProvider;
 import com.gallop.fastddd.security.spi.SecurityIdentityService;
@@ -52,6 +54,39 @@ class AuthControllerTest {
         assertTrue(response.isSuccess());
         assertNotNull(response.getData().getAccessToken());
         assertEquals("42", identityService.userInfoId);
+    }
+
+    @Test
+    void refreshRotatesTheRefreshTokenAndRejectsReplay() {
+        SecurityUserDetails details = SecurityUserDetails.builder()
+                .userId("42")
+                .username("user@example.com")
+                .enabled(true)
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                .build();
+        JwtProperties properties = jwtProperties();
+        JwtTokenProvider provider = new JwtTokenProvider(properties);
+        AuthController controller = new AuthController(
+                provider,
+                properties,
+                new RefreshIdentityService(details),
+                new TestPermissionService(),
+                new AuthStrategyRegistry(List.of())
+        );
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                details, null, details.getAuthorities());
+        String refreshToken = provider.generateRefreshToken(authentication, AuthChannel.DEFAULT);
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken(refreshToken);
+
+        ApiResponse<TokenResponse> response = controller.refresh(request);
+
+        assertTrue(response.isSuccess());
+        assertNotEquals(refreshToken, response.getData().getRefreshToken());
+        assertFalse(provider.validateRefreshToken(refreshToken));
+        assertTrue(provider.validateRefreshToken(response.getData().getRefreshToken()));
+        assertFalse(provider.validateAccessToken(response.getData().getRefreshToken()));
+        assertFalse(controller.refresh(request).isSuccess());
     }
 
     private JwtProperties jwtProperties() {
@@ -111,6 +146,25 @@ class AuthControllerTest {
         @Override
         public List<String> getRolesByUserId(String userId) {
             return List.of("USER");
+        }
+    }
+
+    static class RefreshIdentityService implements SecurityIdentityService {
+
+        private final SecurityUserDetails details;
+
+        RefreshIdentityService(SecurityUserDetails details) {
+            this.details = details;
+        }
+
+        @Override
+        public SecurityUserDetails loadUserByUsername(String username) {
+            return details.getUsername().equals(username) ? details : null;
+        }
+
+        @Override
+        public SecurityUserInfo getUserInfo(String userId) {
+            return null;
         }
     }
 }

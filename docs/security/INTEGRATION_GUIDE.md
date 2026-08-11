@@ -127,7 +127,8 @@ fastddd:
   security:
     jwt:
       enabled: true
-      secret: ${JWT_SECRET:至少64字节长的密钥字符串!!}
+      # 必填；未设置时框架会拒绝启动。使用至少 64 字节的随机值。
+      secret: ${JWT_SECRET}
       expiration: 24h
       refresh-expiration: 7d
       channel: ADMIN            # 认证通道标识，多端场景区分
@@ -138,7 +139,7 @@ fastddd:
 | 配置项 | 说明 | 踩坑记录 |
 |-------|------|---------|
 | `channel` | 当前应用的认证通道 | **必须和 login 时生成的 token channel 一致**，否则 JWT filter 会拒绝 token。框架的 `AuthController` 自动从 `jwtProperties.getChannel()` 取值，所以只要配置了就一致 |
-| `secret` | HMAC-SHA512 密钥（默认签名策略） | 必须 ≥64 字节，否则 `Keys.hmacShaKeyFor()` 抛异常。如需 RSA/ES256 非对称签名（如跨子系统 SSO），声明 `@Component` 实现 `JwtSigner` 接口即可覆盖默认的 `HmacJwtSigner` |
+| `secret` | HMAC-SHA512 密钥（默认签名策略） | **必须显式设置且 ≥64 字节**；缺失时框架拒绝启动。生产环境从密钥管理系统或环境变量提供，不得配置回退值。如需 RSA/ES256 非对称签名（如跨子系统 SSO），声明 `@Component` 实现 `JwtSigner` 接口即可覆盖默认的 `HmacJwtSigner` |
 | `expiration` | Duration 格式带单位 | `24h`、`3600s`、`7d`，不要写纯数字 |
 
 ### 3.2 放行路径配置
@@ -148,7 +149,8 @@ fastddd:
       permit-all-paths:
         - /api/auth/login       # 只放行 login
         - /api/auth/refresh     # 和 refresh
-        - /actuator/**
+        - /actuator/health
+        - /actuator/info
         - /ws/**
 ```
 

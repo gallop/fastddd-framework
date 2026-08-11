@@ -4,6 +4,7 @@ import com.gallop.fastddd.security.channel.AuthChannel;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
@@ -16,10 +17,13 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "fastddd.security.jwt")
 public class JwtProperties {
 
+    /** HS512 requires at least 512 bits of key material. */
+    public static final int MINIMUM_HMAC_SECRET_BYTES = 64;
+
     /**
      * JWT密钥
      */
-    private String secret = "fastDDD-security-jwt-secret-key-2025-MUST-BE-CHANGED-IN-PRODUCTION-MINIMUM-64-BYTES!!";
+    private String secret;
 
     /**
      * JWT过期时间
@@ -63,4 +67,23 @@ public class JwtProperties {
      * 默认 "HS512"（HmacJwtSigner），使用 RSA 签名时设为 "RS256"。
      */
     private String algorithm = "HS512";
+
+    /**
+     * Validates the secret used by the default HMAC signer.
+     *
+     * <p>No framework-provided fallback is allowed: a predictable default
+     * would let an attacker forge tokens for every application that forgot to
+     * override it.</p>
+     */
+    public void validateHmacSecret() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "fastddd.security.jwt.secret must be configured with a random secret; refusing to start with no JWT key");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MINIMUM_HMAC_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "fastddd.security.jwt.secret must contain at least " + MINIMUM_HMAC_SECRET_BYTES
+                            + " UTF-8 bytes for HS512");
+        }
+    }
 }

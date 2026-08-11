@@ -75,6 +75,8 @@ class JwtTokenProviderSignerDelegationTest {
     void validateTokenDelegatesToSignerParse() {
         Claims claims = Jwts.claims();
         claims.setSubject("testuser");
+        claims.setId("access-token-id");
+        claims.put("typ", "access");
         claims.setExpiration(new Date(System.currentTimeMillis() + 60000));
         when(mockSigner.parse("valid-token")).thenReturn(claims);
 

@@ -74,7 +74,7 @@ management:
         include: health,info,metrics,prometheus,sql-monitoring
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
     sql-monitoring:
       enabled: true
 

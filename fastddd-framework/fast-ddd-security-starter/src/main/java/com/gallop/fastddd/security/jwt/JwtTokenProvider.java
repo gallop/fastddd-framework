@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -28,23 +29,33 @@ import java.util.stream.Collectors;
 @Slf4j
 public class JwtTokenProvider {
 
+    private static final String TOKEN_TYPE_CLAIM = "typ";
+
     private final JwtProperties jwtProperties;
     private final JwtSigner jwtSigner;
+    private final JwtTokenRevocationStore tokenRevocationStore;
 
     /**
      * 向后兼容构造函数。内部创建 HmacJwtSigner，
      * 已有代码和单元测试无需任何改动。
      */
     public JwtTokenProvider(JwtProperties jwtProperties) {
-        this(jwtProperties, new HmacJwtSigner(jwtProperties.getSecret()));
+        this(jwtProperties, new HmacJwtSigner(jwtProperties.getSecret()), new InMemoryJwtTokenRevocationStore());
     }
 
     /**
      * 主构造函数，接受显式的 JwtSigner 策略。
      */
     public JwtTokenProvider(JwtProperties jwtProperties, JwtSigner jwtSigner) {
+        this(jwtProperties, jwtSigner, new InMemoryJwtTokenRevocationStore());
+    }
+
+    public JwtTokenProvider(JwtProperties jwtProperties,
+                            JwtSigner jwtSigner,
+                            JwtTokenRevocationStore tokenRevocationStore) {
         this.jwtProperties = jwtProperties;
         this.jwtSigner = jwtSigner;
+        this.tokenRevocationStore = tokenRevocationStore;
     }
 
     /**
@@ -66,7 +77,7 @@ public class JwtTokenProvider {
      */
     public String generateAccessToken(Authentication authentication, AuthChannel channel) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return generateToken(userDetails, jwtProperties.getExpiration().toMillis(), channel);
+        return generateToken(userDetails, jwtProperties.getExpiration().toMillis(), channel, JwtTokenType.ACCESS);
     }
 
     /**
@@ -88,7 +99,7 @@ public class JwtTokenProvider {
      */
     public String generateRefreshToken(Authentication authentication, AuthChannel channel) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return generateToken(userDetails, jwtProperties.getRefreshExpiration().toMillis(), channel);
+        return generateToken(userDetails, jwtProperties.getRefreshExpiration().toMillis(), channel, JwtTokenType.REFRESH);
     }
 
     /**
@@ -99,7 +110,10 @@ public class JwtTokenProvider {
      * @param channel     认证通道
      * @return JWT Token
      */
-    private String generateToken(UserDetails userDetails, long expiration, AuthChannel channel) {
+    private String generateToken(UserDetails userDetails,
+                                 long expiration,
+                                 AuthChannel channel,
+                                 JwtTokenType tokenType) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
@@ -109,6 +123,7 @@ public class JwtTokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         claims.put("channel", channel.getCode());
+        claims.put(TOKEN_TYPE_CLAIM, tokenType.getClaimValue());
         if (userDetails instanceof SecurityUserDetails) {
             String userId = ((SecurityUserDetails) userDetails).getUserId();
             if (userId != null) {
@@ -120,6 +135,7 @@ public class JwtTokenProvider {
                 .setClaims(claims)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(now)
+                .setId(UUID.randomUUID().toString())
                 .setExpiration(expiryDate);
         return jwtSigner.sign(builder);
     }
@@ -183,11 +199,58 @@ public class JwtTokenProvider {
      * @return 是否有效
      */
     public boolean validateToken(String token) {
+        return validateToken(token, null);
+    }
+
+    /** Validates a token intended to authenticate API requests. */
+    public boolean validateAccessToken(String token) {
+        return validateToken(token, JwtTokenType.ACCESS);
+    }
+
+    /** Validates a token intended only for the refresh endpoint. */
+    public boolean validateRefreshToken(String token) {
+        return validateToken(token, JwtTokenType.REFRESH);
+    }
+
+    private boolean validateToken(String token, JwtTokenType expectedType) {
         try {
-            getClaimsFromToken(token);
-            return true;
+            Claims claims = getClaimsFromToken(token);
+            JwtTokenType actualType = JwtTokenType.fromClaim(claims.get(TOKEN_TYPE_CLAIM));
+            if (actualType == null || (expectedType != null && actualType != expectedType)) {
+                return false;
+            }
+            return !tokenRevocationStore.isRevoked(claims.getId());
         } catch (JwtException | IllegalArgumentException e) {
             log.error("JWT token validation failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Consumes a refresh token exactly once. This atomically revokes its jti
+     * before issuing a rotated replacement.
+     */
+    public boolean consumeRefreshToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            if (JwtTokenType.fromClaim(claims.get(TOKEN_TYPE_CLAIM)) != JwtTokenType.REFRESH
+                    || tokenRevocationStore.isRevoked(claims.getId())) {
+                return false;
+            }
+            return tokenRevocationStore.revoke(claims.getId(), claims.getExpiration().toInstant());
+        } catch (JwtException | IllegalArgumentException e) {
+            log.error("JWT refresh token validation failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Revokes a valid access or refresh token until its natural expiry. */
+    public boolean revokeToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            return JwtTokenType.fromClaim(claims.get(TOKEN_TYPE_CLAIM)) != null
+                    && tokenRevocationStore.revoke(claims.getId(), claims.getExpiration().toInstant());
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
     }

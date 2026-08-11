@@ -186,6 +186,20 @@ class JwtAuthenticationFilterTest {
         assertNull(AuthChannelContext.get());
     }
 
+    @Test
+    void refreshTokenCannotAuthenticateApiRequest() throws Exception {
+        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new User("user1", "password", authorities), null, authorities);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication, AuthChannel.DEFAULT);
+
+        MockHttpServletRequest request = createRequestWithToken(refreshToken);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilterInternal(request, response, new MockFilterChain());
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
     // ---- helpers ----
 
     private String generateToken(String username, AuthChannel channel) {
