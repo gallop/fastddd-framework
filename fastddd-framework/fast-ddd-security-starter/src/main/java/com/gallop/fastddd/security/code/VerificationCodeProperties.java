@@ -1,7 +1,10 @@
 package com.gallop.fastddd.security.code;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 
@@ -11,6 +14,7 @@ import java.time.Duration;
  * @author gallop
  */
 @Data
+@Validated
 @ConfigurationProperties(prefix = "fastddd.security.code")
 public class VerificationCodeProperties {
 
@@ -22,6 +26,8 @@ public class VerificationCodeProperties {
     /**
      * 验证码长度。
      */
+    @Min(value = 4, message = "验证码长度至少 4 位")
+    @Max(value = 10, message = "验证码长度至多 10 位")
     private int length = 6;
 
     /**
@@ -32,6 +38,7 @@ public class VerificationCodeProperties {
     /**
      * 同一验证码最大尝试次数。
      */
+    @Min(value = 1, message = "同一验证码最大尝试次数至少 1")
     private int maxAttempts = 5;
 
     /**

@@ -1,7 +1,10 @@
 package com.gallop.fastddd.cache;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -13,6 +16,7 @@ import java.util.Map;
  * @author gallop
  */
 @Data
+@Validated
 @ConfigurationProperties(prefix = "fastddd.cache")
 public class CacheProperties {
 
@@ -21,6 +25,7 @@ public class CacheProperties {
     /** 是否缓存 null 值（防止缓存穿透） */
     private boolean allowNullValues = true;
 
+    @Valid
     private Local local = new Local();
 
     private Redis redis = new Redis();
@@ -31,6 +36,7 @@ public class CacheProperties {
     @Data
     public static class Local {
         private boolean enabled = true;
+        @Min(value = 1, message = "本地缓存最大容量(maxSize)至少 1")
         private long maxSize = 10000;
         private Duration expireAfterWrite = Duration.ofMinutes(5);
         /** 访问后过期时间，null 表示不启用 */
