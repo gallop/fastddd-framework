@@ -1457,6 +1457,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | FRM-000 | ✅ 已完成 | 分支 `refactor/fastddd-1.0-framework` ← `upgrade/jdk21-boot3.5.16` @ 740da39；提交 `docs: 建立 FastDDD 1.0 架构整改执行基线` | reactor 27/27 SUCCESS；测试 364 run / 0 failures / 0 errors / 6 skipped；archetype(ANEMIC, 3.5.16) 生成 + 生成项目 `clean compile` BUILD SUCCESS（详见 §16.1） | 3 个 carry-over 文件随基线纳入版本控制（§16.1.E）；invoker javadoc 子构建噪声非致命（§16.1.D） |
 | 2026-08-11 | FRM-001 | ✅ 已完成 | 提交 `docs(arch): 冻结 FastDDD 1.0 四域 ADR 与消费者清单 (FRM-001)` | 4 份 ADR + consumers.yaml 冻结；ID go/no-go=GO（详见 §16.2） | 方案 §6 验收"ID-002～ID-008"笔误（实际只到 ID-006），已登记；go/no-go 对"UNKNOWN 不阻塞"的偏离已显式记录，待用户 review 可回退 |
 | 2026-08-11 | FRM-002 | ✅ 已完成 | 提交 `test(consumer): 独立消费者测试骨架 + P0-2/P0-4 隔离复现 (FRM-002)` | 新增 `fastddd-consumer-tests` 模块（maven-invoker 3.9.0）；默认 gated `web-*` Passed:2/Failed:0；全量 `-Dinvoker.test=*` Passed:4/Failed:3；monitor-minimal 隔离复现审计 P0-4（详见 §16.3） | `-Pconsumer-tests` 装饰性警告（profile 在子模块非根，已实证实际生效）；3 个 ungated 失败登记到 CACHE-001/EVT/MON-001 |
+| 2026-08-11 | SPLIT-001 | ✅ 已完成 | 提交 `docs(arch): 冻结三层产品边界与依赖方向 ADR (SPLIT-001)` | ADR-005 冻结 Framework/Tooling/Studio 三层边界 + 依赖方向 + 坐标/版本/许可证归属（详见 §16.4） | `fast-ddd-web→fastdoc-core` 反向依赖移交 SPLIT-002；Tooling/Studio 许可证为推荐结论待 OSS-001 终审 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1597,3 +1598,36 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 
 - 3 个 ungated 失败（cache / event / monitor）登记到 M1 任务 CACHE-001 / EVT / MON-001；本任务仅刻画、不修（修复属各任务范围）。
 - consumer-tests 模块为 packaging=pom + 0 surefire，不贡献 reactor 测试计数，但使 reactor 模块数 +1；README 已以机制陈述取代硬编码模块数，避免再次失真。
+
+### 16.4 SPLIT-001 产品边界与依赖方向 ADR 快照
+
+冻结 Framework / Tooling / Studio 三层边界、依赖方向、坐标/版本/BOM 归属、许可证与开源时点。纯 ADR 任务，不移动 Git 目录、不创建新仓库（SPLIT-001 禁止项）。
+
+**A. 交付物**
+
+- `docs/architecture/adr/ADR-005-product-boundary-dependency-direction.md`
+
+**B. 命令级证据（2026-08-11）**
+
+- 模块归属：26 叶模块逐一归属（Framework 14 / Tooling 7 / Studio 2 / BOM 1 / Examples 1 / Consumer-tests 1），grep 全部 pom 实证；4 个聚合 pom（根 + framework + tooling + studio）只聚合无代码。
+- 依赖图：跨层依赖**仅** `fast-ddd-web → fastddd-fastdoc-core`（optional，`fast-ddd-web/pom.xml:28-31`）一条违规；其余全为允许方向（Studio→Tooling→Framework；examples/consumer-tests→Framework）。**无** Tooling→Studio、Framework→Studio。
+- `fastdoc-core` 归属三证一致：物理目录 `fastddd-tooling/`、声明于 tooling 聚合 pom、artifactId `fastddd-fastdoc-core` → 归属 Tooling，无歧义；问题是 web（Framework）跨层上依赖它。
+- groupId：29 模块 `com.gallop.fastddd`（唯一）；另 1 个 `${groupId}` 是 archetype 模板占位符。
+- 许可证文件：全仓无 `LICENSE`/`NOTICE`；根 pom 无 `<license>` 声明 → Apache-2.0 决策（承重记忆）尚未物化。
+
+**C. 冻结结论**
+
+- 三层边界 + 依赖方向规则：允许 Studio→Tooling→Framework、消费者→Framework（经 BOM）；禁止 Framework→Tooling/Studio、Tooling→Studio。
+- 坐标/版本：groupId + artifactId 冻结（拆仓不改业务坐标）；Framework=语义化版本（`${revision}`）；Studio=独立版本；`fastddd-bom`=Framework 消费者契约。
+- 许可证：Framework + Tooling = Apache-2.0（推荐，待权利人确认 + OSS-001 终审）；Studio = 专有/商业；开源与商业授权不混同。
+- 时点：内部 RC 对内不公开；Framework GA 才公开；RC1 前冻结公共 API（本 ADR + ADR-001~004 即冻结产物）。
+- 强制规则设计：Maven Enforcer `banDependencies`（POM 声明级）+ ArchUnit（字节码级），接线排在 SPLIT-002 之后（否则当前 web→fastdoc 违规使 enforcer 立即失败）。
+
+**D. 移交**
+
+- `fast-ddd-web → fastdoc-core` 反向依赖消除 → **SPLIT-002**（方案 A 接口下沉 / 方案 B 控制器上移，二选一）。
+- `LICENSE`/`NOTICE` 物化 + 权利人终审 + Hutool(MulanPSL-2.0) NOTICE → **OSS-001 / 发布前任务**。
+
+**E. 遗留**
+
+- Tooling=Apache-2.0、Studio=商业为**推荐结论**，最终以权利人确认 + OSS-001 终审为准（plan 步骤 8 明示 Framework 许可证"最终选择以权利人确认和 OSS-001 审核为准"，本 ADR 同标准对待 Tooling/Studio）。
