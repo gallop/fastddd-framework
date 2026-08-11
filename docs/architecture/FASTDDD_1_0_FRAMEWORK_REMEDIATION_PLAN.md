@@ -1455,6 +1455,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 日期 | 任务 | 状态 | 提交/分支 | 验证结果 | 遗留风险 |
 |---|---|---|---|---|---|
 | 2026-08-11 | FRM-000 | ✅ 已完成 | 分支 `refactor/fastddd-1.0-framework` ← `upgrade/jdk21-boot3.5.16` @ 740da39；提交 `docs: 建立 FastDDD 1.0 架构整改执行基线` | reactor 27/27 SUCCESS；测试 364 run / 0 failures / 0 errors / 6 skipped；archetype(ANEMIC, 3.5.16) 生成 + 生成项目 `clean compile` BUILD SUCCESS（详见 §16.1） | 3 个 carry-over 文件随基线纳入版本控制（§16.1.E）；invoker javadoc 子构建噪声非致命（§16.1.D） |
+| 2026-08-11 | FRM-001 | ✅ 已完成 | 提交 `docs(arch): 冻结 FastDDD 1.0 四域 ADR 与消费者清单 (FRM-001)` | 4 份 ADR + consumers.yaml 冻结；ID go/no-go=GO（详见 §16.2） | 方案 §6 验收"ID-002～ID-008"笔误（实际只到 ID-006），已登记；go/no-go 对"UNKNOWN 不阻塞"的偏离已显式记录，待用户 review 可回退 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1509,3 +1510,40 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 2. 新建 `refactor/fastddd-1.0-framework` 改造，与 upgrade 不混历史。
 3. Framework 开源许可证 = Apache-2.0；Hutool(MulanPSL-2.0) 需 NOTICE。
 4. 采纳 review 修正：补 OSS-001、SPLIT-005 降为 Studio 门禁、写死"RC 对内、GA 才公开"。
+
+### 16.2 FRM-001 冻结快照
+
+四域架构决策记录（ADR）+ 消费者清单 + ID go/no-go 的冻结产物。
+
+**A. 交付物（新增文件）**
+
+| 文件 | 内容 | 决策摘要 |
+|---|---|---|
+| `docs/architecture/adr/ADR-001-id-type-system.md` | ID 类型系统契约 | go/no-go=GO（删除 Serializable-ID）；新强类型契约 + 五种 ID 形态覆盖；备选 B（兼容层）作回退 |
+| `docs/architecture/adr/ADR-002-auto-configuration.md` | 自动配置契约 | 每模块 `FastDddModuleMode`(ENABLED/DISABLED/AUTO) + class 级类存在性门禁 + 每模块 FailureAnalyzer + @ConditionalOnMissingBean back-off |
+| `docs/architecture/adr/ADR-003-event-outbox-transport.md` | 事件/Outbox 传输 SPI | `OutboxTransport` SPI 传输/调度分离；即时修 FOR UPDATE 无 @Transactional（P0-3）+ countPendingEvents 语句碰撞 |
+| `docs/architecture/adr/ADR-004-security-jwt-model.md` | 安全/JWT 模型 | 彻底关 P0-7（class 级门禁）；`JwtTokenRevocationStore` SPI + Redis 多实例实现；令牌类型隔离冻结 |
+| `docs/architecture/fastddd-consumers.yaml` | 消费者清单（机读） | studio/examples/archetype=DEVELOPMENT；在研业务系统=TEST_UAT；external=UNKNOWN（无 GA 制品，实质性不阻塞） |
+
+**B. ID go/no-go 决策**
+
+- **决策**：GO（删除 Serializable-ID 旧契约，M2 执行）。
+- **前提核验**：所有已核实消费者均为 DEVELOPMENT；在研业务系统 TEST_UAT 且迁移由 UPG-011 承载；框架从未发布 GA 制品（`has_ga_artifact=false`）→ 不存在对稳定 API 的 PRODUCTION 消费者。满足用户预决策 #1 的前提。
+- **对方案 §6 验收"PRODUCTION、UNKNOWN 不允许无兼容方案的破坏性升级"的偏离**：该条款针对"已发布稳定制品被外部生产依赖"场景；本框架无 GA 制品，SNAPSHOT 消费者按定义接受破坏性变更，"UNKNOWN 外部消费者"在无 GA 可消费时实质性不成立。偏离理由显式记录于 ADR-001 §2.1 与 consumers.yaml，便于审计回溯。
+- **回退条件**：M2 执行前若发现真实 PRODUCTION 消费者，立即回退 ADR-001 备选 B（保留兼容层、破坏性删除延后 1.1）。
+
+**C. 即时非破坏修复建议（不依赖 M2 删除，建议 M1 独立小任务先行）**
+
+- 修正 `BasePO.java:36-38`、`FASTDDD_REFERENCE.md:89`、`UPGRADE_GUIDE_1.1.md:234` 关于"全局配置可覆盖字段 `@TableId`"的错误表述（字段级注解优先级高于全局配置）。
+- 模板 `application.yml.ftl:49` 把 `id-type: auto` 改为 `assign_id` 以匹配 `BasePO` 实际 ASSIGN_ID 策略。
+- 这两项立即关闭审计 P1-7/P1-10 的"矛盾"部分。
+
+**D. 自审发现并已修正**
+
+- 交叉核验中确认：整改方案编号只到 **ID-006**，验收 §6 行 356"ID-002～ID-008"为方案笔误（ID-007/008 不存在），ADR-001 §6 已据实记录限到 ID-006，本快照登记为待修。
+- 确认审计用 P0/P1/P2 编号（非 SEC-/ID-/EVT-/CFG-），四份 ADR 统一以审计 P 编号 + 整改方案任务编号双引用，避免混用。
+
+**E. 遗留/待用户 review**
+
+- go/no-go 的"UNKNOWN 不阻塞"偏离为承重判断，虽已显式记录并设回退条件，仍提请用户在下一 review 点确认或回退。
+- 事件多实例 claim 一致性（EVT-004）、真实 MQ（QA-002）等 Testcontainers 验证只能本地跑（无 CI runner，见 [[ci-infrastructure]]），列为 RC 验证项。

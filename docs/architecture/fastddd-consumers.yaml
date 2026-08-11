@@ -1,0 +1,92 @@
+# FastDDD 消费者清单（FRM-001 实证产物）
+#
+# 用途：为 ADR-001 的 ID 删除 go/no-go、以及所有破坏性变更提供"消费者已上线状态"实证。
+# 更新规则：每完成一个里程碑（M0~M5）或发现新消费者时刷新本文件。
+# 生产状态枚举：DEVELOPMENT / TEST_UAT / PRODUCTION / RETIRED / UNKNOWN
+#
+# 框架发布状态（go/no-go 关键前提）：
+#   - 当前版本：1.0.0-jdk21-SNAPSHOT（从未发布任何 GA 制品）
+#   - 仓库：内网 Gitea，无 CI 发布管线（见 memory/ci-infrastructure）
+#   - 推论：不存在"对稳定 GA API 的 PRODUCTION 消费者"；SNAPSHOT 消费者按定义接受破坏性变更
+
+framework_release_status:
+  current_version: "1.0.0-jdk21-SNAPSHOT"
+  has_ga_artifact: false
+  repo_visibility: "internal-gitea"
+  ci_publish_pipeline: false
+  notes: >
+    框架从未发布 GA。所有消费方要么是 SNAPSHOT、要么是同源 in-repo 模块。
+    因此"UNKNOWN 外部消费者对稳定 API 的依赖"实质性不成立。
+
+consumers:
+  - name: "fastddd-studio-server"
+    kind: "in-repo-application"
+    owner: "framework-team"
+    current_version: "1.0.0-jdk21-SNAPSHOT"
+    target_version: "1.0.0-GA"
+    production_status: "DEVELOPMENT"
+    id_usage: "混合——rich/order 用 BaseEntity<Long>；anemic 模块用 BasePO（继承 Serializable id）"
+    migration_decision: "随框架 M2 ID 重构一起改为强类型 ID"
+    verification_evidence: "fastddd-studio/fastddd-studio-server（本仓库，参考应用，非生产部署）"
+    blocks_breaking_id_deletion: false
+
+  - name: "fastddd-examples"
+    kind: "in-repo-examples"
+    owner: "framework-team"
+    current_version: "1.0.0-jdk21-SNAPSHOT"
+    target_version: "1.0.0-GA"
+    production_status: "DEVELOPMENT"
+    id_usage: "示例代码，演示性，跟随框架契约"
+    migration_decision: "随框架 M2 一起更新示例"
+    verification_evidence: "fastddd-examples/（本仓库）"
+    blocks_breaking_id_deletion: false
+
+  - name: "archetype-generated-projects"
+    kind: "scaffolded-business-projects"
+    owner: "各业务团队（生成时确定）"
+    current_version: "生成的项目自带 1.0.0-jdk21-SNAPSHOT 依赖"
+    target_version: "1.0.0-GA"
+    production_status: "DEVELOPMENT"
+    id_usage: "生成时由 IdStrategy 决定（fastddd-tooling IdStrategy.java:36），默认 ASSIGN_ID"
+    migration_decision: "生成模板随框架更新；已生成的绿地项目在 RC 联调期一并迁移"
+    verification_evidence: "fastddd-project-archetype（生成器本仓库）；生成项目为绿地，无历史包袱"
+    blocks_breaking_id_deletion: false
+
+  - name: "在研业务系统（UPG-011 联调对象）"
+    kind: "external-business-system"
+    owner: "未知（UPG-011 待确认清单）"
+    current_version: "SNAPSHOT（联调）"
+    target_version: "1.0.0-GA"
+    production_status: "TEST_UAT"
+    id_usage: "未直接核实；推断使用框架 BaseEntity/BasePO 契约"
+    migration_decision: "UPG-011 已计划联调迁移；迁移负担由 UPG-011 承载"
+    verification_evidence: "docs/architecture/JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md UPG-011 引用'在研业务系统联调'（文档级证据，系统清单未直接核实）"
+    blocks_breaking_id_deletion: false
+    uncertainty_note: >
+      生产状态标 TEST_UAT 基于 UPG-011 计划文档，非直接核实。
+      若这些系统中存在已上线（PRODUCTION）者，ADR-001 go/no-go 须回退到备选 B（兼容层）。
+
+  - name: "external-unknown"
+    kind: "hypothetical-external"
+    owner: "n/a"
+    current_version: "n/a"
+    target_version: "n/a"
+    production_status: "UNKNOWN"
+    id_usage: "n/a"
+    migration_decision: "无 GA 制品可消费；实质性不阻塞"
+    verification_evidence: "无法核实；但 framework_release_status.has_ga_artifact=false 决定其不构成稳定 API 依赖"
+    blocks_breaking_id_deletion: false
+    uncertainty_note: >
+      对方案验收 §6"UNKNOWN 不允许无兼容方案破坏性升级"的偏离说明见 ADR-001 §2.1：
+      无 GA 制品 → 无稳定 API 可被 UNKNOWN 外部消费 → 实质性不阻塞。
+
+# go/no-go 汇总（ADR-001 §2.1）
+id_deletion_go_no_go:
+  decision: "GO"
+  rationale: >
+    所有已核实消费者（studio/examples/archetype）均为 DEVELOPMENT；
+    在研业务系统为 TEST_UAT 且迁移由 UPG-011 承载；
+    外部 UNKNOWN 因无 GA 制品而实质性不阻塞。
+    满足用户预决策 #1 的"无 PRODUCTION 消费者"前提。
+  fallback: "若 M2 执行前发现真实 PRODUCTION 消费者，回退到 ADR-001 备选 B（保留兼容层，破坏性删除延后 1.1）"
+  decided_in: "ADR-001"
