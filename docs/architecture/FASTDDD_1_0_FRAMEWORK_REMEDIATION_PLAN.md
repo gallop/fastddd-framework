@@ -1458,6 +1458,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | FRM-001 | ✅ 已完成 | 提交 `docs(arch): 冻结 FastDDD 1.0 四域 ADR 与消费者清单 (FRM-001)` | 4 份 ADR + consumers.yaml 冻结；ID go/no-go=GO（详见 §16.2） | 方案 §6 验收"ID-002～ID-008"笔误（实际只到 ID-006），已登记；go/no-go 对"UNKNOWN 不阻塞"的偏离已显式记录，待用户 review 可回退 |
 | 2026-08-11 | FRM-002 | ✅ 已完成 | 提交 `test(consumer): 独立消费者测试骨架 + P0-2/P0-4 隔离复现 (FRM-002)` | 新增 `fastddd-consumer-tests` 模块（maven-invoker 3.9.0）；默认 gated `web-*` Passed:2/Failed:0；全量 `-Dinvoker.test=*` Passed:4/Failed:3；monitor-minimal 隔离复现审计 P0-4（详见 §16.3） | `-Pconsumer-tests` 装饰性警告（profile 在子模块非根，已实证实际生效）；3 个 ungated 失败登记到 CACHE-001/EVT/MON-001 |
 | 2026-08-11 | SPLIT-001 | ✅ 已完成 | 提交 `docs(arch): 冻结三层产品边界与依赖方向 ADR (SPLIT-001)` | ADR-005 冻结 Framework/Tooling/Studio 三层边界 + 依赖方向 + 坐标/版本/许可证归属（详见 §16.4） | `fast-ddd-web→fastdoc-core` 反向依赖移交 SPLIT-002；Tooling/Studio 许可证为推荐结论待 OSS-001 终审 |
+| 2026-08-11 | CFG-001 | ✅ 核心完成 | 提交 `docs(cfg): 配置契约清单与错配分析 (CFG-001 步骤1-3)` f04e793；`feat(cfg): fast-ddd.* 旧根启动期 fail-fast guard (步骤6)` 94ef8a4；`feat(cfg): 优先属性类补声明式数值约束 + 绑定期校验单测 (步骤4)` ab187e3 | 配置契约单一事实源（16 前缀/14 类字段/错配分析）；`fast-ddd.*` 旧根启动期 fail-fast guard（fast-ddd-config，经 starter 传递，3 单测）；2 优先类补 `@Validated` 数值约束 + 绑定期校验实证（cache 4 / code 5 用例）（详见 §16.5） | 步骤4 残留扩展：Duration 字段需自定义 `@PositiveDuration`（独立小任务）+ 其余类按需补；步骤5 metadata 快照低优先；未绑定配置（cqrs/event）+ id-type 移交 CFG-002 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1631,3 +1632,36 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 **E. 遗留**
 
 - Tooling=Apache-2.0、Studio=商业为**推荐结论**，最终以权利人确认 + OSS-001 终审为准（plan 步骤 8 明示 Framework 许可证"最终选择以权利人确认和 OSS-001 审核为准"，本 ADR 同标准对待 Tooling/Studio）。
+
+### 16.5 CFG-001 配置契约清单与硬化快照
+
+建立 FastDDD 配置契约单一事实源，并落地两项关键硬化：旧根 fail-fast guard、优先属性类声明式数值约束。任务分三提交（步骤1-3 清单 / 步骤6 guard / 步骤4 约束），核心验收①②③ 全部满足。
+
+**A. 交付物**
+
+- `docs/architecture/CFG_001_CONFIGURATION_INVENTORY.md`（配置契约单一事实源：§1 前缀总览、§2 字段明细、§3 错配分析、§4 metadata 一致性、§5 验收对照与残留、§6 步骤4 已落地约束）
+- `fast-ddd-config`：`FastDddLegacyRootValidator`（EnvironmentPostProcessor）+ `META-INF/spring.factories` 注册 + 3 单测
+- `fast-ddd-security-starter`：`VerificationCodeProperties` 补 `@Validated`+`@Min(4)@Max(10)`/`@Min(1)` + 5 单测
+- `fast-ddd-cache`：`CacheProperties` 补 `@Validated`+`@Valid`+`@Min(1)` + 4 单测
+- `fastddd-templates`：wechat-mini 认证模板 3 处 `fast-ddd.security.wechat-mini` → `fastddd.security.wechat-mini`（旧根 guard 前置修复）
+
+**B. 命令级证据（2026-08-11）**
+
+- 前缀总览：16 个 `@ConfigurationProperties` 前缀（grep 全仓实证）——14 Framework + `fastddd.codegen.database`/`fastddd.doc`(Tooling) + `rocketmq.publisher`/`rocketmq.consumer`(偏离约定，登记)。
+- 字段约束现状（取证前）：14 类**无一 `@Validated`、无一字段带 bean-validation 注解**；仅 2 处程序式校验（`JwtProperties.validateHmacSecret` ≥64B、`CorsProperties.validateAndLog` 仅告警）。
+- 错配高危：`fastddd.application.cqrs.*` / `fastddd.event.*` 全仓**无绑定**，archetype 却生成 → 消费者"配置看似生效实则忽略"（outbox 幻觉最危险），移交 CFG-002 删模板。
+- 旧根 guard 注册链：`spring.factories` → `fast-ddd-config` → `fast-ddd-starter`(pom:29) → 所有消费者；构建产物 `target/classes/META-INF/spring.factories` 实证存在（109B）。3 单测：旧根失败 / 正确根通过 / artifactId 风格(`fast-ddd-common`)不误判。
+- 声明式约束下限取证（全仓配置值扫描，Explore 子代理）：`maxAttempts` 测试设 `2`→下限须 ≤2 取 1；`maxSize` archetype/template 设 `1000`→下限须 ≤1000 取 1；现配与默认全部满足新约束。`ApplicationContextRunner`+`ValidationAutoConfiguration` 单测实证绑定期 `ConfigurationPropertiesBindException` 真实触发（非装饰）。
+- 门禁：`clean verify -Ptest` 29 模块 SUCCESS；测试 **376 run / 0 failures / 0 errors / 6 skipped**（基线 364 → +step6 3 → +步骤4 9），0 回归。
+
+**C. 验收对照**
+
+- 验收①（不存在未登记的生产配置项）：✅ §1 全部 16 前缀登记 + §3 标记全部错配。
+- 验收②（fast-ddd 旧根出现时明确失败）：✅ `FastDddLegacyRootValidator` 启动期 fail-fast，3 单测 + 注册链实证。
+- 验收③（metadata 与属性类一致）：✅ §4——`spring-boot-configuration-processor` 自动派生，结构一致；快照测试为低价值残留。
+
+**D. 移交与残留**
+
+- 移交 **CFG-002**：§3.1 未绑定配置（cqrs/event，archetype 生成死配置）+ §3.4 `id-type: auto` 模板错配，由 CFG-002 从模板/archetype 删除或对接真实绑定。
+- 残留 **CFG-001-step4 扩展**：`Duration` 字段（`ttl`/`resendInterval`/`expireAfterWrite*`/`jwt.expiration`/`refreshExpiration`/`meilisearch.timeout`）无内置 bean-validation 约束，需自定义 `@PositiveDuration` 校验器（独立小任务；`resendInterval` 注意用 `@PositiveOrZero` 语义——测试用 `Duration.ZERO`）；其余约 10 类按需补，不批量加空约束；`JwtProperties.secret` 维持程序式校验（更强，不重复）。
+- 残留 **CFG-001-step5**（低优先）：metadata 快照测试。
