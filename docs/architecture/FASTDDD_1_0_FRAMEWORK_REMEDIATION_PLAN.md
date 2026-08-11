@@ -1462,6 +1462,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | CFG-002 | ✅ 已完成 | 提交 `fix(cfg): 修复生成模板配置契约 + 渲染期校验 (CFG-002)` eb3ef0c | 3 生成模板（单项目/多端/archetype）修复：根前缀 `fast-ddd→fastddd`、删除未绑定 cqrs/event、JWT secret 改环境变量、`slow-threshold→slow-query-threshold`、多端 http/cors 嵌套修正、`id-type auto→assign_id`；新增 `ProjectConfigContractTest`（snakeyaml 渲染期键路径契约，3 用例）+ archetype 生成冒烟实证（详见 §16.6） | DB `your_password` 占位符（dev 便利，非功能凭据）保留；event/cqrs 真实绑定待 EVT/ADR-003；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 契约测试（覆盖 ANEMIC/RICH）替代，全组合留 QA-001 |
 | 2026-08-11 | SPLIT-002 | ✅ 已完成 | 提交 `refactor(split-002): 移除 Framework 对 FastDoc 反向依赖，FastDoc HTTP 适配上移至 Tooling Starter (SPLIT-002 #38)` 2c1da8a | 新建 `fastddd-fastdoc-spring-boot-starter`（Tooling）；fast-ddd-web 移除 fastdoc-core 依赖 + 删除嵌套 FastDocConfiguration/Controller；框架级源码扫描门禁 `FrameworkLayeringDirectionTest`；fastdoc-minimal 消费者实证装配（详见 §16.7） | 框架子模块 parent=root 致聚合器级 enforcer 无法继承，门禁改用测试级源码扫描（持久 per-submodule enforcer 门禁留 OSS-001）；顺带修正原 web 嵌套配置的 `@ConditionalOnBean(DataSource)` 排序存量缺陷 |
 | 2026-08-11 | WEB-001 | ✅ 已完成 | 提交 `refactor(web-001): 隔离 fast-ddd-web 对 fast-ddd-application 的 optional 硬依赖 (WEB-001 #39)` fad9661 | 新建 `CqrsExceptionAdvice`（@ConditionalOnClass）抽离 CommandValidationException 处理；GlobalExceptionHandler 瘦身为 application-free；web-without-application 特征测试翻转为正向 contextLoads；web-minimal 加强 CqrsExceptionAdvice 装配断言（详见 §16.8） | CommandController/QueryController（abstract）仍 import application 包，属组件扫描 ASM 不触发加载的软耦合（实证可启动）；GlobalExceptionHandlerTest 类名历史遗留未改（行为已验证） |
+| 2026-08-11 | CACHE-001 | ✅ 已完成 | 提交 `fix(cache-001): L1 缓存按 cacheName 命名空间隔离 + Redis 类泄漏修复 (CACHE-001 #40)` 76e34a4 | CacheRegistry 每 cacheName 独占 CaffeineLocalCache（对象级命名空间隔离）；抽离 CacheSyncPublisher 核心接口解除核心层对 RedisCacheSyncListener→MessageListener 的硬引用；新增 CacheNamespaceIsolationTest（5 用例）；cache-minimal 消费者升级为正向验收（详见 §16.9） | Redis 跨节点同步完整集成测试（需 broker）留 QA-001；defaultLocalCache 单例降级为启用标记（内部缓存不再共享）；metrics 层面为空白（模块无指标类，非缺陷） |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1773,3 +1774,38 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **门禁形态**：P0-2 回归防护由 web-without-application 消费者（正向 contextLoads）+ FrameworkLayeringDirectionTest（SPLIT-002，防 application 包 import 回流至非 advice 类）共同覆盖；@ConditionalOnClass 缺失可在该消费者立即暴露（启动失败）。
 - **测试命名遗留**：`GlobalExceptionHandlerTest` 类名含历史 "CommandValidationException 测试" 注释，行为已迁移至 CqrsExceptionAdvice 但 MockMvc 端到端验证仍归属"全局异常处理"语义，未改名（避免无谓 churn）；如需精确可在 QA-001 统一重命名。
 - **下一 M1 任务**：CACHE-001（L1 缓存命名空间隔离，FRM-002 已隔离复现 P0-x）、MON-001（SQL 监控属性 Bean 修复，FRM-002 已隔离复现 P0-4）。
+
+### 16.9 CACHE-001 L1 缓存命名空间隔离快照
+
+修复 L1（Caffeine）缺命名空间隔离（P0-3）与 Redis 类泄漏（cache-minimal 启动失败）两个缺陷。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| L1 命名空间隔离 | `CacheRegistry.createCache`：每个 cacheName 独占 `new CaffeineLocalCache(merged)`（对象级隔离，零方法签名改动）；`defaultLocalCache` 单例降级为 L1 启用标记 + 全局配置来源 |
+| Redis 类泄漏修复 | 新建 `CacheSyncPublisher` 核心接口（`com.gallop.fastddd.cache`，无 Redis 依赖，publishEvict/publishClear）；`RedisCacheSyncListener implements CacheSyncPublisher, MessageListener`；`CacheRegistry`/`MultiLevelCache`/`FastDddCacheAutoConfiguration` 改引用 `CacheSyncPublisher`；`CacheRegistry.getSyncListener` 对 null provider 加 guard |
+| 单测 | `CacheNamespaceIsolationTest`（5 用例）：相同 key 跨 cacheName 不串值 / evict 隔离 / clear 隔离 / 跨类型不串值 / 并发 getOrCreate 单实例 |
+| 消费者 | `cache-minimal`：升级为正向验收——无 Redis 启动（context loads + CacheService 装配）+ L1 命名空间隔离（users/orders 相同 key 不串值 + evict 隔离） |
+
+**B. 命令级证据**
+
+- cache 单测：**9 tests / 0 failures**（5 命名空间隔离 + 4 属性校验）。
+- **cache-minimal 翻转**：修复前 Failed（`NoClassDefFoundError: org/springframework/data/redis/connection/MessageListener`，cacheRegistry bean 装配期）→ 修复后 **Passed:1**（context loads + 命名空间隔离双断言）。
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，385 tests / 0 failures / 0 errors**（+5 新增命名空间用例，0 回归）。
+- 核心层 `CacheRegistry`/`MultiLevelCache` 对 `RedisCacheSyncListener` 硬引用 grep **零命中**；该类仅出现在 `@ConditionalOnClass(RedisTemplate)` 门禁的内层配置 @Bean。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| ① | users 与 orders 相同 key 不串值、不误清理 | ✅ | CacheNamespaceIsolationTest 3 用例 + cache-minimal 消费者端到端 |
+| ② | 并发和多级缓存测试通过 | ✅ | 并发 getOrCreate 单实例用例 + 全量 reactor 0 回归 |
+
+**D. 移交与残留**
+
+- **L2/Pub/Sub 命名空间本就正确**：`RedisCache.buildKey` 已带 `keyPrefix + cacheName + "::" + key`；`SyncMessage` 协议已带 cacheName 且经 `cacheRegistry.getIfPresent(cacheName)` 定向。本次未改二者。L1 改对象级隔离后，`evictLocal`/`evictAllLocal`（pub/sub 回调）天然落在目标 cacheName 的独占实例上，集群范围串值随之消除。
+- **Redis 跨节点同步完整集成测试留 QA-001**：需真实 Redis broker 验证多节点失效广播；本次以核心接口解耦 + L1 单测 + 无 Redis 消费者实证命名空间不变量。
+- **defaultLocalCache 单例语义变化**：原作共享存储，现仅作启用标记；其内部 Caffeine 实例不再被各 cacheName 使用（ negligible 内存，保留是为维持 `@ConditionalOnProperty(local.enabled)` 门禁与最小 diff）。
+- **metrics 空白（非缺陷）**：模块无任何指标类，命名空间处理在指标层不适用；方案步骤3"统一指标命名空间"对此模块无落点，登记为 N/A。
+- **下一 M1 任务**：MON-001（SQL 监控属性 Bean 修复，FRM-002 已隔离复现 P0-4）。
