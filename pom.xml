@@ -177,6 +177,11 @@
       </dependency>
       <dependency>
         <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-fastdoc-spring-boot-starter</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
         <artifactId>fast-ddd-analyzer-spring-boot-starter</artifactId>
         <version>${project.version}</version>
       </dependency>

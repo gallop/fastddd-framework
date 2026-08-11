@@ -157,6 +157,11 @@
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
+                <artifactId>fastddd-fastdoc-spring-boot-starter</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fastddd-maven-plugin</artifactId>
                 <version>${revision}</version>
             </dependency>

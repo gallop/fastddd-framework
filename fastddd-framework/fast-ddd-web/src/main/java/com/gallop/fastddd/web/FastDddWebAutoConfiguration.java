@@ -1,30 +1,24 @@
 package com.gallop.fastddd.web;
 
-import com.gallop.fastddd.fastdoc.FastDocExportService;
-import com.gallop.fastddd.fastdoc.FastDocService;
-import com.gallop.fastddd.fastdoc.FastDocTemplateService;
 import com.gallop.fastddd.web.config.ApiResponseWrapperConfiguration;
 import com.gallop.fastddd.web.config.WebMvcConfig;
 import com.gallop.fastddd.web.config.OpenApiConfiguration;
 import com.gallop.fastddd.web.config.Knife4jConfiguration;
 import com.gallop.fastddd.web.exception.GlobalExceptionHandler;
-import com.gallop.fastddd.web.fastdoc.FastDocController;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.FilterType;
-
-import javax.sql.DataSource;
 
 /**
  * FastDDD Web模块自动配置类
  * 自动配置Web相关的组件，包括全局异常处理器、OpenAPI和Knife4j文档
+ *
+ * <p>SPLIT-002：FastDoc 控制器与自动配置已上移至 Tooling 层
+ * fastddd-fastdoc-spring-boot-starter，本类不再扫描/装配 fastdoc 包，也不再持有
+ * fastddd-fastdoc-core 反向依赖。原 excludeFilters 与嵌套 FastDocConfiguration 已移除。
  *
  * @author gallop
  * @since 2025-08-31
@@ -32,13 +26,7 @@ import javax.sql.DataSource;
  */
 @Slf4j
 @AutoConfiguration
-@ComponentScan(
-    basePackages = "com.gallop.fastddd.web",
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.REGEX,
-        pattern = "com\\.gallop\\.fastddd\\.web\\.fastdoc\\..*"
-    )
-)
+@ComponentScan(basePackages = "com.gallop.fastddd.web")
 @Import({ApiResponseWrapperConfiguration.class, WebMvcConfig.class,
          OpenApiConfiguration.class, Knife4jConfiguration.class})
 public class FastDddWebAutoConfiguration {
@@ -52,35 +40,5 @@ public class FastDddWebAutoConfiguration {
     public GlobalExceptionHandler globalExceptionHandler() {
         log.info("=== Creating GlobalExceptionHandler ===");
         return new GlobalExceptionHandler();
-    }
-
-    @Configuration
-    @ConditionalOnClass(name = "com.gallop.fastddd.fastdoc.FastDocService")
-    static class FastDocConfiguration {
-        @Bean
-        @ConditionalOnBean(DataSource.class)
-        public FastDocService fastDocService(DataSource dataSource) {
-            return new FastDocService(dataSource);
-        }
-
-        @Bean
-        @ConditionalOnBean(FastDocService.class)
-        public FastDocTemplateService fastDocTemplateService() {
-            return new FastDocTemplateService();
-        }
-
-        @Bean
-        @ConditionalOnBean(FastDocService.class)
-        public FastDocExportService fastDocExportService(FastDocService fastDocService, FastDocTemplateService fastDocTemplateService) {
-            return new FastDocExportService(fastDocService, fastDocTemplateService);
-        }
-
-        @Bean
-        @ConditionalOnBean(FastDocService.class)
-        public FastDocController fastDocController(FastDocService fastDocService,
-                                                   FastDocTemplateService templateService,
-                                                   FastDocExportService exportService) {
-            return new FastDocController(fastDocService, templateService, exportService);
-        }
     }
 }

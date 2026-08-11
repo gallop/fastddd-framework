@@ -24,13 +24,9 @@
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
-        <!-- FastDDD FastDoc Core (optional — only needed for doc generation) -->
-        <dependency>
-            <groupId>com.gallop.fastddd</groupId>
-            <artifactId>fastddd-fastdoc-core</artifactId>
-            <optional>true</optional>
-        </dependency>
-        
+        <!-- SPLIT-002：fastddd-fastdoc-core 依赖已移除（Framework 不得依赖 Tooling）。
+             FastDoc HTTP 适配上移至 fastddd-fastdoc-spring-boot-starter（Tooling 层）。 -->
+
         <!-- FastDDD Model -->
         <dependency>
             <groupId>com.gallop.fastddd</groupId>
