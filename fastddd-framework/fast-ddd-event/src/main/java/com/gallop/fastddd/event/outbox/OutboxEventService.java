@@ -4,6 +4,7 @@ import com.gallop.fastddd.common.domain.DomainEvent;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -138,6 +139,32 @@ public interface OutboxEventService {
      * @return 被抢占（已置 PROCESSING）的事件ID列表
      */
     List<String> claimEvents(int limit);
+
+    /**
+     * 抢占一批待投递事件并设置租约（EVT-003：Dispatcher 专用）。
+     *
+     * <p>在单一 {@code @Transactional} 内：悲观锁查询（PENDING + 可重试 FAILED）→ 原子批量置
+     * PROCESSING 并写 {@code claimed_at}/{@code lease_expires_at} → 返回完整事件实体供 transport 投递。
+     * FOR UPDATE 锁覆盖 SELECT→UPDATE 边界，COMMIT 后其他 dispatcher 即见 PROCESSING，
+     * 杜绝多实例重复投递（修复 ADR-003 §1 P0-3）。
+     *
+     * @param limit        抢占上限
+     * @param leaseTimeout 租约时长（超过则 reclaim 回 PENDING）
+     * @return 已抢占（PROCESSING）的事件实体列表，含 payload 供 transport.send
+     */
+    List<OutboxEvent> claimBatch(int limit, Duration leaseTimeout);
+
+    /**
+     * 回收租约过期的 PROCESSING 事件（EVT-003）：dispatcher 崩溃后留下的"卡住"事件。
+     *
+     * <p>单一 {@code @Transactional}：悲观锁查询过期 PROCESSING → 批量重置回 PENDING（清租约字段，
+     * 保留 retryCount）。下一轮 {@link #claimBatch} 即可重新投递。
+     *
+     * @param now   当前时间
+     * @param limit 回收上限
+     * @return 重置回 PENDING 的事件数
+     */
+    int reclaimExpiredLeases(LocalDateTime now, int limit);
     
     /**
      * 标记事件为已取消

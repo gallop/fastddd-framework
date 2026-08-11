@@ -173,8 +173,65 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
            "</foreach>" +
            " AND status IN ('PENDING', 'FAILED')" +
            "</script>")
-    int batchUpdateToProcessing(@Param("eventIds") List<Long> eventIds, 
+    int batchUpdateToProcessing(@Param("eventIds") List<Long> eventIds,
                                @Param("processingTime") LocalDateTime processingTime);
+
+    /**
+     * 批量抢占并设置租约（EVT-003）：置 PROCESSING + claimed_at + lease_expires_at。
+     *
+     * <p>必须与 {@link #selectPendingEventsWithLock} 在<b>同一事务</b>内调用——FOR UPDATE 锁
+     * 跨越 SELECT→本 UPDATE 边界，COMMIT 后其他 dispatcher 的 SELECT 即见 PROCESSING，
+     * 杜绝多实例重复抢占（修复 ADR-003 §1 P0-3）。
+     *
+     * @param ids            表主键 id 列表
+     * @param claimedAt      抢占时间
+     * @param leaseExpiresAt 租约到期时间
+     * @return 更新记录数
+     */
+    @Update("<script>" +
+           "UPDATE outbox_events SET status = 'PROCESSING', claimed_at = #{claimedAt}, " +
+           "lease_expires_at = #{leaseExpiresAt}, updated_at = #{claimedAt} " +
+           "WHERE id IN " +
+           "<foreach collection='ids' item='id' open='(' separator=',' close=')'>" +
+           "#{id}" +
+           "</foreach>" +
+           " AND status IN ('PENDING', 'FAILED')" +
+           "</script>")
+    int batchClaimWithLease(@Param("ids") List<Long> ids,
+                            @Param("claimedAt") LocalDateTime claimedAt,
+                            @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
+
+    /**
+     * 悲观锁查询租约过期的 PROCESSING 事件（EVT-003 reclaim）。
+     *
+     * @param now   当前时间
+     * @param limit 上限
+     * @return 过期未 ack 的事件列表
+     */
+    @Select("SELECT * FROM outbox_events WHERE status = 'PROCESSING' " +
+           "AND lease_expires_at IS NOT NULL AND lease_expires_at &lt; #{now} " +
+           "ORDER BY lease_expires_at ASC LIMIT #{limit} FOR UPDATE")
+    List<OutboxEvent> selectExpiredLeaseProcessing(@Param("now") LocalDateTime now,
+                                                   @Param("limit") int limit);
+
+    /**
+     * 批量重置过期租约：PROCESSING → PENDING（EVT-003 reclaim）。
+     *
+     * @param ids 表主键 id 列表
+     * @param now 当前时间
+     * @return 重置记录数
+     */
+    @Update("<script>" +
+           "UPDATE outbox_events SET status = 'PENDING', claimed_at = NULL, " +
+           "lease_expires_at = NULL, updated_at = #{now} " +
+           "WHERE id IN " +
+           "<foreach collection='ids' item='id' open='(' separator=',' close=')'>" +
+           "#{id}" +
+           "</foreach>" +
+           " AND status = 'PROCESSING'" +
+           "</script>")
+    int batchResetExpiredLeases(@Param("ids") List<Long> ids,
+                                @Param("now") LocalDateTime now);
     
     /**
      * 查找待发布的事件（限制数量）

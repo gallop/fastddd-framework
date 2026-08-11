@@ -19,6 +19,8 @@ CREATE TABLE outbox_events (
     max_retry_count INT NOT NULL DEFAULT 3 COMMENT '最大重试次数',
     next_retry_at DATETIME NULL COMMENT '下次重试时间',
     error_message TEXT NULL COMMENT '错误信息',
+    claimed_at DATETIME NULL COMMENT '抢占时间（租约机制 EVT-003）',
+    lease_expires_at DATETIME NULL COMMENT '租约到期时间（EVT-003，过期 PROCESSING 回收为 PENDING）',
     version BIGINT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Outbox事件表';
 
@@ -27,6 +29,8 @@ CREATE INDEX idx_outbox_status_created ON outbox_events(status, created_at);
 CREATE INDEX idx_outbox_event_type ON outbox_events(event_type);
 CREATE INDEX idx_outbox_aggregate_id ON outbox_events(aggregate_id);
 CREATE INDEX idx_outbox_aggregate_type_id ON outbox_events(aggregate_type, aggregate_id);
+-- EVT-003：租约回收扫描索引（PROCESSING + lease_expires_at）
+CREATE INDEX idx_outbox_lease_reclaim ON outbox_events(status, lease_expires_at);
 CREATE INDEX idx_outbox_published_at ON outbox_events(published_at);
 CREATE INDEX idx_outbox_next_retry_at ON outbox_events(next_retry_at);
 CREATE INDEX idx_outbox_retry_status ON outbox_events(retry_count, status);

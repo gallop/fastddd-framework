@@ -112,15 +112,17 @@ public class TransactionalEventPublisher implements EventPublisher {
     
     @Override
     public void publishEventAsync(@NonNull DomainEvent event) {
-        // 对于事务性发布器，异步发布与同步发布行为相同
-        // 因为我们只是存储到outbox表，实际的异步处理由后台调度器完成
+        // EVT-003 / ADR-003 §1.16 语义澄清：对 Outbox 事务性发布器，"同步"与"异步"均指
+        // **事件落库到 outbox 表**——这是与业务事务原子完成的步骤（同步）。真正的事件投递
+        // （PENDING → 外部系统）由后台 {@link com.gallop.fastddd.event.outbox.dispatcher.OutboxDispatcher}
+        // 经 {@link com.gallop.fastddd.event.outbox.transport.OutboxTransport} 异步完成。
+        // 即：业务侧 publishEventAsync 不阻塞等待 broker；事件已持久化即视为发布成功（最终一致）。
         publishEvent(event);
     }
     
     @Override
     public void publishEventsAsync(@NonNull Collection<? extends DomainEvent> events) {
-        // 对于事务性发布器，异步发布与同步发布行为相同
-        // 因为我们只是存储到outbox表，实际的异步处理由后台调度器完成
+        // EVT-003：语义同 publishEventAsync——批落库到 outbox，投递由后台 Dispatcher 异步完成。
         publishEvents(events);
     }
     

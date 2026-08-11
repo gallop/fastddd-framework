@@ -1,7 +1,6 @@
 package com.gallop.fastddd.event.rocketmq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gallop.fastddd.event.outbox.OutboxEventRepository;
+import com.gallop.fastddd.event.outbox.transport.OutboxTransport;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -12,9 +11,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 /**
- * RocketMQ 事件自动配置
- * <p>
- * 仅在 RocketMQ 存在于 classpath 时才加载
+ * RocketMQ 事件自动配置（EVT-003 重设计）。
+ *
+ * <p>仅在 RocketMQ 存在于 classpath 时才加载。EVT-003 后本配置<b>不再装配扫描/调度逻辑</b>——
+ * 原 {@code RocketMQPublisher}（双 @Scheduled 自行扫描 outbox 表 + 投递 + 重试）已删除，
+ * 调度/状态机职责移交框架内置的 {@link com.gallop.fastddd.event.outbox.dispatcher.OutboxDispatcher}。
+ * 本配置仅注册 RocketMQ 作为 {@link OutboxTransport} 实现（仅投递单事件，ADR-003 §2.1）。
+ *
+ * <p>装配条件：{@code rocketmq.enabled=true} + RocketMQTemplate bean 在场 + 用户显式选择
+ * {@code fastddd.event.outbox.transport=rocketmq}。三者满足时提供 {@link RocketMqOutboxTransport}
+ * 覆盖 {@code OutboxDispatcherConfiguration} 的 local 默认传输。
  *
  * @author gallop
  * @since 2025-01-24
@@ -46,21 +52,25 @@ public class RocketMQEventAutoConfiguration {
     }
 
     /**
-     * 配置RocketMQ消息发布器
+     * 注册 RocketMQ 作为 Outbox 传输（EVT-003）。
      *
-     * @param outboxEventRepository Outbox事件仓储
+     * <p>取代原 {@code rocketMQPublisher} bean。仅投递（{@link RocketMqOutboxTransport#send}），
+     * 不扫描 outbox 表、不创建存储、不改事件状态——全部由 OutboxDispatcher 驱动。
+     *
+     * <p>装配需同时满足：RocketMQTemplate bean 在场 + 显式 {@code fastddd.event.outbox.transport=rocketmq}。
+     * 后者确保用户未选 RocketMQ 时不抢占 local 默认传输。
+     *
      * @param rocketMQTemplate RocketMQ模板
-     * @param rocketMQConfig RocketMQ配置
-     * @param objectMapper JSON序列化器
-     * @return RocketMQPublisher实例
+     * @param rocketMQConfig   RocketMQ配置
+     * @return RocketMqOutboxTransport实例
      */
     @Bean
-    @ConditionalOnBean({OutboxEventRepository.class, RocketMQTemplate.class})
-    @ConditionalOnMissingBean(RocketMQPublisher.class)
-    public RocketMQPublisher rocketMQPublisher(OutboxEventRepository outboxEventRepository,
-                                              RocketMQTemplate rocketMQTemplate,
-                                              RocketMQConfig rocketMQConfig,
-                                              ObjectMapper objectMapper) {
-        return new RocketMQPublisher(outboxEventRepository, rocketMQTemplate, rocketMQConfig, objectMapper);
+    @ConditionalOnBean(RocketMQTemplate.class)
+    @ConditionalOnProperty(prefix = "fastddd.event.outbox", name = "transport", havingValue = "rocketmq")
+    @ConditionalOnMissingBean(OutboxTransport.class)
+    public RocketMqOutboxTransport rocketMqOutboxTransport(RocketMQTemplate rocketMQTemplate,
+                                                           RocketMQConfig rocketMQConfig) {
+        return new RocketMqOutboxTransport(rocketMQTemplate, rocketMQConfig);
     }
 }
+

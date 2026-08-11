@@ -1,3 +1,4 @@
 com.gallop.fastddd.event.EventAutoConfiguration
 com.gallop.fastddd.event.outbox.OutboxEventConfiguration
+com.gallop.fastddd.event.outbox.dispatcher.OutboxDispatcherConfiguration
 com.gallop.fastddd.event.rocketmq.RocketMQEventAutoConfiguration

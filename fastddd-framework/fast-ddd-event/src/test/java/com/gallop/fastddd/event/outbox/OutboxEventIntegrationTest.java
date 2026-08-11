@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(classes = OutboxEventIntegrationTest.TestApp.class,
         properties = {
                 "fastddd.event.mode=outbox",
+                "fastddd.event.outbox.dispatcher.enabled=false",
                 "spring.datasource.url=jdbc:h2:mem:outboxtest;MODE=MySQL;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",
                 "spring.datasource.username=sa",

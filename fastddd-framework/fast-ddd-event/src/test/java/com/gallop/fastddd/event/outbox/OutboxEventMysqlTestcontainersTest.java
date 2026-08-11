@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(classes = OutboxEventMysqlTestcontainersTest.TestApp.class,
         properties = {
                 "fastddd.event.mode=outbox",
+                "fastddd.event.outbox.dispatcher.enabled=false",
                 "spring.sql.init.mode=always",
                 "spring.sql.init.schema-locations=classpath:sql/outbox_events_mysql.sql"
         })

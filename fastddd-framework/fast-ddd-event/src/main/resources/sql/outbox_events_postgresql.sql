@@ -19,6 +19,8 @@ CREATE TABLE outbox_events (
     max_retry_count INT NOT NULL DEFAULT 3,
     next_retry_at TIMESTAMP NULL,
     error_message TEXT,
+    claimed_at TIMESTAMP NULL,
+    lease_expires_at TIMESTAMP NULL,
     version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -29,6 +31,8 @@ CREATE INDEX idx_outbox_aggregate_id ON outbox_events(aggregate_id);
 CREATE INDEX idx_outbox_aggregate_type_id ON outbox_events(aggregate_type, aggregate_id);
 CREATE INDEX idx_outbox_published_at ON outbox_events(published_at);
 CREATE INDEX idx_outbox_next_retry_at ON outbox_events(next_retry_at);
+-- EVT-003：租约回收扫描索引
+CREATE INDEX idx_outbox_lease_reclaim ON outbox_events(status, lease_expires_at);
 CREATE INDEX idx_outbox_retry_status ON outbox_events(retry_count, status);
 
 -- 添加约束

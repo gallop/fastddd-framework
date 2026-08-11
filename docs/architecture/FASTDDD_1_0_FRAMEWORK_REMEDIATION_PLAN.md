@@ -1467,6 +1467,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-12 | MON-002 | ✅ 已完成 | 提交 `fix(monitor-002): SQL 监控真实链路闭环 — Spring 管理 JDK DataSource 代理 + 真正 Actuator Endpoint + 脱敏 (MON-002 #43)` | 移除 p6spy 依赖/spy.properties/SqlMonitoringMessageFormatter（双实例根因）/SqlMonitoringController（伪 @RestController）；改为 Spring 管理 JDK `DataSource` 动态代理（BeanPostProcessor 包装 → SqlMonitoringJdbcProxy → SqlMonitoringExecutionRecorder → SqlMetricsCollector → Micrometer）；管理接口转真正 Actuator `@Endpoint(id="sqlmonitoring")` 由 exposure 治理；`log-parameters` 默认 true→false + SqlMaskingUtils 脱敏；monitor 模块 24 用例（6 脱敏 + 5 autoconfig + 1 exposure + 2 集成 + 10 legacy）/ 0 failures；monitor-minimal 翻转为正向验收（真实 SQL → sql.queries.total Micrometer 增长 + DataSource 代理断言 + Endpoint 装配）（详见 §16.12） | 多 DataSource 消费者监控代理不装配（@ConditionalOnSingleCandidate 退让）；ResultSet size 指标未采集（代理不包 ResultSet）；batch 计时为整批；INSERT...VALUES 位置脱敏未覆盖（logParameters 默认 false 兜底） |
 | 2026-08-12 | EVT-001 | ✅ 已完成 | 提交 `fix(evt-001): 移除 EventAutoConfiguration 宽扫描，Outbox 按 mode 门禁 (EVT-001 #42)` | EventAutoConfiguration 移除宽 @ComponentScan（此前覆盖 outbox 子包致 OutboxEventServiceImpl 缺 ObjectMapper 装配失败）；新增 EventProperties（fastddd.event.mode，默认 local）；OutboxEventConfiguration 补 @ConditionalOnProperty(mode=outbox)+@ConditionalOnClass(BaseMapper)+@ConditionalOnBean(DataSource)；OutboxEventServiceImpl 移除 @Service、改 OutboxEventConfiguration 显式 @Bean（service+transactionalEventPublisher）；executor 由通用 taskExecutor→eventTaskExecutor；新增 EventAutoConfigurationBoundaryTest（4 用例）；event-minimal 翻转为无 DB local 模式正向验收（详见 §16.11） | mybatis-plus-spring-boot3-starter 为 fast-ddd-event 硬依赖（非 optional），其 AutoConfig 强制要 DataSource；event-minimal 以 spring.autoconfigure.exclude 刻画"无 DB"消费者，根因依赖边界（mybatis 改 optional）移交 EVT-002；RocketMQ @Component(DLQ/Listener) 注册为既有状态未改；outbox 正向装配端到端留 EVT-002 |
 | 2026-08-12 | EVT-002 | ✅ 已完成 | 提交 `fix(evt-002): Outbox Repository/Mapper 修复 — statement 冲突 + DEAD_LETTER 死信 + eventId 幂等 + 状态转换数据库测试 (EVT-002 #53)` | OutboxEventRepository 重载 Mapper 重命名（`countPendingEvents()`→`countEventsWithStatusPending()`）消除 statement id 冲突；新增 `claimEvents`/`markAsDeadLetter`/`findDeadLetterEvents`/`updateToDeadLetter`/`selectDeadLetterEvents` 明确方法名；新增 `DEAD_LETTER` 终态 + `markAsFailed` 重试耗尽自动流转死信；TransactionalEventPublisher eventId UNIQUE 幂等（catch DuplicateKeyException/SQLSTATE 23505）；OutboxEventConfiguration 升级 @AutoConfiguration 经 imports 注册 + `@MapperScan(markerInterface=BaseMapper)` 修非 Mapper 接口被注册冲突 + 补 OptimisticLockerInnerInterceptor（@Version 残留缺陷）；MySQL/PostgreSQL CHECK 约束补 DEAD_LETTER；新增 OutboxEventIntegrationTest（7 用例 H2 MySQL 兼容真实 SQL）+ OutboxEventStatusTest（5 用例）+ OutboxEventMysqlTestcontainersTest（Docker 门控休眠）；event 模块 20 用例 / 0 failures（详见 §16.13） | Testcontainers MySQL 变体无 Docker 环境休眠（@EnabledIfSystemProperty 门控）；重试耗尽自动死信分支写 retryCount=max（==max 满足 CHECK，正常路径不到 max+1，遗留：FAILED+retryCount==max 历史脏数据再 markAsFailed 理论越限，需手动 markAsDeadLetter 路径兜底，已用 @Update 不触 retry_count 的 updateToDeadLetter 提供）；mybatis-plus 仍硬依赖（与 EVT-001 同根因，依赖边界收紧留 EVT-003/SPLIT 评估） |
+| 2026-08-12 | EVT-003 | ✅ 已完成 | 提交 `fix(evt-003): OutboxTransport SPI + OutboxDispatcher + 租约修复 FOR UPDATE + FailureAnalyzer (EVT-003 #56)` | 定义 `OutboxTransport` SPI（send only）+ `OutboxTransportException`（携带 eventId/timeout）；新增框架内置 `OutboxDispatcher`（claimBatch→transport.send→markAsPublished/markAsFailed，编程式 ScheduledExecutorService 调度，取自 EventProperties.Dispatcher Duration）；`LocalOutboxTransport`（默认，投递 OutboxEvent 信封经 ApplicationEventPublisher）；`RocketMqOutboxTransport`（从 RocketMQPublisher 抽取 syncSend，强类型化）；**删除 RocketMQPublisher**（双 @Scheduled 自扫描 + 投递 + 重试职责移交 Dispatcher）；claim 事务边界修复（`claimBatch` 单一 @Transactional：selectPendingEventsWithLock→batchClaimWithLease，FOR UPDATE 跨 SELECT→UPDATE 边界，修 ADR-003 P0-3 多实例重复投递）；租约机制（claimed_at/lease_expires_at 字段 + OutboxEvent.claim/isLeaseExpired/resetExpiredLease + batchClaimWithLease/selectExpiredLeaseProcessing/batchResetExpiredLeases + reclaimExpiredLeases 周期回收崩溃残留）；无 transport 启动失败诊断（MissingOutboxTransportException + OutboxTransportFailureAnalyzer + 守卫 bean + diagnostics.imports）；EventProperties 新增 Outbox(transport/Dispatcher(batchSize/poll/retry/leaseTimeout/reclaimInterval/enabled))；移除 EventAutoConfiguration 全局 @EnableScheduling（ADR §1.16，0 个 @Scheduled 残留）；TransactionalEventPublisher.publishEventAsync 语义澄清；新增 15 用例（Dispatcher 5/Wiring 2/LocalTransport 1/RocketMqTransport 3/FailureAnalyzer 4）；event 模块 35 用例 / 0 failures（详见 §16.14） | LocalOutboxTransport 投递 OutboxEvent 信封（非反序列化类型化事件——DomainEvent 不可变无 Jackson 默认构造/创建器，类型化重放登记 1.1+）；乐观锁 markAsPublished/markAsFailed 在 reclaim→reclaim 重投递竞态下 version 不匹配返回值未校验（EVT-002 既有，at-least-once 可接受，登记 1.1）；mybatis-plus 仍硬依赖（EVT-001/002 同根因） |
 
 ### 16.1 FRM-000 基线快照
 
@@ -2005,3 +2006,53 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **ObjectMapper 测试桩件**：OutboxEventIntegrationTest/MysqlTest 的 TestApp 提供 `@Bean ObjectMapper`（`findAndRegisterModules()`）而非依赖 JacksonAutoConfiguration——聚焦测试不依赖完整自动配置发现链；生产环境由 @SpringBootApplication 全量自动配置提供，FastDDD 自定义 Jackson 配置照常生效（CLAUDE.md "不在框架配置定义 ObjectMapper" 规则仅约束生产配置，不约束测试桩件）。
 - **Dispatcher/Transport 契约（EVT-003）**：claim/dispatch 逻辑现散落在 OutboxEventServiceImpl.claimEvents + RocketMQPublisher；EVT-003 将定义 OutboxTransport SPI，Dispatcher 只负责 claim/transport/状态转换/重试，RocketMQ 实现只传输不自扫描。
 - **下一 M1 任务**：EVT-003（依赖 EVT-002 ✅，已解锁）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）按依赖序推进。
+
+### 16.14 EVT-003 Dispatcher 与 Transport 契约快照
+
+落实 ADR-003（已冻结设计契约）：传输与调度分离——`OutboxTransport` SPI 只投递单事件，`OutboxDispatcher`（框架内置）负责 claim/lease/状态转换/重试/死信。修复 claim 的 FOR UPDATE 事务边界（ADR §1 P0-3 多实例重复投递），引入租约回收崩溃残留，并保证 outbox 不再"只入库不投递"。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| OutboxTransport SPI | `OutboxTransport.send(OutboxEvent)`——纯传输，不扫描 outbox 表、不创建存储、不改事件状态；投递失败抛 `OutboxTransportException`（携带 eventId + timeout 标记）由 Dispatcher 捕获→markAsFailed |
+| OutboxDispatcher（框架内置调度） | `OutboxDispatcher.dispatch()`：`claimBatch`→逐个 `transport.send`→成功 markAsPublished / 失败（含超时、未预期异常）markAsFailed（重试耗尽自动入死信 EVT-002）；`reclaimExpiredLeases` 周期回收崩溃残留。编程式 JDK `ScheduledExecutorService`（守护线程）调度，周期取自 EventProperties.Dispatcher 的 Duration——单循环同时覆盖新事件与可重试 FAILED（统一 RocketMQPublisher 原双 @Scheduled 扫描）。dispatch/reclaim 周期异常隔离，不致 scheduleWithFixedDelay 静默终止 |
+| LocalOutboxTransport（默认） | 投递 `OutboxEvent` 信封经 Spring ApplicationEventPublisher 重放到当前 JVM。载荷=信封对象（非反序列化类型化事件——见 D 残留） |
+| RocketMqOutboxTransport | 从原 RocketMQPublisher.publishEvent 抽取 syncSend 逻辑，强类型化（直接调 RocketMQTemplate.syncSend，弃原反射兜底——bean 仅在 RocketMQTemplate 真实在场时装配）；MessageBuilder 携带 KEYS/TAGS 头；失败/超时启发式分类（类名含 Timeout/RemotingTimeout） |
+| 删除 RocketMQPublisher | 双 @Scheduled（publishPendingEvents/retryFailedEvents 自扫描 outbox + 投递 + 重试）职责整体移交 OutboxDispatcher；RocketMQEventAutoConfiguration 由注册 rocketMQPublisher bean 改为注册 RocketMqOutboxTransport（仅投递） |
+| claim 事务边界修复（P0-3） | `OutboxEventService.claimBatch(limit, leaseTimeout)` 单一 @Transactional：`selectPendingEventsWithLock`（FOR UPDATE，含 PENDING+可重试 FAILED）→`batchClaimWithLease`（原子置 PROCESSING+写租约）→返回完整事件实体。FOR UPDATE 锁跨 SELECT→UPDATE 边界，COMMIT 后其他 dispatcher 即见 PROCESSING，杜绝多实例重复投递（ADR-003 §1 P0-3）。投递（transport.send）在事务之外，不持锁 |
+| 租约机制 | OutboxEvent 新增 `claimed_at`/`lease_expires_at` 字段 + `claim`/`isLeaseExpired`/`resetExpiredLease` 领域方法；Repository 新增 `batchClaimWithLease`/`selectExpiredLeaseProcessing`（FOR UPDATE）/`batchResetExpiredLeases`；Service 新增 `reclaimExpiredLeases`；MySQL/PostgreSQL/H2 DDL + `idx_outbox_lease_reclaim` 索引。dispatcher 崩溃后 PROCESSING 到期未 ack→reclaim 回 PENDING→下轮重投递（at-least-once） |
+| 无 transport 启动失败诊断 | outbox 模式 + dispatcher 启用 + OutboxEventService 在场但无任何 OutboxTransport bean→守卫 bean 抛 `MissingOutboxTransportException`→`OutboxTransportFailureAnalyzer`（经 `META-INF/spring/...FailureAnalyzer.imports` 注册）按 configured-transport（local/rocketmq/自定义）输出可读描述+行动指引，避免静默"只入库不投递" |
+| 配置统一 | `EventProperties.Outbox`（transport=local 默认 / Dispatcher(batchSize=100, pollInterval=5s, retryInterval=30s, leaseTimeout=2m, reclaimInterval=60s, enabled=true)）——取代散落 rocketmq.publisher.* 的传输无关调度配置（ADR §1 配置命名空间混乱） |
+| @EnableScheduling 移除 | EventAutoConfiguration 移除全局 @EnableScheduling（ADR §1.16——此前 local 模式也会激活 @Scheduled 后处理器）。grep 验证全仓 0 个 @Scheduled 注解残留，移除零影响；Dispatcher 自带 ScheduledExecutorService，无需 Spring 调度基础设施 |
+| publishEventAsync 语义澄清 | TransactionalEventPublisher.publishEventAsync/publishEventsAsync 注释澄清：对 Outbox 发布器"同步/异步"均指事件落库（与业务事务原子），真正投递由 Dispatcher 异步完成——非 ADR §1.16 所述"谎言"，而是最终一致语义 |
+
+**B. 命令级证据**
+
+- event 模块单测：**35 tests / 0 failures / 0 errors / 1 skipped**（+15 较 EVT-002：Dispatcher 5 + Wiring 2 + LocalTransport 1 + RocketMqTransport 3 + FailureAnalyzer 4；1 skipped = Docker 门控 Testcontainers）。
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，0 failures / 0 errors**（0 回归）。
+- @Scheduled 清零：`grep -P '^\s*@Scheduled\b' **/src/main/**/*.java` → 0 匹配（RocketMQPublisher 删除后全仓无 @Scheduled 注解，仅 Javadoc 历史提及），证实 @EnableScheduling 移除零影响。
+- FOR UPDATE 覆盖投递前边界：`OutboxEventServiceImpl.claimBatch` 单一 @Transactional 包 `selectPendingEventsWithLock`+`batchClaimWithLease`；`transport.send` 在事务外（dispatch() 内非事务调用）——不持 FOR UPDATE 锁等网络。
+- FailureAnalyzer 触发：`OutboxTransportFailureAnalyzerTest.context_missingTransport_failsWithMissingOutboxTransportException`（ApplicationContextRunner：outbox+rocketmq 传输+无 RocketMQTemplate→hasFailed，根因 MissingOutboxTransportException）；正向装配：`OutboxDispatcherWiringTest.defaultOutboxConfig_wiresLocalTransportAndDispatcher`（hasNotFailed + LocalOutboxTransport/OutboxDispatcher 单例）。
+- 调度隔离：`OutboxDispatcherTest` 五分支（success→markAsPublished / failure→markAsFailed / timeout→markAsFailed / 未预期异常→markAsFailed 截断 / 空批次→无操作）全绿。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 定义 OutboxTransport SPI | ✅ | `OutboxTransport.send` + `OutboxTransportException`（eventId/timeout） |
+| 步骤2 | Dispatcher 只 claim/transport/状态转换/重试 | ✅ | OutboxDispatcher.dispatch：claimBatch→send→markAsPublished/markAsFailed；重试耗尽→死信由 EVT-002 markAsFailed 承载 |
+| 步骤3 | RocketMQ 实现只传输不自扫描 | ✅ | 删除 RocketMQPublisher；RocketMqOutboxTransport 仅 syncSend，调度/状态机全在 Dispatcher |
+| 步骤4 | 无 transport 启动失败 + Failure Analysis | ✅ | 守卫 bean 抛 MissingOutboxTransportException → OutboxTransportFailureAnalyzer（diagnostics.imports 注册） |
+| 步骤5 | lease 超时/重试退避/最大次数/死信规则 | ✅ | leaseTimeout+reclaimInterval 配置 + reclaimExpiredLeases；重试退避=markAsFailed.calculateNextRetryTime（EVT-002 指数退避）；最大次数=max_retry_count；死信=DEAD_LETTER 终态 |
+| 步骤6 | 修复 FOR UPDATE 未覆盖发送边界 | ✅ | claimBatch 单一 @Transactional 锁跨 SELECT→UPDATE；send 在事务外 |
+| 步骤7 | transport 成功/失败/超时/重复测试 | ✅ | OutboxDispatcherTest（success/fail/timeout/未预期/空批次）+ RocketMqOutboxTransportTest（success/fail/timeout）+ LocalOutboxTransportTest |
+| 验收① | Outbox 不再只入库不投递 | ✅ | 默认 outbox 配置装配 LocalOutboxTransport + OutboxDispatcher（WiringTest 正向）；Dispatcher 周期 claim→send→markAsPublished |
+| 验收② | 失败可重试，超阈值入死信 | ✅ | Dispatcher.markAsFailed→EVT-002 重试耗尽自动 DEAD_LETTER（OutboxEventIntegrationTest.retryExhaustion_transitionsToDeadLetter 已证） |
+
+**D. 移交与残留**
+
+- **LocalOutboxTransport 投递信封非类型化事件**：默认本地传输投递 `OutboxEvent` 信封对象（非反序列化的领域事件子类）。框架 `DomainEvent` 为不可变（final 字段 + 全参构造、无 Jackson 默认构造/创建器），通用反序列化不可行；消费者以 `@EventListener void onOutbox(OutboxEvent)` 消费，需类型化时自行按 eventType 反序列化 eventData。类型化重放（经 Jackson 注解的领域事件 / @JsonCreator）登记 **1.1+**（ADR-003 §5 已列增强项）。
+- **乐观锁竞态下 markAsPublished/markAsFailed 返回值未校验（既有）**：reclaim 重置 PROCESSING→PENDING→重 claim（version 自增）后，原 dispatcher 的迟到 markAsPublished 经 @Version 乐观锁 updateById 命中 0 行，但 markAsPublished 仍 return true（EVT-002 实现）。属 at-least-once 可接受语义（事件已被重投递处理），返回值收紧登记 **1.1** 小优化。
+- **mybatis-plus 仍硬依赖**：`fast-ddd-event` 的 mybatis-plus-spring-boot3-starter 仍硬依赖（EVT-001/002 同根因），local 无 DB 消费者仍需 spring.autoconfigure.exclude。依赖边界收紧（mybatis 改 optional 或 outbox 拆独立模块）留独立 SPLIT 评估。
+- **下一 M1 任务**：EVT-004（依赖 EVT-003 ✅，已解锁——多实例可靠性验证）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）按依赖序推进。

@@ -9,7 +9,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -225,6 +227,39 @@ public class OutboxEventServiceImpl implements OutboxEventService {
         List<Long> ids = locked.stream().map(OutboxEvent::getId).collect(Collectors.toList());
         outboxEventRepository.batchUpdateToProcessing(ids, LocalDateTime.now());
         return locked.stream().map(OutboxEvent::getEventId).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<OutboxEvent> claimBatch(int limit, Duration leaseTimeout) {
+        // EVT-003：Dispatcher 专用抢占——FOR UPDATE 查询 + 同事务批量置 PROCESSING 并写租约，
+        // 锁跨越 SELECT→UPDATE 边界，COMMIT 后其他 dispatcher 即见 PROCESSING（修复 ADR-003 §1 P0-3）。
+        LocalDateTime now = LocalDateTime.now();
+        List<OutboxEvent> locked = outboxEventRepository.selectPendingEventsWithLock(now, limit);
+        if (locked.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Long> ids = locked.stream().map(OutboxEvent::getId).collect(Collectors.toList());
+        LocalDateTime leaseExpiresAt = now.plus(leaseTimeout);
+        outboxEventRepository.batchClaimWithLease(ids, now, leaseExpiresAt);
+        // locked 内存对象已是 PENDING/FAILED 快照，回填抢占后的状态/租约字段供 Dispatcher 直接投递
+        locked.forEach(e -> e.claim(now, leaseExpiresAt));
+        log.debug("EVT-003 抢占一批事件: count={}, leaseExpiresAt={}", locked.size(), leaseExpiresAt);
+        return locked;
+    }
+
+    @Override
+    @Transactional
+    public int reclaimExpiredLeases(LocalDateTime now, int limit) {
+        // EVT-003：回收 dispatcher 崩溃后卡在 PROCESSING 的过期租约——回 PENDING 重新投递
+        List<OutboxEvent> expired = outboxEventRepository.selectExpiredLeaseProcessing(now, limit);
+        if (expired.isEmpty()) {
+            return 0;
+        }
+        List<Long> ids = expired.stream().map(OutboxEvent::getId).collect(Collectors.toList());
+        int reset = outboxEventRepository.batchResetExpiredLeases(ids, now);
+        log.info("EVT-003 回收过期租约: reclaimed={}, now={}", reset, now);
+        return reset;
     }
     
     @Override

@@ -10,7 +10,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
@@ -29,6 +28,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *       {@code transactionalEventPublisher}。</li>
  *   <li><b>模块专用 executor 名</b>：{@code taskExecutor}（与 Spring Boot 默认
  *       {@code applicationTaskExecutor} 冲突的通用名）→ {@code eventTaskExecutor}。</li>
+ *   <li><b>EVT-003：移除 {@code @EnableScheduling}</b>——此前全局开启的 @Scheduled 后处理器
+ *       即使 local 模式也会激活（ADR §1.16 缺陷）。Outbox 调度改由
+ *       {@link com.gallop.fastddd.event.outbox.dispatcher.OutboxDispatcher} 自带的
+ *       JDK {@code ScheduledExecutorService} 驱动，无需 Spring 调度基础设施。</li>
  * </ul>
  *
  * @author gallop
@@ -36,7 +39,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 @AutoConfiguration(after = DataSourceAutoConfiguration.class)
 @EnableAsync
-@EnableScheduling
 @EnableConfigurationProperties(EventProperties.class)
 public class EventAutoConfiguration {
 

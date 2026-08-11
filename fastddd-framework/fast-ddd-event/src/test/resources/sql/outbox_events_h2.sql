@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     max_retry_count INT NOT NULL DEFAULT 3,
     next_retry_at TIMESTAMP NULL,
     error_message TEXT NULL,
+    claimed_at TIMESTAMP NULL,
+    lease_expires_at TIMESTAMP NULL,
     version BIGINT NOT NULL DEFAULT 0
 );
 

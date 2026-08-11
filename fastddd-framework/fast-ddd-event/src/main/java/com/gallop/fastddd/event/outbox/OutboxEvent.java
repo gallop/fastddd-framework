@@ -118,7 +118,20 @@ public class OutboxEvent {
      */
     @TableField("error_message")
     private String errorMessage;
-    
+
+    /**
+     * claim（抢占置 PROCESSING）时间（EVT-003 租约机制）。
+     */
+    @TableField("claimed_at")
+    private LocalDateTime claimedAt;
+
+    /**
+     * 租约到期时间（EVT-003）：超过此时间仍未 ack 的 PROCESSING 事件视为 dispatcher 崩溃，
+     * 由 reclaim 扫描重置回 PENDING 重新投递（ADR-003 §2.2）。
+     */
+    @TableField("lease_expires_at")
+    private LocalDateTime leaseExpiresAt;
+
     /**
      * 版本号（乐观锁）
      */
@@ -188,7 +201,41 @@ public class OutboxEvent {
         this.status = OutboxEventStatus.PROCESSING;
         this.updatedAt = LocalDateTime.now();
     }
-    
+
+    /**
+     * 抢占并设置租约（EVT-003）：置 PROCESSING 并记录租约到期时间。
+     * dispatcher 崩溃后，到期未 ack 的 PROCESSING 由 reclaim 重置回 PENDING。
+     *
+     * @param leaseExpiresAt 租约到期时间
+     */
+    public void claim(LocalDateTime claimedAt, LocalDateTime leaseExpiresAt) {
+        this.status = OutboxEventStatus.PROCESSING;
+        this.claimedAt = claimedAt;
+        this.leaseExpiresAt = leaseExpiresAt;
+        this.updatedAt = claimedAt;
+    }
+
+    /**
+     * 判断租约是否已过期（EVT-003 reclaim 用）。
+     *
+     * @param now 当前时间
+     * @return PROCESSING 状态且租约到期时间早于 now 时返回 true
+     */
+    public boolean isLeaseExpired(LocalDateTime now) {
+        return status == OutboxEventStatus.PROCESSING
+                && leaseExpiresAt != null && leaseExpiresAt.isBefore(now);
+    }
+
+    /**
+     * 重置过期租约（EVT-003 reclaim）：PROCESSING → PENDING，清租约字段，保留 retryCount。
+     */
+    public void resetExpiredLease(LocalDateTime now) {
+        this.status = OutboxEventStatus.PENDING;
+        this.claimedAt = null;
+        this.leaseExpiresAt = null;
+        this.updatedAt = now;
+    }
+
     /**
      * 是否可以重试
      */
