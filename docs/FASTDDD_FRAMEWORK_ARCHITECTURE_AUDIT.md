@@ -1,392 +1,591 @@
 # FastDDD 框架消费者体验与架构审计报告
 
-> 审计日期：2026-08-11  
-> 审计范围：`fastddd-framework`、`fastddd-bom`、项目生成模板、Studio 生成链路、`FASTDDD_REFERENCE.md`、示例与测试。  
-> 审计方式：主审计 + 独立对抗性代码审计；本报告仅记录问题与建议，不包含本轮代码改动。
+> 审计日期：2026-08-11
+>
+> 审计基线：HEAD 740da39，复核时工作树干净
+>
+> 审计范围：fastddd-framework、fastddd-bom、项目生成模板、Studio 生成链路、FASTDDD_REFERENCE.md、示例与测试
+>
+> 审计方式：主审计、独立对抗性代码审计、依赖树核对、消费者上下文启动和关键行为复现
+>
+> 报告性质：问题、修复方案与任务规划；本轮不包含框架代码修改
+>
+> 执行方案：[FastDDD 1.0 基础框架架构整改实施方案](architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md)
 
 ## 1. 执行摘要
 
-### 1.1 结论
+### 1.1 总体结论
 
-FastDDD 当前具备较多基础能力，但框架的消费者接入体验仍存在结构性问题：**业务系统必须记住大量隐式前置条件、覆盖规则和例外行为，才能安全地使用框架。**
+FastDDD 已具备较完整的 DDD、Web、安全、事件、缓存、搜索和监控能力，但在当前版本中，业务系统仍必须记住大量隐式前置条件、覆盖规则和例外行为，才能稳定接入。
 
-`FASTDDD_REFERENCE.md` 目前不仅是 API 参考，更接近业务项目的“接入补丁说明书”。如果没有这份文档，调用者很容易在配置前缀、ID 策略、安全链、事件投递、响应包装、可选依赖和生成器输出上遇到问题；即使阅读文档，部分模板和运行时代码仍与文档不一致。
+[FASTDDD_REFERENCE.md](FASTDDD_REFERENCE.md) 目前不仅是 API 参考，更接近业务项目的“接入补丁说明书”。即使业务方完整阅读文档，部分模板、自动配置和运行时代码仍与文档不一致；如果不阅读该文档，配置失效、Bean 冲突、接口契约变化和基础设施误启用的概率较高。
 
-根因不是“文档不够长”，而是下列设计问题：
+问题的根因不是文档不够长，而是：
 
-1. starter 引入后会隐式接管大量全局行为；
-2. 可选基础设施缺失时容易静默失效、静默降级或在运行期才失败；
-3. BOM、模板、Studio、文档和运行时代码存在多个版本与配置事实来源；
-4. 测试主要验证框架内部对象，缺少真实业务消费者的启动、依赖与 HTTP 契约测试。
+1. 自动配置边界过宽，模块引入后会隐式接管全局行为。
+2. optional 依赖与直接类型引用并存，消费者真实 classpath 与 reactor 测试结果不同。
+3. 可选基础设施缺失时存在静默降级、错误降级或运行期失败。
+4. BOM、模板、Studio、文档和运行时代码存在多个配置与版本事实来源。
+5. 测试偏重框架内部对象，缺少独立消费者的启动、依赖、HTTP 和基础设施契约验证。
 
-### 1.2 架构目标
+当前确认有 7 类 P0 问题，不建议在这些问题关闭前发布 1.0 GA。
 
-后续演进应遵循四项原则：
+### 1.2 问题概览
 
-1. **最小惊讶**：引入依赖不应在未声明的情况下改变全部业务 API、安全链或线程池。
-2. **显式启用**：安全认证、响应包装、OpenAPI、Outbox、P6Spy 等跨切面能力必须可独立开关。
-3. **失败即说明**：关键依赖或 SPI 缺失时，在启动期给出可执行的失败原因，而不是空结果、积压数据或运行期异常。
-4. **单一事实来源**：版本、配置、模板和文档应由同一份可验证契约驱动。
+| 等级 | 数量 | 结论 |
+|---|---:|---|
+| P0 | 7 | 会导致生成配置失效、消费者启动失败、跨缓存串值、事件可靠性失效或通用默认凭据 |
+| P1 | 10 | 高概率增加接入成本、引发 Bean 冲突、改变 API 契约或造成生产配置偏差 |
+| P2 | 3 类 | 自动配置治理、生产默认值和消费者测试体系债务 |
 
-## 2. P0：应在 1.0 GA 前修复的问题
+### 1.3 目标原则
 
-### P0-1：生成模板配置前缀错误，关键配置被静默忽略
+后续演进应遵循：
 
-**证据**
+1. 最小惊讶：引入依赖不应在未声明的情况下改变全部业务 API、安全链、序列化规则或线程池。
+2. 显式启用：认证服务、响应包装、OpenAPI、Outbox、SQL 监控等跨切面能力必须独立开关。
+3. 失败即说明：关键依赖或 SPI 缺失时，应在启动期给出可执行的 Failure Analysis。
+4. 业务优先：框架默认 Bean 必须对业务已有实现退让。
+5. 单一事实来源：版本、配置、模板和文档应由同一份可验证契约驱动。
 
-- 参考手册明确要求配置前缀为 `fastddd:`：[`FASTDDD_REFERENCE.md`](FASTDDD_REFERENCE.md#3-yaml-配置)。
-- 单项目模板和多端模板仍输出 `fast-ddd:`：
-  - [`application.yml.ftl`](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/application.yml.ftl)
-  - [`sub-app-application.yml.ftl`](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/multi-channel/sub-app-application.yml.ftl)
-- 实际配置绑定前缀均为 `fastddd.*`：
-  - [`JwtProperties`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/jwt/JwtProperties.java)
-  - [`CacheProperties`](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/CacheProperties.java)
-  - [`SearchProperties`](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/SearchProperties.java)
-  - [`SqlMonitoringProperties`](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringProperties.java)
+## 2. P0：1.0 GA 前必须关闭
+
+### P0-1：生成模板与运行时配置契约不一致
+
+**已确认的证据**
+
+- 单项目和多端模板输出 fast-ddd 根前缀：
+  - [单项目 application.yml.ftl](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/application.yml.ftl)
+  - [多端 sub-app-application.yml.ftl](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/multi-channel/sub-app-application.yml.ftl)
+- 运行时属性绑定使用 fastddd 根前缀：
+  - [JwtProperties](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/jwt/JwtProperties.java)
+  - [CacheProperties](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/CacheProperties.java)
+  - [SearchProperties](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/SearchProperties.java)
+  - [SqlMonitoringProperties](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringProperties.java)
+- 多端模板把 http、cors 放在 security 同级，实际属性层级要求 fastddd.security.http 与 fastddd.security.cors。
+- 模板使用 slow-threshold，实际属性名是 slow-query-threshold。
+- 模板中的 fastddd.event 与 fastddd.application.cqrs 当前没有对应的配置属性。
+- 单项目模板会生成可预测 JWT secret，且常见 artifactId 下长度不足框架要求。
 
 **影响**
 
-- JWT、缓存、搜索、监控等生成配置不会绑定，且通常没有清晰报错。
-- 模板中的固定 JWT secret 会在前缀修正后变成安全问题或因密钥校验失败导致启动失败。
-- 业务团队会误判为“框架配置不生效”，需要靠源码排查。
+生成项目看似配置完整，实际 JWT、缓存、搜索、监控和安全放行规则可能未绑定；部分错误会静默存在，部分会在前缀修正后转化为启动失败或安全风险。
 
 **修复方案**
 
-1. 所有模板统一输出 `fastddd:`。
-2. 生成项目一律使用 `${JWT_SECRET}`，不生成默认或固定密钥。
-3. 在一个发布周期内提供 `fast-ddd.*` 到 `fastddd.*` 的兼容迁移器，并在启动日志中打印弃用告警。
-4. 增加“生成后真实启动”测试：断言 JWT、缓存、搜索、监控属性都已绑定，而非只检查 YAML 字符串。
+1. 以 Spring Configuration Metadata 为准，逐项修正单项目、多端项目和 Studio 输出。
+2. 删除不存在的配置项；需要保留的能力先实现属性契约，再进入模板。
+3. 模板只引用 JWT_SECRET，不生成默认、固定或可预测密钥。
+4. 项目仍处于 SNAPSHOT 且业务系统可同步升级，不建议增加旧前缀兼容迁移器。
+5. 增加旧 fast-ddd 前缀检测，出现时启动失败并给出新路径。
+6. 增加生成后真实启动测试，不再只检查 YAML 字符串。
 
 **验收标准**
 
-- 单项目和多端项目的实际 `Environment` 中能读取 `fastddd.security.jwt.*` 等属性。
-- 旧前缀出现时有明确迁移提示；兼容期结束后有明确失败提示。
+- 单项目和多端项目的实际 Environment 能读取全部生成属性。
+- 生成结果不包含 fast-ddd 根、未知属性和固定 secret。
+- 四种组合均通过 Maven 编译和 Spring 上下文启动：单端/多端、贫血/充血。
 
-### P0-2：Outbox 在非 RocketMQ 场景只入库、不投递
+### P0-2：Web 模块的 optional 依赖会导致消费者启动失败
 
-**证据**
+**已确认的证据**
 
-- 存在 `OutboxEventRepository` 时，自动配置选择 `TransactionalEventPublisher`：[`EventAutoConfiguration`](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/EventAutoConfiguration.java)。
-- 发布器只将事件写入 `outbox_events`：[`TransactionalEventPublisher`](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/outbox/TransactionalEventPublisher.java)。
-- 定时投递只存在于可选的 RocketMQ 实现：[`RocketMQPublisher`](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/rocketmq/RocketMQPublisher.java)。
-- 参考手册却写为“后台定时器负责实际投递”。
+- [fast-ddd-web/pom.xml](../fastddd-framework/fast-ddd-web/pom.xml) 将 fast-ddd-application 标记为 optional。
+- [GlobalExceptionHandler](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/exception/GlobalExceptionHandler.java) 直接引用 CommandValidationException 及其内部类型。
+- 在消费者 classpath 排除 application 后，Web 自动配置可复现 ClassNotFoundException。
 
 **影响**
 
-业务会以为已获得可靠事件投递，实际数据长期停留在 `PENDING`，形成隐蔽的一致性故障。
+只使用贫血模型或基础 Web 能力的消费者，可能在框架测试通过的情况下启动失败。reactor classpath 会掩盖该问题。
 
 **修复方案**
 
-1. 明确拆分 `fast-ddd-event-core` 与 `fast-ddd-event-outbox`。
-2. 引入 `OutboxTransport` 与 `OutboxDispatcher` SPI；只有显式启用 `fastddd.event.outbox.enabled=true` 时才切换到 Outbox 模式。
-3. Outbox 已启用但没有可用 dispatcher/transport 时，启动失败并给出修复指引。
-4. 默认 dispatcher 必须具备原子 claim/lease、重试、死信、积压指标与多实例竞争保护。
+1. 将 CQRS 异常处理拆入独立配置类，并以 class 条件隔离所有 application 类型引用。
+2. 或将 application 改为非 optional；但这会增加 Web 基础模块耦合，不作为首选。
+3. 使用独立消费者工程或 Maven Invoker 验证 optional 依赖真实边界。
 
 **验收标准**
 
-- 本地事件、Outbox 事件、RocketMQ 事件具有明确且可观察的工作模式。
-- Outbox 事件在没有 transport 时不能静默积压。
-- 使用 Testcontainers 覆盖两个应用实例抢占、重试、死信和恢复场景。
+- classpath 不含 fast-ddd-application 时，fast-ddd-web 消费者可启动。
+- classpath 包含 application 时，CommandValidationException 仍被正确转换。
+- CI 中的测试不依赖 reactor 意外提供 optional 依赖。
 
-### P0-3：关闭 JWT 开关后仍可能要求 JWT Secret
+### P0-3：L1 缓存没有 cache name 命名空间
 
-**证据**
+**已确认的证据**
 
-- HTTP Security 配置受 `fastddd.security.jwt.enabled` 控制：[`SecurityAutoConfiguration`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/config/SecurityAutoConfiguration.java)。
-- 外层自动配置仍可创建 HMAC signer：[`FastDddSecurityAutoConfiguration`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/FastDddSecurityAutoConfiguration.java)。
-- 默认 HMAC signer 会校验 secret：[`HmacJwtSigner`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/jwt/HmacJwtSigner.java)。
+- [CacheRegistry](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/CacheRegistry.java) 默认把同一个 CaffeineLocalCache 实例复用于不同 cache name。
+- [CaffeineLocalCache](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/local/CaffeineLocalCache.java) 只按裸 key 存取。
+- 已复现：users 缓存写入 key=1 后，orders 缓存读取同一 key 得到 users 的值；清理 orders 还会清空 users。
 
 **影响**
 
-业务项目按配置关闭 JWT、且不设置 secret 时，仍可能启动失败；开关语义不完整。
+可能出现跨业务缓存串值、ClassCastException、误清理和数据泄露。这不是性能问题，而是数据隔离错误。
 
 **修复方案**
 
-1. 将 JWT signer、provider、filter、认证控制器与安全链拆成独立自动配置。
-2. 所有 JWT Bean 均受同一个 `enabled` 条件控制。
-3. 分别提供 `resource-server`、`auth-server`、`disabled` 模式，避免仅用一个布尔开关承载所有安全语义。
+1. 每个 cache name 创建独立 Caffeine Cache；或统一以 cacheName 和 key 组成内部键。
+2. L1、L2、失效通知和统计指标统一使用相同命名空间规则。
+3. 为 clear、evict、null value 和多级缓存同步增加隔离测试。
 
 **验收标准**
 
-- `enabled=false` 且无 secret 的消费者应用可以启动。
-- `enabled=true` 且 HMAC 模式缺 secret 时启动失败，并指明配置路径。
+- 不同 cache name 使用相同 key 时互不读取、覆盖或清理。
+- Redis 同步通知只影响目标命名空间。
+- 并发创建相同 cache name 时只产生一个一致实例。
 
-### P0-4：安全配置、模板和文档不能作为同一契约使用
+### P0-4：SQL 监控自动配置会导致应用启动失败
 
-**证据**
+**已确认的证据**
 
-- 参考手册要求精确放行认证路径，模板仍可能生成 `/api/auth/**`。
-- 当前 JWT 已支持 access/refresh 类型隔离、刷新轮换和撤销，但参考手册仍将 logout 描述为“仅清除 SecurityContext”。
-- 生成器和模板中存在多个 FastDDD、Spring Boot、SpringDoc、Knife4j 版本默认值。
-
-**影响**
-
-调用者即使严格按手册接入，也可能得到与当前运行时代码不一致的安全语义和配置结果。
-
-**修复方案**
-
-1. 把配置说明、默认值、模板变量、兼容矩阵统一由机器可读 manifest 生成。
-2. 将 JWT 令牌类型、撤销存储、集群实现要求和 Actuator 规则纳入参考手册。
-3. 在 CI 中增加“文档示例可编译/可启动”测试。
-
-## 3. P1：高概率增加接入成本或造成生产偏差的问题
-
-### P1-1：基础 starter 传递依赖过重
-
-执行 `mvn dependency:tree -pl fastddd-framework/fast-ddd-starter` 已确认，基础 starter 会传递带入：
-
-- `mybatis-plus-generator`；
-- `druid-spring-boot-3-starter`；
-- `springdoc-openapi-starter-webmvc-ui`；
-- `knife4j-openapi3-jakarta-spring-boot-starter`。
-
-相关 POM：[`fast-ddd-crud`](../fastddd-framework/fast-ddd-crud/pom.xml)、[`fast-ddd-web`](../fastddd-framework/fast-ddd-web/pom.xml)、[`fast-ddd-starter`](../fastddd-framework/fast-ddd-starter/pom.xml)。
+- [SqlMonitoringAutoConfiguration](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringAutoConfiguration.java) 同时使用 EnableConfigurationProperties 和显式属性 Bean，产生两个 SqlMonitoringProperties。
+- 已复现 NoUniqueBeanDefinitionException。
+- [SqlMonitoringController](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringController.java) 是普通 MVC Controller，既不是真正的 Actuator Endpoint，也没有被典型消费者自动配置导入。
+- starter 内的 spy.properties 会成为消费者全局资源，但 formatter 又依赖 Spring 注入，运行链路不稳定。
 
 **影响**
 
-- 一个基础 CRUD 项目被迫引入连接池、代码生成、API 文档 UI 等非核心运行时能力。
-- 业务已有 Hikari、OpenAPI、Spring Security 或数据库驱动选择时，依赖冲突和升级成本明显上升。
+启用监控可能直接阻断启动；即使绕过 Bean 冲突，真实 SQL、指标、脱敏和端点链路仍不闭环。
 
 **修复方案**
 
-- 数据建模/CRUD 与 Druid、Generator、数据库驱动拆分。
-- Web API 与 OpenAPI/Knife4j 拆分。
-- 将 `fast-ddd-starter` 定义为真正的最小核心，或保留旧全家桶 starter 并标记为兼容入口。
+1. SqlMonitoringProperties 只保留一种注册方式。
+2. 使用 Spring 管理的 DataSource Proxy，或建立可验证的 P6Spy 与 Spring bridge。
+3. 将管理接口实现为真正的 Actuator Endpoint，并遵循 exposure 配置。
+4. 不在通用 starter JAR 中放置会全局生效的 spy.properties。
+5. SQL 参数日志默认关闭，并提供字段脱敏策略。
 
-### P1-2：Web 自动配置无条件改变业务 API 契约
+**验收标准**
 
-**证据**
+- 最小消费者引入 monitor 后可以启动。
+- 执行真实 SQL 后能产生 Micrometer 指标，并能从配置允许的管理端点读取。
+- 未启用 SQL 明文记录时，日志不包含密码、Token 和敏感字段值。
 
-- Web 自动配置无条件导入响应包装配置：[`FastDddWebAutoConfiguration`](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/FastDddWebAutoConfiguration.java)。
-- `SmartResponseAdvice` 会包装符合条件的业务响应：[`SmartResponseAdvice`](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/advice/SmartResponseAdvice.java)。
-- 手册却要求业务方显式加 `@EnableApiResponseWrapper`。
+### P0-5：本地事件、Outbox 与 RocketMQ 的自动配置边界失效
+
+**已确认的证据**
+
+- [EventAutoConfiguration](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/EventAutoConfiguration.java) 组件扫描整个 event 包，仅排除 RocketMQ。
+- [OutboxEventConfiguration](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/outbox/OutboxEventConfiguration.java) 会要求 Mapper 和 DataSource。
+- 无数据库的本地事件消费者已复现缺少 SqlSessionFactory 或 SqlSessionTemplate 而启动失败。
+- [OutboxEventRepository](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/outbox/OutboxEventRepository.java) 存在同名 MyBatis 映射方法的 statement id 冲突。
+- [RocketMQPublisher](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/rocketmq/RocketMQPublisher.java) 的 FOR UPDATE 锁未覆盖完整发送事务。
+- 没有 transport 时可能出现只入库、不投递或选择错误发布器。
 
 **影响**
 
-仅引入 starter 即可能把已有业务接口的 JSON 返回结构改为 `ApiResponse`，造成前端、第三方回调、OpenAPI 契约不兼容。
+本地事件消费者被迫依赖数据库；Outbox 可靠投递、多实例竞争和降级语义不可预测，可能造成静默积压或重复发送。
 
 **修复方案**
 
-- 响应包装改为显式 opt-in；可由 `fastddd.web.response-envelope.enabled` 控制。
-- 全局异常处理、Jackson 格式、OpenAPI 同样独立开关。
-- 在管理后台 starter 中可默认开启，在通用 web starter 中默认关闭。
+1. 拆分四层：event-core、outbox-store、outbox-dispatcher、rocketmq-transport。
+2. 禁止通过宽泛组件扫描装配 Outbox，改为明确的条件自动配置。
+3. 只有显式开启 Outbox 时才要求 DataSource 和 Mapper。
+4. Outbox 开启但没有 dispatcher/transport 时启动失败。
+5. 重命名冲突的 Mapper 方法并补齐 SQL 映射测试。
+6. claim/lease、状态转换和发送边界必须具备明确事务模型；多实例下验证重试、幂等和死信。
 
-### P1-3：SecurityFilterChain、PasswordEncoder 和审计用户提供者缺少让路机制
+**验收标准**
 
-**证据**
+- event-core 在无数据库、无 MyBatis、无 RocketMQ 时可启动并发布本地事件。
+- Outbox 模式缺少存储或 transport 时给出明确 Failure Analysis。
+- 两个实例并发消费时，同一事件只被一个实例 claim。
+- 重试、死信、恢复和积压指标有 Testcontainers 回归测试。
 
-- `PasswordEncoder` 不对用户 Bean 退让：[`SecurityAutoConfiguration`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/config/SecurityAutoConfiguration.java)。
-- 默认 `SecurityFilterChain` 也没有对业务安全链退让。
-- 安全 starter 无条件注册 `@Primary SecurityCurrentUserProvider`：[`FastDddSecurityAutoConfiguration`](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/FastDddSecurityAutoConfiguration.java)。
+### P0-6：生成项目植入通用默认管理员口令
+
+**已确认的证据**
+
+- [init-data.sql.ftl](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/init-data.sql.ftl) 固定创建 admin/admin。
+- 该账号被绑定 ADMIN 角色，并分配全部权限。
 
 **影响**
 
-已有 Argon2、自定义认证链、多租户审计字段或多安全域的业务应用，可能遇到 Bean 冲突、链路抢占或审计字段语义错误。
+只要业务执行生成的初始化 SQL，就会形成可预测的通用超级管理员入口。“首次登录后修改”不能消除默认暴露窗口。
 
 **修复方案**
 
-1. 所有默认 Bean 增加精确的 `@ConditionalOnMissingBean`。
-2. 默认安全链仅在业务没有 `SecurityFilterChain` 时创建。
-3. 提供 `FastDddSecurityCustomizer`，允许业务在同一链中扩展，而非只能排除整个自动配置。
-4. `SecurityCurrentUserProvider` 仅在没有业务实现时注册，并优先返回 JWT 中的 `userId`。
+1. 默认初始化脚本不创建任何账号。
+2. 开发演示账号必须进入显式 dev profile，且不能进入生产 SQL。
+3. 如业务要求自动初始化管理员，密码必须来自部署 Secret 或一次性随机值，并在首次登录强制修改。
+4. CI 扫描模板和产物，禁止已知用户名/口令、固定 JWT secret 和云服务密钥。
 
-### P1-4：搜索模块的“单依赖、SQL 零配置”承诺不成立
+**验收标准**
 
-**证据**
+- 默认生成项目没有 admin/admin 或其他固定管理账号。
+- 无管理员初始化参数时，生产启动不会创建管理员。
+- 一次性凭据不能在日志、Git、镜像层或构建产物中泄露。
 
-- `fast-ddd-search` 把 CRUD/Model 标记为 optional。
-- SQL `SearchService` 仅在 MyBatis `BaseMapper` 存在时创建：[`FastDddSearchAutoConfiguration`](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/FastDddSearchAutoConfiguration.java)。
-- Mapper 无法解析时，搜索会返回空结果而不是配置错误：[`SqlSearchService`](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/sql/SqlSearchService.java)。
+### P0-7：JWT 关闭开关不能关闭完整 JWT Bean 图
+
+**已确认的证据**
+
+- [SecurityAutoConfiguration](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/config/SecurityAutoConfiguration.java) 的 HTTP 安全配置受 enabled 条件控制。
+- [FastDddSecurityAutoConfiguration](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/FastDddSecurityAutoConfiguration.java) 的外层配置仍会创建 signer。
+- [HmacJwtSigner](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/jwt/HmacJwtSigner.java) 依赖 JwtProperties 并校验 secret。
+- 已复现 enabled=false 且无 secret 时，因缺少 JwtProperties 而确定性启动失败。
 
 **影响**
 
-按文档只引入搜索模块时，可能没有 `SearchService` Bean；Mapper 配置错误时又可能被误判为“确实没有搜索结果”。
+业务无法通过开关真正禁用 JWT，也无法安全地只使用自定义 SecurityFilterChain 或外部身份服务。
 
 **修复方案**
 
-- 拆分 `fast-ddd-search-sql` 与 `fast-ddd-search-meilisearch`。
-- SQL 模式下明确传递所需依赖，或在条件不满足时输出 Failure Analysis。
-- Mapper/索引映射不完整时抛出可诊断异常，而不是返回空集合。
+1. signer、provider、filter、认证 Controller 与默认安全链使用同一模式条件。
+2. 将布尔开关升级为 disabled、resource-server、auth-server 三种明确模式。
+3. HMAC、RSA/JWK 等签名方式使用独立条件；只校验当前模式真正需要的配置。
 
-### P1-5：SQL 监控的运行时链路不闭环
+**验收标准**
 
-**证据**
+- disabled 模式在无 JwtProperties、无 secret 时可启动。
+- resource-server 模式不会自动暴露登录、刷新和验证码端点。
+- auth-server 的 HMAC 模式缺 secret 时启动失败并指出准确配置路径。
 
-- P6Spy 通过类名反射创建 formatter：[`spy.properties`](../fastddd-framework/fast-ddd-monitor/src/main/resources/spy.properties)。
-- formatter 依赖 Spring 注入属性与 MeterRegistry：[`SqlMonitoringMessageFormatter`](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringMessageFormatter.java)。
-- “Actuator controller”只是普通 MVC Controller，并不是真正的 `@Endpoint`：[`SqlMonitoringController`](../fastddd-framework/fast-ddd-monitor/src/main/java/com/gallop/fastddd/monitor/sql/SqlMonitoringController.java)。
-- 现有监控测试主要直接 new 对象，未启动 P6Spy/DataSource/Actuator 链路。
+## 3. P1：高概率增加接入成本或造成生产偏差
 
-**影响**
+### P1-1：叶子模块混入构建期和可选运行时能力
 
-监控看似启用，但指标、脱敏、动态配置和 Actuator 暴露不一定真实生效；随 starter 打包的 `spy.properties` 还可能影响业务自身的 P6Spy 配置。
+fast-ddd-starter 作为 all-in-one 入口本身不是错误，但其叶子模块会传递带入 MyBatis Generator、Druid、MySQL 驱动、SpringDoc 和 Knife4j。
 
-**修复方案**
+相关证据：
 
-1. 使用 Spring 管理的 DataSource proxy，或提供可靠的 P6Spy ↔ Spring bridge。
-2. 使用真正的 Actuator `@Endpoint`，不伪装为 `/actuator/**` MVC 路由。
-3. 不在 starter JAR 中放置全局 `spy.properties`；由业务项目显式配置。
-4. 默认关闭 SQL 参数日志，提供字段脱敏策略和真实链路集成测试。
+- [fast-ddd-crud/pom.xml](../fastddd-framework/fast-ddd-crud/pom.xml)
+- [fast-ddd-web/pom.xml](../fastddd-framework/fast-ddd-web/pom.xml)
+- [fast-ddd-starter/pom.xml](../fastddd-framework/fast-ddd-starter/pom.xml)
 
-### P1-6：生成器默认输出 deprecated 且高风险的 CRUD 模式
+**建议**：把代码生成、连接池、数据库驱动、OpenAPI UI 从核心运行时叶子模块拆出；保留 all-in-one starter 作为显式聚合入口。
 
-**证据**
+### P1-2：Web 自动配置默认改变已有 API 契约
 
-- `BaseController` 已废弃：[`BaseController`](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/controller/BaseController.java)。
-- 贫血模型模板仍生成该基类：[`Controller.ftl`](../fastddd-tooling/fastddd-templates/src/main/resources/templates/anemic/Controller.ftl)。
-- 通用 CRUD 接口直接使用 `BasePO` 作为请求体：[`BaseAdminCrudController`](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/controller/BaseAdminCrudController.java)。
+- [FastDddWebAutoConfiguration](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/FastDddWebAutoConfiguration.java) 自动导入响应处理。
+- [SmartResponseAdvice](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/advice/SmartResponseAdvice.java) 会包装业务响应。
+- 框架还会改变 Long、枚举和时间的 Jackson 序列化规则。
 
-**影响**
+**建议**：通用 Web starter 默认不包装响应、不改变全局 ObjectMapper；响应 envelope、异常格式和 Jackson 规则分别 opt-in。管理后台聚合 starter 可选择默认开启。
 
-生成 API 易暴露 `id`、审计字段、逻辑删除字段等持久化字段；细粒度权限和领域约束依赖调用者自行覆盖实现。
+### P1-3：安全默认 Bean、白名单与 CORS 不适合通用 starter
 
-**修复方案**
+- SecurityFilterChain、PasswordEncoder 和 SecurityCurrentUserProvider 缺少完整的业务 Bean 退让机制。
+- [SecurityHttpProperties](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/config/SecurityHttpProperties.java) 默认公开 WebSocket、H2、Swagger、Initializr 等业务相关路径。
+- [CorsProperties](../fastddd-framework/fast-ddd-security-starter/src/main/java/com/gallop/fastddd/security/config/CorsProperties.java) 通过 JVM system property 判断 profile，不读取 Spring Environment。
 
-- 禁止生成 deprecated 基类。
-- 默认生成 `BaseReadOnlyController` 或显式 DTO + Command 的写接口。
-- 后台 CRUD 模板生成类级权限、写操作权限、审计和数据权限扩展提示。
-- 对敏感领域不提供空实现的写 CRUD 端点。
+**建议**：默认安全链仅在不存在业务链时创建；通用默认白名单收敛到最小集合；由 Environment 和 Profiles 判断环境；提供 FastDddSecurityCustomizer 供业务扩展同一链。
 
-### P1-7：ID 策略与乐观锁规则不一致
+### P1-4：搜索模块的 SQL 零配置承诺不成立
 
-**证据**
+- [FastDddSearchAutoConfiguration](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/FastDddSearchAutoConfiguration.java) 只有在 MyBatis BaseMapper 存在时创建 SQL SearchService。
+- [SqlSearchService](../fastddd-framework/fast-ddd-search/src/main/java/com/gallop/fastddd/search/sql/SqlSearchService.java) 在 Mapper 无法解析时可能返回空结果。
 
-- `BasePO` 显式声明 `IdType.ASSIGN_ID`：[`BasePO`](../fastddd-framework/fast-ddd-model/src/main/java/com/gallop/fastddd/model/po/BasePO.java)。
-- 模板生成 `id-type: auto`。
-- 手册将其描述为可由 MyBatis 全局配置控制。
+**建议**：拆分 search-sql 与 search-meilisearch；SQL 模式缺少 Mapper 或依赖时启动失败，不把配置错误转换为空集合。
 
-**影响**
+### P1-5：生成模板覆盖调用者的数据源输入
 
-调用者难以预测最终主键生成策略；模板、表结构和运行时结果可能不一致。
+- 根配置固定激活 dev。
+- [application-dev.yml.ftl](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/application-dev.yml.ftl) 会用 localhost、artifactId 和 your_password 覆盖 Studio 输入。
+- CRUD 依赖选择 Druid，但生产模板配置 Hikari 参数，配置与实际连接池可能错位。
 
-**修复方案**
+**建议**：模板只写入用户确认的数据源参数；连接池类型作为显式选项；不同 profile 继承同一逻辑配置，不重新拼装库名和密码。
 
-- 明确“框架默认雪花 ID”与“数据库自增 ID”两套策略，不混用显式注解和全局覆盖描述。
-- 根据表元数据生成 `BasePO` 或 `VersionedPO`，存在 version 列时才生成乐观锁实体。
+### P1-6：生成器默认输出 deprecated 且高风险的 CRUD
 
-### P1-8：BOM、模板和 Studio 的版本治理脱节
+- [BaseController](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/controller/BaseController.java) 已废弃。
+- [贫血模型 Controller.ftl](../fastddd-tooling/fastddd-templates/src/main/resources/templates/anemic/Controller.ftl) 仍生成该基类。
+- [BaseAdminCrudController](../fastddd-framework/fast-ddd-web/src/main/java/com/gallop/fastddd/web/controller/BaseAdminCrudController.java) 直接以 PO 作为请求体。
 
-**证据**
+**建议**：禁止生成 deprecated 基类；默认生成只读 Controller 或 DTO/Command 写接口；写端点生成显式权限、校验、审计和数据权限扩展点。
 
-- BOM 负责 FastDDD 与推荐第三方版本：[`fastddd-bom/pom.xml`](../fastddd-bom/pom.xml)。
-- 单项目和多端模板仍直接声明 FastDDD、SpringDoc、Knife4j 版本：
-  - [`pom.xml.ftl`](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/pom.xml.ftl)
-  - [`parent-pom.xml.ftl`](../fastddd-tooling/fastddd-templates/src/main/resources/templates/project/multi-channel/parent-pom.xml.ftl)
+### P1-7：ID 策略在实体、模板、DDL 与手册之间矛盾
 
-**影响**
+- [BasePO](../fastddd-framework/fast-ddd-model/src/main/java/com/gallop/fastddd/model/po/BasePO.java) 显式使用 ASSIGN_ID。
+- 模板生成 id-type:auto。
+- 手册又描述为可由 MyBatis 全局配置控制。
 
-升级需要同时改 BOM、模板、Studio 默认值和文档；遗漏会生成版本错配项目。
+当前证据支持“ID 策略矛盾”，尚不足以证明乐观锁本身存在运行时冲突。
 
-**修复方案**
+**建议**：明确雪花 ID 与数据库自增两套策略；实体注解、DDL、模板和手册由同一选项生成。
 
-- 所有模板只 import `fastddd-bom`，不重复管理 BOM 已覆盖的版本。
-- 维护单一版本 manifest，驱动根 POM、BOM、模板、Studio、文档和兼容矩阵。
-- CI 断言生成项目的 dependency tree 与 BOM 一致。
+### P1-8：业务自定义 CacheManager 时框架不退让
+
+[FastDddCacheAutoConfiguration](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/FastDddCacheAutoConfiguration.java) 在业务已有 CacheManager 时仍可能创建框架 CacheManager，已验证会因无唯一候选导致启动失败。
+
+**建议**：默认 Bean 对现有 CacheManager 退让；如确需并存，使用明确 bean name 和 CacheResolver，不依赖 Primary 猜测。
+
+### P1-9：版本治理存在多个事实来源
+
+- [fastddd-bom/pom.xml](../fastddd-bom/pom.xml) 管理框架与推荐第三方版本。
+- 单项目、多端模板、Studio 和 Archetype 仍存在独立版本默认值。
+
+**建议**：维护单一版本 manifest，驱动根 POM、BOM、模板、Studio、Archetype、文档和兼容矩阵；模板只 import BOM，不重复管理 BOM 已覆盖的版本。
+
+### P1-10：参考手册包含不可编译或过期示例
+
+[FASTDDD_REFERENCE.md](FASTDDD_REFERENCE.md) 当前至少存在：
+
+- 推荐项目中不存在的 RequiresPermission 注解。
+- 声称至少 64 字节、实际不足要求的 JWT secret 示例。
+- 已过期的 logout 语义。
+- 把必须配置 secret 的 HMAC 路径称为零配置。
+- ID 策略在不同章节互相矛盾。
+
+**建议**：所有 Java、YAML 和 Maven 示例进入可编译、可启动的文档测试；配置表从 metadata 生成；历史迁移内容移入独立迁移指南。
 
 ## 4. P2：架构与质量债务
 
-### 4.1 自动配置过度使用全局副作用
+### 4.1 自动配置使用全局副作用
 
-- 事件模块无条件启用 `@EnableAsync`、`@EnableScheduling`，并占用全局 `taskExecutor`：[`EventAutoConfiguration`](../fastddd-framework/fast-ddd-event/src/main/java/com/gallop/fastddd/event/EventAutoConfiguration.java)。
-- 缓存模块自动启用 Spring Cache，且自定义 `CacheManager` 未对业务已有 `CacheManager` 明确退让：[`FastDddCacheAutoConfiguration`](../fastddd-framework/fast-ddd-cache/src/main/java/com/gallop/fastddd/cache/FastDddCacheAutoConfiguration.java)。
-- 多个模块使用组件扫描将框架实现直接加入业务容器，增加覆盖和重复注册的不可预期性。
+- 事件模块启用全局异步和调度，并使用通用 taskExecutor 名称。
+- 多个模块通过宽泛 ComponentScan 将实现直接加入消费者容器。
+- 缓存、响应处理和序列化配置会影响全应用。
 
-**建议**：框架使用专用 executor、显式 bean 名称、条件化自动配置和稳定 SPI；避免使用宽泛的组件扫描实现核心装配。
+**建议**：框架使用专用 executor、明确 bean name、条件自动配置和稳定 SPI；自动配置类直接声明所需 Bean，不扫描整个实现包。
 
-### 4.2 可选依赖和默认值缺少生产级边界
+### 4.2 开发默认值缺少生产边界
 
-- 验证码默认内存存储和 Noop 限流适合开发，但需要更强的生产环境 fail-fast 策略。
-- CORS、Swagger、H2、WebSocket、监控日志等能力应采用最小默认暴露面。
-- SQL 参数、业务返回、异常堆栈和监控配置均应默认按敏感数据处理。
+- 验证码内存存储和 Noop 限流只适合开发。
+- Swagger、H2、WebSocket、SQL 参数与详细异常信息应采用最小暴露面。
+- 生产环境缺少限流器、Secret、撤销存储或必要基础设施时应 fail-fast。
 
 ### 4.3 消费者契约测试不足
 
-目前部分模块只有单元测试，或测试直接构造对象，无法覆盖真实自动配置、依赖冲突、HTTP 契约和运行时基础设施。
+GeneratedProjectCompileTest 等测试名称声称验证编译，实际主要检查字符串、XML 和 YAML，没有执行真实 Maven 构建和 Spring 启动。框架内部 reactor 测试还会掩盖 optional 依赖边界。
 
-特别是以下消费者场景必须建立回归矩阵：
+## 5. 目标架构与基础框架治理规范
+
+### 5.1 三层产品架构
+
+FastDDD 应明确区分契约层、能力实现层和聚合层，避免把“方便引入”与“全部能力耦合”混为一体。
+
+#### 第一层：稳定契约层
+
+契约层只保留领域和应用层基础类型、异常规范及稳定 SPI：
+
+- Domain、Application 基础契约。
+- CurrentUser、EventPublisher、Cache、Search 等扩展接口。
+- 通用错误码和最小公共模型。
+- 不引入数据库驱动、连接池、Web UI、消息中间件、P6Spy 或具体认证服务。
+
+契约层应具备最高稳定性。1.0 GA 后，其公共 API 变更必须经过兼容性审查。
+
+#### 第二层：可组合能力层
+
+能力层提供基础设施实现和 Spring Boot 自动配置：
+
+    fast-ddd-core
+    ├── fast-ddd-mybatis-starter
+    ├── fast-ddd-web-starter
+    │   ├── fast-ddd-response-envelope-starter
+    │   └── fast-ddd-openapi-starter
+    ├── fast-ddd-security-resource-server
+    ├── fast-ddd-security-auth-server
+    ├── fast-ddd-event-core
+    │   ├── fast-ddd-event-outbox-store
+    │   ├── fast-ddd-event-outbox-dispatcher
+    │   └── fast-ddd-event-rocketmq
+    ├── fast-ddd-cache-starter
+    ├── fast-ddd-search-sql
+    ├── fast-ddd-search-meilisearch
+    └── fast-ddd-monitor-sql
+
+能力层必须可单独引入、单独关闭，并对业务已有实现退让。
+
+#### 第三层：场景聚合层
+
+聚合层面向快速开发和特定场景：
+
+- fast-ddd-starter：明确标注为 all-in-one 聚合入口。
+- 后台管理、AI、Analyzer、Studio 等场景 starter。
+- 项目模板与 Archetype。
+
+聚合层可以选择更有主张的默认值，但必须在依赖说明和配置元数据中明确列出，不得把这些默认值下沉到通用能力层。
+
+### 5.2 自动配置统一规范
+
+新增或重构自动配置时必须遵守下列规则：
+
+| 规则 | 要求 |
+|---|---|
+| 依赖条件 | 使用 ConditionalOnClass 判断实现所需依赖，不直接引用可能缺失的 optional 类型 |
+| 功能条件 | 跨切面和基础设施能力使用明确的 ConditionalOnProperty 或模式枚举 |
+| 业务退让 | 默认 Bean 使用精确的 ConditionalOnMissingBean；框架实现不得无条件 Primary |
+| 装配边界 | 自动配置类显式声明 Bean，禁止扫描整个框架实现包 |
+| Bean 命名 | 使用模块专用名称，不占用 taskExecutor、cacheManager 等通用名称 |
+| 失败语义 | 缺少关键依赖、Secret 或 SPI 时提供 Failure Analysis，不返回空集合掩盖问题 |
+| 关闭语义 | enabled=false 或 disabled 模式必须关闭完整 Bean 图和对外端点 |
+| 可观察性 | 启用、退让、降级和失败原因应可从 conditions 与启动日志确认 |
+| 测试要求 | ApplicationContextRunner 之外，还要用独立消费者验证真实 classpath |
+
+布尔开关只适用于单一能力。存在多种运行角色时，应使用模式枚举：
+
+- Security：disabled、resource-server、auth-server。
+- Event：local、outbox。
+- Outbox Transport：none、rocketmq，未来可扩展其他实现。
+- Search：sql、meilisearch。
+
+### 5.3 消费者 API 契约边界
+
+通用 starter 默认不得改变消费者已有契约，包括：
+
+- 不默认包装全部 Controller 返回值。
+- 不默认把全部 Long 转成 String。
+- 不默认改变枚举、日期和时间序列化格式。
+- 不默认接管 SecurityFilterChain。
+- 不默认公开 Swagger、H2、WebSocket 或业务认证路径。
+- 不覆盖业务 ObjectMapper、CacheManager、PasswordEncoder 或线程池。
+
+响应 envelope、全局异常格式、Jackson 扩展、OpenAPI UI 等能力应独立 opt-in。特定场景聚合 starter 可以默认启用，但必须在生成结果和文档中明确说明。
+
+### 5.4 安全默认规范
+
+1. 框架、模板和示例不得提供默认管理员、固定密码或默认 JWT secret。
+2. 通用安全 starter 使用最小白名单，业务路径由消费者声明。
+3. Auth Server 与 Resource Server 分离，资源服务不自动暴露登录和刷新端点。
+4. 生产环境缺少 Secret、限流器、Token 撤销存储等关键能力时 fail-fast。
+5. 示例凭据、数据库密码和第三方 Key 纳入 CI 凭据扫描。
+6. dev 默认值只能在显式开发 profile 生效，不能进入生产 SQL、镜像或发布包。
+
+### 5.5 单一事实来源
+
+建立机器可读的版本与配置 manifest，作为以下内容的唯一输入：
+
+- 根 POM 和 fastddd-bom。
+- 各模块版本及兼容矩阵。
+- 单项目、多端模板和 Archetype。
+- Studio 默认值。
+- Configuration Metadata。
+- FASTDDD_REFERENCE.md 配置表和发布说明。
+
+配置名称、默认值和弃用信息以 Configuration Metadata 为准；模板不得手工维护另一套属性模型。
+
+## 6. 改造任务与执行路线
+
+### 6.1 阶段 A：1.0 GA 可靠性门禁
+
+| 任务 | 内容 | 主要模块 | 估算 |
+|---|---|---|---:|
+| AUD-P0-01 | 修复全部模板属性契约，删除固定 secret 和未知属性 | templates、Studio | 2–3 人日 |
+| AUD-P0-02 | 隔离 Web 对 application optional 类型的引用 | web | 1–2 人日 |
+| AUD-P0-03 | 修复 L1 缓存命名空间与清理边界 | cache | 1–2 人日 |
+| AUD-P0-04 | 修复 SQL 监控 Bean 与真实运行链路 | monitor | 2–4 人日 |
+| AUD-P0-05 | 重构 event、outbox、dispatcher、transport 自动配置边界 | event | 5–8 人日 |
+| AUD-P0-06 | 移除模板默认管理员并增加凭据扫描 | templates、CI | 1–2 人日 |
+| AUD-P0-07 | 统一 JWT 模式条件与关闭语义 | security | 1–2 人日 |
+| AUD-P0-08 | 建立独立消费者与生成项目真实启动门禁 | testing、CI | 3–5 人日 |
+
+阶段 A 预计 16–28 人日。事件链路与 SQL 监控是波动最大的部分，应作为独立任务和独立回归处理。
+
+### 6.2 阶段 B：1.0 GA 前的架构收敛
+
+以下 P1 不应推迟到 GA 之后：
+
+1. SecurityFilterChain、PasswordEncoder、CurrentUserProvider 与 CacheManager 完整退让。
+2. 响应包装和全局 Jackson 修改改为显式启用。
+3. 修复数据源模板覆盖用户输入以及 Druid/Hikari 错配。
+4. 禁止生成 deprecated Controller 和固定凭据。
+5. 建立单一版本 manifest，消除 BOM、模板、Studio 和 Archetype 漂移。
+
+其余依赖拆分可在不影响 GA 可靠性的前提下分批完成，但必须形成明确路线图。
+
+### 6.3 阶段 C：1.0.x 稳定化
+
+1. 精简叶子模块传递依赖，保留 all-in-one 聚合入口。
+2. 完成搜索、监控、OpenAPI 和响应包装的能力拆分。
+3. 修复 ID 策略、DTO/Command 生成和数据权限扩展契约。
+4. 持续补充消费者矩阵，不在 1.0.x 改变默认 API 契约。
+
+### 6.4 阶段 D：1.1 架构演进
+
+1. 完成契约层、能力层和聚合层的物理模块调整。
+2. 引入新的稳定 SPI 与模式化自动配置。
+3. 对确需改变的默认行为提供迁移指南和弃用周期。
+4. 不在 1.0.x 以普通修复名义引入破坏性模块重命名或公共 API 变化。
+
+## 7. 版本与发布策略
+
+### 7.1 1.0 基线
+
+- Java：JDK 21。
+- Spring Boot：3.5.16。
+- Spring AI：1.1.x 维护线。
+- FastDDD Framework、BOM 和 Framework Starter：产品内锁步版本。
+- Tooling、Studio：独立版本，通过机器可读兼容矩阵声明所依赖的 Framework/Tooling 版本范围。
+
+当前 Framework 产品线统一保留 1.0.0-SNAPSHOT，完成门禁后依次进入 1.0.0-RC1 和 1.0.0 GA。Tooling 与 Studio 保留各自 revision，通过兼容矩阵跟随 Framework RC 验证。业务系统仍在开发，可在同一升级分支同步迁移，不需要为错误的 SNAPSHOT 配置契约维持长期兼容。
+
+### 7.2 产品内锁步与跨产品兼容规则
+
+1. Framework 根 revision 是 Framework 产品线发布版本的唯一输入。
+2. fastddd-bom 与 Framework Starter 必须使用相同 revision，不能独立保留旧 SNAPSHOT。
+3. Tooling 与 Studio 各自维护 revision，不通过根 reactor 隐式继承发布版本。
+4. 模板、Archetype 和 Studio 不手写目标 Framework 版本，而是从兼容性 manifest 或构建参数获得。
+5. CI 同时校验产品内部版本一致性，以及 Studio -> Tooling -> Framework 的兼容组合是否合法。
+6. Framework、Tooling、Studio 可以独立发布，不要求同一发布批次使用相同版本号。
+
+### 7.3 兼容性规则
+
+- 1.0.x：只做向后兼容修复、性能优化和安全修复，不改变默认 API 契约。
+- 1.1.x：允许经过迁移设计的能力拆分、SPI 扩展和默认行为调整。
+- GA 前没有可比较的稳定制品，japicmp 不作为 1.0.0 的阻断项。
+- 从首个 GA 制品开始保存二进制基线，在后续版本启用 japicmp 或等价检查。
+- 配置废弃必须先告警、提供替代路径，再在下一个允许破坏性变化的版本移除。
+
+### 7.4 Git 与发布分支建议
+
+- 主开发分支继续承载 1.0.0-SNAPSHOT。
+- 升级和整改在独立分支完成，经消费者门禁验证后合并。
+- 进入 RC 后创建 release/1.0.x 维护线；主分支再进入下一开发版本。
+- Framework RC 前先完成单仓逻辑解耦；RC 稳定后、Studio 收费试点前再执行物理仓库拆分。
+- 物理拆分后，Framework、Tooling、Studio 各自在自己的仓库和发布分支独立演进。
+- 禁止把临时旧坐标或仅为回滚准备的 SNAPSHOT 发布到正式私服。
+
+## 8. 消费者验收矩阵
 
 | 场景 | 必须验证的结果 |
 |---|---|
-| 最小 Web 项目 | 不改变响应格式，除非显式启用包装器 |
-| 已有 SecurityFilterChain | 不出现 Bean 冲突，框架能力可插入同一安全链 |
-| JWT 关闭 | 无 secret 时仍可启动 |
-| Redis / 非 Redis | 缓存行为、CacheManager 选择和降级信息明确 |
-| SQL / Meilisearch | 必需 Bean、索引、Mapper 缺失时可诊断 |
-| Outbox 多实例 | claim、重试、死信、积压指标正确 |
-| SQL 监控 | 真实 SQL → metrics → Prometheus/Endpoint 链路可用 |
-| 单项目/多端生成 | 生成后 Maven 编译、启动、配置绑定和健康检查均通过 |
-| 升级兼容 | BOM、模板、Studio 与 dependency tree 对齐 |
+| Web 不含 application | 可启动；基础异常处理可用；CQRS 异常处理自动缺席 |
+| 两个 cache name 使用相同 key | 读取、清理和同步完全隔离 |
+| 业务已有 CacheManager | 框架退让或按明确名称共存，无歧义 |
+| Event 本地模式且无数据库 | 可启动并发布本地事件 |
+| Outbox 无 store 或 transport | 启动失败并指出缺少的组件 |
+| Outbox 两实例 | claim、重试、幂等、死信和恢复正确 |
+| Monitor | 真实 SQL 产生指标，管理端点受 Actuator exposure 控制 |
+| JWT disabled | 无 secret 可启动，且不注册 JWT 相关端点和过滤器 |
+| 业务已有 SecurityFilterChain | 不冲突，框架能力可显式插入 |
+| 最小 Web 项目 | 默认不改变响应 envelope 与全局 Jackson 契约 |
+| SQL/Meilisearch 搜索 | 依赖、Mapper 或索引缺失时可诊断 |
+| 单端/多端、贫血/充血生成 | Maven 编译、Spring 启动、属性绑定和健康检查通过 |
+| 生成安全基线 | 无默认管理员、固定 secret、未知配置项和开发数据库口令 |
+| BOM 对齐 | 生成项目 dependency tree 与当前 BOM 一致 |
+| 升级兼容 | 1.0.x 公共 API、配置与默认行为保持兼容 |
 
-## 5. 推荐的模块演进模型
+验证必须在独立消费者 classpath 中执行，不能只依赖框架 reactor。GeneratedProjectCompileTest 必须执行真实 Maven 构建和 Spring 启动，或更名以准确表达其验证范围。
 
-建议将当前“全家桶”能力拆为可组合 starter：
+## 9. 文档治理建议
 
-```text
-fast-ddd-core
-├── fast-ddd-mybatis-starter
-├── fast-ddd-web-starter
-│   ├── fast-ddd-response-envelope-starter
-│   └── fast-ddd-openapi-starter
-├── fast-ddd-security-resource-server
-├── fast-ddd-security-auth-server
-├── fast-ddd-event-core
-│   └── fast-ddd-event-outbox
-├── fast-ddd-cache-starter
-├── fast-ddd-search-sql
-├── fast-ddd-search-meilisearch
-└── fast-ddd-monitor-p6spy
-```
+FASTDDD_REFERENCE.md 应从“必须背诵的避坑手册”回归为 API 与设计参考：
 
-设计要求：
-
-- `core` 不应带入数据库驱动、连接池、文档 UI、消息中间件或监控 Agent。
-- Auth Server 控制器不应随着 Resource Server 自动出现。
-- OpenAPI、Knife4j、响应包装、SQL 监控、Outbox 均必须单独 opt-in。
-- 为原 `fast-ddd-starter` 提供兼容层和迁移说明；在 Snapshot 阶段优先完成边界收敛，再发布 1.0 GA。
-
-## 6. 分期改造建议
-
-### 阶段 A：发布前可靠性基线
-
-目标：消除静默失效和直接错误配置。
-
-1. 统一模板前缀为 `fastddd`，移除固定 JWT secret。
-2. 修复 JWT 关闭语义，补齐 Security/Actuator/JWT 文档。
-3. Outbox 无 dispatcher 时 fail-fast。
-4. 统一 BOM、模板、Studio 默认版本。
-5. 生成项目执行真实启动测试。
-6. 禁止模板生成 deprecated CRUD 基类。
-
-### 阶段 B：自动配置可组合化
-
-目标：业务应用可在已有基础设施上平滑接入。
-
-1. SecurityFilterChain、PasswordEncoder、CurrentUserProvider 完整退让。
-2. 响应包装、异常处理、OpenAPI、缓存、监控改为独立开关。
-3. 事件使用专用 executor，不接管业务 `taskExecutor`。
-4. 拆分过重的 starter 和非必要传递依赖。
-
-### 阶段 C：可观测性与消费者质量门禁
-
-目标：框架发布前由自动化证明“业务项目能用”。
-
-1. 建立独立消费者示例工程，而不只使用框架内部测试包。
-2. 使用 ApplicationContextRunner、MockMvc、Testcontainers 和真实 Maven 生成项目覆盖契约矩阵。
-3. 在 CI 中校验配置元数据、文档片段、模板产物和 dependency tree。
-4. 发布前运行二进制兼容性与 BOM 依赖对齐检查。
-
-## 7. 文档治理建议
-
-`FASTDDD_REFERENCE.md` 应从“必须背诵的避坑手册”回归为 API/设计参考：
-
-1. 保留概念、模块选择、SPI、示例和兼容矩阵。
+1. 保留模块选择、SPI、最小示例和兼容矩阵。
 2. 将危险配置转换为启动期校验，不要求调用者记忆。
-3. 从 `spring-configuration-metadata.json` 和版本 manifest 自动生成配置表与默认值。
-4. 对每段可复制配置提供最小可运行样例及 CI 校验。
-5. 单独维护迁移指南，避免新用户在参考文档中混入历史兼容细节。
+3. 配置项、默认值和版本由 Configuration Metadata 与版本 manifest 生成。
+4. 每段可复制 Java、YAML 和 Maven 示例都由 CI 在独立消费者中编译和启动。
+5. 历史兼容与升级差异进入独立迁移指南。
+6. 文档不得描述代码中不存在的注解、配置项、端点或降级行为。
 
-## 8. 最终判断
+## 10. 最终架构验收与发布决策
 
-FastDDD 下一阶段最重要的工作不是继续增加能力，而是让已有能力具备**清晰边界、可预测默认值、显式开关、可诊断失败和可验证接入方式**。
+### 10.1 最终验收标准
 
-当业务方只需按模块选择依赖、提供必要配置与 SPI，就能启动并得到符合预期的行为时，`FASTDDD_REFERENCE.md` 才真正是参考手册，而不是业务项目不可缺少的“防坑补丁”。
+FastDDD 达到基础框架发布标准，需要同时满足：
+
+1. 不依赖避坑文档：业务方只根据模块说明、配置元数据和 IDE 提示即可完成基本接入。
+2. 正确配置可预测：选择一个能力后，只出现该能力声明的 Bean、端点和依赖。
+3. 错误配置可诊断：启动期指出缺少的属性、依赖或 SPI，不静默返回空结果。
+4. 业务实现可覆盖：消费者已有安全链、缓存、序列化器和线程池时，框架能够退让或明确组合。
+5. 默认行为安全：不生成默认管理员、固定 secret、宽泛白名单或生产明文敏感日志。
+6. 独立消费者可证明：最小项目和生成项目在真实 classpath 下完成编译、启动和关键行为验证。
+7. 版本事实唯一：BOM、框架、模板、Studio、Archetype、文档和 dependency tree 完全对齐。
+
+### 10.2 发布判断
+
+当前不建议发布 1.0 GA。应先关闭全部 P0，完成阶段 B 中会导致启动冲突或全局契约变化的 P1，并把消费者验收矩阵纳入 CI，再进入 RC。
+
+FastDDD 下一阶段最重要的工作不是继续增加能力，而是让已有能力具备清晰边界、可预测默认值、显式开关、可诊断失败和可验证接入方式。当业务方无需依赖额外避坑说明，只需选择模块并提供必要配置与 SPI 就能稳定启动时，FASTDDD_REFERENCE.md 才真正是参考手册，而不是不可缺少的防坑补丁。

@@ -25,6 +25,8 @@ docs/
 | [充血模型示例](architecture/RICH_MODEL_EXAMPLES.md) | 以订单聚合根为例，展示完整的充血模型实现（领域层/应用层/基础设施层） |
 | [贫血→充血迁移指南](architecture/MIGRATION_GUIDE.md) | 从 PO+Service 贫血模型渐进迁移到 Entity+ApplicationService+CQRS 充血模型的实操指南 |
 | [系统技术架构文档](architecture/TECHNICAL_ARCHITECTURE.md) | FastDDD 与 Spring 生态整合的完整技术架构说明 |
+| [框架消费者体验与架构审计](FASTDDD_FRAMEWORK_ARCHITECTURE_AUDIT.md) | 当前消费者接入风险、P0/P1 问题、目标架构和发布判断 |
+| [FastDDD 1.0 架构整改实施方案](architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md) | 面向 Claude Code 的细化改造任务、ID 重构关键路径、依赖与验收门禁 |
 
 ## 使用指南 [guides/](guides/)
 
@@ -91,4 +93,4 @@ docs/
 
 ---
 
-> 文档最后更新：2026-08-10
+> 文档最后更新：2026-08-11
