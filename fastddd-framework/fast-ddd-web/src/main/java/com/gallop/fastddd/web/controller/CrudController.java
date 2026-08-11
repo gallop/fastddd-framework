@@ -14,15 +14,16 @@ import java.util.Map;
  * 通用CRUD控制器，提供标准的REST API端点。
  * 可以通过继承此类快速创建具有完整CRUD功能的控制器。
  * 
- * @param <S> 服务类型，必须继承IService
- * @param <T> 实体类型，必须继承BasePO
+ * @param <S>  服务类型，必须继承IService
+ * @param <T>  实体类型，必须继承BasePO
+ * @param <ID> 主键类型
  * @author gallop
  * @since 2025-01-02
  * @version 1.0.0-SNAPSHOT
  */
 @Slf4j
 @RestController
-public abstract class CrudController<S extends IService<T, Long>, T extends BasePO<Long>> extends BaseController<S, T> {
+public abstract class CrudController<S extends IService<T, ID>, T extends BasePO<ID>, ID extends java.io.Serializable> extends BaseController<S, T, ID> {
 
     /**
      * 获取实体类型名称，用于日志和错误消息

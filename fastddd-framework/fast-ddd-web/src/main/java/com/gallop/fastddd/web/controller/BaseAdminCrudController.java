@@ -24,15 +24,16 @@ import java.util.List;
  * 命名带 Admin，使用时应将路径放在 /api/admin/** 下。
  * 包含 lifecycle hooks 供子类覆写。
  *
- * @param <S> 服务类型
- * @param <T> 实体类型
+ * @param <S>  服务类型
+ * @param <T>  实体类型
+ * @param <ID> 主键类型
  * @author gallop
  * @since 1.1
  */
 @Slf4j
 @Tag(name = "Admin CRUD")
-public abstract class BaseAdminCrudController<S extends IService<T, Long>, T extends BasePO<Long>>
-        extends BaseReadOnlyController<S, T> {
+public abstract class BaseAdminCrudController<S extends IService<T, ID>, T extends BasePO<ID>, ID extends Serializable>
+        extends BaseReadOnlyController<S, T, ID> {
 
     // ==================== Lifecycle Hooks ====================
 
@@ -40,13 +41,13 @@ public abstract class BaseAdminCrudController<S extends IService<T, Long>, T ext
 
     protected void afterCreate(T entity) {}
 
-    protected void beforeUpdate(Serializable id, T entity) {}
+    protected void beforeUpdate(ID id, T entity) {}
 
-    protected void afterUpdate(Serializable id, T entity) {}
+    protected void afterUpdate(ID id, T entity) {}
 
-    protected void beforeDelete(Serializable id) {}
+    protected void beforeDelete(ID id) {}
 
-    protected void afterDelete(Serializable id) {}
+    protected void afterDelete(ID id) {}
 
     protected void beforeCreateBatch(List<T> entityList) {}
 
@@ -101,10 +102,9 @@ public abstract class BaseAdminCrudController<S extends IService<T, Long>, T ext
             @PathVariable("id") @NotNull String idStr,
             @Valid @RequestBody T entity) {
         try {
-            Serializable id = resolveId(idStr);
-            // ID-003 过渡桥接：BasePO.id 已收窄为 Long，resolveId 仍返回 Serializable（ID-005 以
-            // IdCodec<Long> 替换 resolveId 后此处强转消失）。BasePO 实体主键恒为 Long（全局 assign_id）。
-            entity.setId((Long) id);
+            // ID-005：parseId 经 IdCodec<ID> 解析为强类型；entity.setId(ID) 类型匹配，无强转。
+            ID id = parseId(idStr);
+            entity.setId(id);
             beforeUpdate(id, entity);
             boolean success = service.updateById(entity);
             if (success) {
@@ -167,10 +167,10 @@ public abstract class BaseAdminCrudController<S extends IService<T, Long>, T ext
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Boolean>> delete(@PathVariable("id") @NotNull String idStr) {
         try {
-            Serializable id = resolveId(idStr);
+            // ID-005：parseId 经 IdCodec<ID> 解析为强类型；service.removeById(ID) 无强转。
+            ID id = parseId(idStr);
             beforeDelete(id);
-            // ID-004：service.removeById 收窄为 Long；ID-005 以 IdCodec 替换 resolveId 后强转消失。
-            boolean success = service.removeById((Long) id);
+            boolean success = service.removeById(id);
             if (success) {
                 afterDelete(id);
                 return ResponseEntity.ok(ApiResponse.success(true, Messages.get("web.crud.delete.success")));
@@ -187,7 +187,7 @@ public abstract class BaseAdminCrudController<S extends IService<T, Long>, T ext
 
     @Operation(summary = "[Admin CRUD] 批量删除实体")
     @DeleteMapping("/batch")
-    public ResponseEntity<ApiResponse<Boolean>> deleteBatch(@RequestBody List<Long> ids) {
+    public ResponseEntity<ApiResponse<Boolean>> deleteBatch(@RequestBody List<ID> ids) {
         try {
             boolean success = service.removeByIds(ids);
             if (success) {

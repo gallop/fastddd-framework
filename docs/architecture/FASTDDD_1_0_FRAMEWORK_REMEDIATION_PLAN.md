@@ -2399,3 +2399,62 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **String-id 服务方法保留**：`updateField(String id,...)` 等 API 形参仍为 String，服务内部 `Long.valueOf` 解析——String↔Long 转换属表现层关切，ID-005 可上移至 codec。
 - **`SysRoleService`/`SysUserService` MP-IService**：安全模块独立性，有意不接入 FastDDD `IService`，登记不在 ID 链范围。
 - **下一任务**：ID-005（IdCodec + Controller `<S,T,ID>` 泛化，依赖 ID-004 ✅ 已解锁）——消除 `resolveId`/过渡强转、DTO String 序列化、Controller 多 ID 类型支持；ID-006（移除 `SerializableTypeHandler`）随后；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）亦仍解锁可并行。
+
+### 16.22 ID-005 IdCodec SPI + Controller 泛型化快照
+
+以 `IdCodec<ID extends Serializable>` SPI 取代 `AbstractBaseController.resolveId(String)`（基于 MyBatis-Plus `IdType` 的"DB 生成策略 → Java 值类型"猜测，ADR-001 §2.6），主键目标 Java 类型改由控制器声明的 `<ID>` 泛型参数显式决定。控制器基类由 2 参数 `<S,T>` 泛化为 3 参数 `<S,T,ID>`，全链路 `service.getById(ID)` 等调用类型安全、消除 ID-003/004 过渡期的 `resolveId` + `(Long)` 强转。**本任务改生产 API 签名**（控制器基类新增 `ID` 类型参数、移除 `resolveId`），为二进制不兼容变更（1.0 SNAPSHOT，无 GA 消费者）。
+
+**A. IdCodec SPI（新增 5 文件，`fast-ddd-web/.../idcodec/`）**
+
+| 文件 | 契约 |
+|---|---|
+| `IdCodec<ID extends Serializable>` | `ID parse(String)` / `String format(ID)` / `Class<ID> getIdType()`。`parse` 非法输入抛 `IllegalArgumentException`（类型化错误）。 |
+| `LongIdCodec` | `Long.parseLong`，非数字/空抛 `IllegalArgumentException("非法数值 ID"/"ID 不能为空")`；`format(null)→null`。 |
+| `UuidIdCodec` | `UUID.fromString`，非法/空抛 `IllegalArgumentException`。 |
+| `StringIdCodec` | 恒等 `parse`/`format`（业务键原串承载）；空/null 抛 `IllegalArgumentException`。 |
+| `IdCodecs.forClass(Class<ID>)` | 按 `Class` 解析内置 codec：`Long/Long.TYPE→LongIdCodec`、`UUID→UuidIdCodec`、`String→StringIdCodec`；未知类型/`null` 抛 `IllegalStateException("无内置 IdCodec ... 子类须覆写 idCodec()")`——业务自定义主键（Hashid/值对象）的门禁提示。 |
+
+**B. Controller 泛型化（核心改动）**
+
+| 类 | 改动 |
+|---|---|
+| `AbstractBaseController<S,T,ID>` | 新增第 3 类型参数 `<ID extends Serializable>`；构造期 `resolveTypeArgument(2)` 反射取声明 `ID` 的 `Class`，`IdCodecs.forClass(idClass)` 装配 codec。新增 `idCodec()`（可覆写注入自定义 codec）、`parseId(String)→ID`、`entityClass()`。**移除** `resolveId(String)` 及 `TableInfoHelper`/`IdType` 依赖。 |
+| `BaseReadOnlyController<S,T,ID>` | 3 参数化；`getById`：`ID id = parseId(idStr); service.getById(id)`，消除 `(Long)` 强转。 |
+| `BaseAdminCrudController<S,T,ID>` | 3 参数化；生命周期钩子 `beforeUpdate(ID id, T entity)`/`beforeDelete(ID id)`（原 `Serializable`）；`updateById` 用 `parseId` + `entity.setId(id)`；`deleteBatch(@RequestBody List<ID> ids)`（原 `List<? extends Serializable>`）。 |
+| `BaseController<S,T,ID>` / `CrudController<S,T,ID>` | 3 参数化（`ID extends java.io.Serializable`），透传 `ID`。 |
+
+`resolveTypeArgument(index)` 沿继承链找首个参数化父类，返回 `args[index]` 为 `Class` 者；`args[1]`=实体、`args[2]`=主键类型。
+
+**C. 消费面迁移**
+
+- **5 个消费控制器** `extends` 子句补 `, Long`：`examples/UserController`（`BaseController<UserService, User, Long>`）、`studio/ProjectController`、`studio/TableTemplateController`（`BaseAdminCrudController<..., Long>`）、`studio/FieldLibraryController`、`studio/TableDesignController`（后者同时 `resolveId(...)→parseId(...)`、移除 `(Long)` 过渡强转）。
+- **代码生成器**：`GeneratorController:353` 发射 `"extends BaseAdminCrudController<" + className + "Service, " + className + ", Long>"`；`GeneratorController:314` 发射 `IService<Xxx, Long>`（ID-004 已就位）。
+- **FreeMarker 模板**：`fastddd-templates/.../anemic/Controller.ftl:18` → `extends BaseController<${table.entityName}Service, ${table.entityName}, Long>`；`TemplateRendererTest:137` 断言更新为 `, Long>`；archetype `docs/PACKAGE_GUIDE.md:131` 示例更新。
+
+**D. resolveId / 强转消除**
+
+- `AbstractBaseController.resolveId(String)` **全仓生产代码零残留**——`grep resolveId` 仅命中 javadoc 历史说明文本（`AbstractBaseController`/`IdCodec` 类注释）与文档。
+- ID-003/004 过渡期在 `FieldLibraryController`/`TableDesignController` 引入的 `(Long) resolveId(...)` / `(Long) id` 强转全部移除；两控制器随之移除已无引用的 `import java.io.Serializable`。
+- **安全模板保留**：`fastddd-templates/.../security/multi-channel/AppIdentityService.java.ftl` 的 `(Long) user.getId()` 属安全模块独立性范畴（消费方 user 实体可能非 FastDDD `BasePO`），**不在 ID-005 范围**，保留为防御性强转。
+
+**E. 测试（+32 用例，净增 +24）**
+
+- **重写 `AbstractBaseControllerIdResolutionTest`（web，13 用例 / 4 嵌套）**：fixture 改为 `LongEntity/StringEntity/UuidEntity/IntEntity extends BasePO<...>` + 对应 3 参数控制器子类；锁定新行为——Long 数字串解析、非数字/空抛 `IllegalArgumentException`；String 业务键原样返回（**数字串保持 String，不解析为 Long**——ID 类型由 `<ID>` 决定非 `IdType`，此为 ID-005 核心不变量）；UUID 合法/非法；`idCodec().getIdType()` 与声明一致、`entityClass()` 推断、`IntController` 构造抛 `IllegalStateException`（未知类型门禁）。**不再依赖** `TableInfoHelper.initTableInfo`（codec 只读声明类型）。
+- **新增 `IdCodecTest`（web，19 用例 / 4 嵌套）**：`LongIdCodec`/`UuidIdCodec`/`StringIdCodec` 各自 parse/format/非法/空/`getIdType`；`IdCodecs.forClass` 解析三种内置类型 + 未知类型/`null` 抛 `IllegalStateException`。
+
+**F. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 30/30 SUCCESS
+→ Tests: 527 / 0 Failures / 0 Errors / 10 Skipped（Testcontainers 类 @EnabledIfSystemProperty 门控）
+→ web 模块 68 用例（含 IdCodecTest 19 + 重写后 IdResolutionTest 13），0 回归
+→ 净增 +24 用例（ID-004 基线 ~503 → 527）
+```
+
+**G. 登记与遗留**
+
+- **DTO Long→String 序列化延后**：HTTP 响应中 Long 主键的 JSON String 化（防 JS 精度丢失）/ OpenAPI schema 校验延至 RC 阶段（ADR-001 §76），本任务仅收口路径参数侧 `parseId`。
+- **`SerializableTypeHandler` 移除 = ID-006**：ID-005 消除了 `resolveId`，`SerializableTypeHandler`（MyBatis 类型处理器，历史为 `Serializable` 主键服务）随之可在 ID-006 安全移除。
+- **`SysRoleService`/`SysUserService` MP-IService**：安全模块独立性，仍不接入 FastDDD `IService`/`IdCodec`，登记不在 ID 链范围。
+- **下一任务**：ID-006（移除 `SerializableTypeHandler`，依赖 ID-005 ✅ 已解锁）；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）亦仍解锁可并行。

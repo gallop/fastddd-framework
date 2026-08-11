@@ -21,22 +21,23 @@ import java.util.Optional;
  * 只读 Controller 基类，仅暴露 GET 查询端点。
  * 适合字典查询、后台数据展示等只读场景。
  *
- * @param <S> 服务类型
- * @param <T> 实体类型
+ * @param <S>  服务类型
+ * @param <T>  实体类型
+ * @param <ID> 主键类型
  * @author gallop
  * @since 1.1
  */
 @Slf4j
 @Tag(name = "Read-Only API")
-public abstract class BaseReadOnlyController<S extends IService<T, Long>, T extends BasePO<Long>>
-        extends AbstractBaseController<S, T> {
+public abstract class BaseReadOnlyController<S extends IService<T, ID>, T extends BasePO<ID>, ID extends Serializable>
+        extends AbstractBaseController<S, T, ID> {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<T>> getById(@PathVariable("id") @NotNull String idStr) {
         try {
-            Serializable id = resolveId(idStr);
-            // ID-004：service.getById 收窄为 Long（控制器侧主键恒 Long）；ID-005 以 IdCodec 替换 resolveId 后强转消失。
-            Optional<T> entityOpt = service.getById((Long) id);
+            // ID-005：parseId 经 IdCodec<ID> 解析为强类型，service.getById(ID) 全链路类型安全，无强转。
+            ID id = parseId(idStr);
+            Optional<T> entityOpt = service.getById(id);
             if (entityOpt.isPresent()) {
                 return ResponseEntity.ok(ApiResponse.success(entityOpt.get(), Messages.get("web.crud.query.success")));
             } else {
