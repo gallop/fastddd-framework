@@ -1,8 +1,5 @@
 package com.gallop.fastddd.common.domain;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,71 +11,57 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ID-001 特征测试：锁定 {@link BaseEntity} 当前的 ID 契约与 equals/hashCode 行为。
+ * ID-002 特征测试：锁定 {@link DomainEntity}（经 {@link BaseEntity} 兼容门面）的稳定身份契约。
  *
- * <p>本测试为 characterization（刻画现状），<b>不改生产行为</b>。所有断言记录的是 1.0 当前
- * 真实行为——包括已知的脆弱点（可变 id 进入 hashCode、getId 抽象化等）。ID-002/003 重构后
- * 这些断言将被更新，届时行为变化即被显式捕获。
+ * <p>本测试在 ID-002 重构后验证<b>新契约</b>（取代 ID-001 刻画的旧缺陷行为）：
+ * <ul>
+ *   <li>{@code getId}/{@code setId} 由 {@link DomainEntity} 提供具体实现——<b>子类无需重复实现</b>
+ *      （本测试的 fixture 为空子类，直接继承即可调用）。</li>
+ *   <li>相等性只基于稳定身份与明确类型规则：同 id + 同 {@code getClass()} 才相等；瞬态实体
+ *       （id 为 null）退化为引用同一性。</li>
+ *   <li>{@code hashCode} 仅基于 {@code getClass()}——持久化回填 id <b>不</b>改变 hashCode，
+ *       HashSet/HashMap 查找契约恢复成立（修复 ID-001 锁定的可变 id 缺陷）。</li>
+ * </ul>
  *
- * <p>覆盖方案步骤 3（Long/String/UUID ID 特征）与步骤 4（equals/hashCode 可变 id 问题）。
+ * <p>覆盖方案步骤 6（ID 创建时机/非空约束）、步骤 8（HashSet、相同 ID 的相等性）。
  *
  * @author gallop
  * @since 1.0.0-jdk21
  */
 class BaseEntityIdentityContractTest {
 
-    /** Long ID 实体（仿 studio Order 模式：显式实现抽象 getId/setId，访问继承的 protected id）。 */
-    @Getter
-    @Setter
-    @EqualsAndHashCode(callSuper = true)
+    /**
+     * 空 fixture：不声明任何字段、不重写 getId/setId，证明"领域实体无需重复实现 getId/setId"。
+     * 不同 fixture 仅用于参数化 ID 类型与 {@code getClass()} 区分。
+     */
     static class LongEntity extends BaseEntity<Long> {
-        @Override
-        public Long getId() { return id; }
-
-        @Override
-        public void setId(Long id) { this.id = id; }
     }
 
-    /** String ID 实体。 */
-    @Getter
-    @Setter
-    @EqualsAndHashCode(callSuper = true)
+    /** 同为 {@code BaseEntity<Long>} 的另一个类——用于刻画"明确类型规则"（同 id 不同类不相等）。 */
+    static class AnotherLongEntity extends BaseEntity<Long> {
+    }
+
     static class StringEntity extends BaseEntity<String> {
-        @Override
-        public String getId() { return id; }
-
-        @Override
-        public void setId(String id) { this.id = id; }
     }
 
-    /** UUID ID 实体。 */
-    @Getter
-    @Setter
-    @EqualsAndHashCode(callSuper = true)
     static class UuidEntity extends BaseEntity<UUID> {
-        @Override
-        public UUID getId() { return id; }
-
-        @Override
-        public void setId(UUID id) { this.id = id; }
     }
 
     @Nested
-    @DisplayName("步骤3：Long / String / UUID ID 均由泛型承载")
+    @DisplayName("步骤1/6：泛型 ID 由基类承载，getId/setId 无需子类重复实现")
     class IdGenericTypeSupport {
 
         @Test
-        @DisplayName("Long ID：getId/setId 强类型往返")
+        @DisplayName("Long ID：继承的 getId/setId 强类型往返")
         void longId_roundTripsTyped() {
             LongEntity e = new LongEntity();
             assertThat(e.getId()).isNull();
             e.setId(12345L);
-            assertThat(e.getId()).isEqualTo(12345L);
-            assertThat(e.getId()).isInstanceOf(Long.class);
+            assertThat(e.getId()).isEqualTo(12345L).isInstanceOf(Long.class);
         }
 
         @Test
-        @DisplayName("String ID：getId/setId 强类型往返")
+        @DisplayName("String ID：继承的 getId/setId 强类型往返")
         void stringId_roundTripsTyped() {
             StringEntity e = new StringEntity();
             e.setId("ORD-2026-0001");
@@ -86,7 +69,7 @@ class BaseEntityIdentityContractTest {
         }
 
         @Test
-        @DisplayName("UUID ID：getId/setId 强类型往返")
+        @DisplayName("UUID ID：继承的 getId/setId 强类型往返")
         void uuidId_roundTripsTyped() {
             UuidEntity e = new UuidEntity();
             UUID uid = UUID.randomUUID();
@@ -95,7 +78,7 @@ class BaseEntityIdentityContractTest {
         }
 
         @Test
-        @DisplayName("isNew：id 为 null 即新实体；赋值后非新")
+        @DisplayName("isNew：id 为 null 即新实体；赋值后非新（ID 创建时机）")
         void isNew_reflectsIdPresence() {
             LongEntity e = new LongEntity();
             assertThat(e.isNew()).isTrue();
@@ -105,57 +88,116 @@ class BaseEntityIdentityContractTest {
     }
 
     @Nested
-    @DisplayName("步骤4：equals/hashCode 可变 id 问题（刻画当前已知缺陷）")
-    class MutableIdInEqualsAndHashCode {
+    @DisplayName("步骤4/8：相等性只基于稳定身份与明确类型规则")
+    class StableIdentityEquality {
 
         @Test
-        @DisplayName("BaseEntity 的 equals 包含 id：仅 id 不同的两实体不相等")
-        void equals_includesIdField() {
-            LongEntity a = new LongEntity();
-            LongEntity b = new LongEntity();
-            a.setId(1L);
-            b.setId(2L);
-            // 当前行为：BaseEntity @EqualsAndHashCode 涵盖 id → 不同 id 不相等
-            assertThat(a).isNotEqualTo(b);
-        }
-
-        @Test
-        @DisplayName("BaseEntity 的 equals 涵盖全部字段：相同 id 但其它字段不同仍不相等")
-        void equals_includesAllFields() {
+        @DisplayName("同 id 同类 → 相等")
+        void equals_sameIdSameClass_areEqual() {
             LongEntity a = new LongEntity();
             LongEntity b = new LongEntity();
             a.setId(1L);
             b.setId(1L);
-            a.setCreateUser("alice");
-            b.setCreateUser("bob");
-            // 当前行为：createTime/createUser 等均参与 equals
+            assertThat(a).isEqualTo(b);
+        }
+
+        @Test
+        @DisplayName("不同 id → 不相等")
+        void equals_differentId_notEqual() {
+            LongEntity a = new LongEntity();
+            LongEntity b = new LongEntity();
+            a.setId(1L);
+            b.setId(2L);
             assertThat(a).isNotEqualTo(b);
         }
 
         @Test
-        @DisplayName("已知缺陷：hashCode 随 id 赋值而变化（可变字段进入 hashCode）")
-        void hashCode_changesWhenIdAssigned() {
-            LongEntity e = new LongEntity();
-            int hashBefore = e.hashCode();
-            e.setId(42L);
-            int hashAfter = e.hashCode();
-            // 刻画根因缺陷：id 赋值后 hashCode 改变。后果是"先放入 HashSet/HashMap 再被持久化
-            // 回填 id"的实体，其查找依赖的桶由旧 hashCode 决定——查找行为变为非确定（取决于
-            // 新旧 hashCode 是否落入同一桶）。ID-002 重构将改为基于 id 的稳定 hashCode。
-            assertThat(hashAfter).isNotEqualTo(hashBefore);
+        @DisplayName("同 id 但不同类 → 不相等（明确类型规则：getClass() 必须相同）")
+        void equals_differentClassSameId_notEqual() {
+            LongEntity a = new LongEntity();
+            AnotherLongEntity b = new AnotherLongEntity();
+            a.setId(1L);
+            b.setId(1L);
+            assertThat(a).isNotEqualTo(b);
         }
 
         @Test
-        @DisplayName("已知缺陷：插入 HashSet 后赋 id，物理仍在集合中（容量未变不触发重哈希）")
-        void entity_mutatedAfterHashSetInsertion_remainsPhysicallyPresent() {
+        @DisplayName("瞬态实体（id 为 null）互不相等；仅引用同一时相等")
+        void equals_transientEntities_notEqualUnlessSameReference() {
+            LongEntity a = new LongEntity();
+            LongEntity b = new LongEntity();
+            assertThat(a).isNotEqualTo(b); // 两个未保存实体
+            assertThat(a).isEqualTo(a);    // 同一引用
+            assertThat(a).isEqualTo((Object) a);
+        }
+
+        @Test
+        @DisplayName("瞬态与已持久化（同引用除外）不相等")
+        void equals_transientVsPersisted_notEqual() {
+            LongEntity transientEntity = new LongEntity();
+            LongEntity persisted = new LongEntity();
+            persisted.setId(5L);
+            assertThat(transientEntity).isNotEqualTo(persisted);
+        }
+
+        @Test
+        @DisplayName("equals 与 null、其它类型对称地返回 false")
+        void equals_nullAndForeignType_returnFalse() {
+            LongEntity a = new LongEntity();
+            a.setId(1L);
+            assertThat(a).isNotEqualTo(null);
+            assertThat(a).isNotEqualTo("not-an-entity");
+        }
+    }
+
+    @Nested
+    @DisplayName("步骤8：稳定 hashCode——持久化回填 id 不改变 hashCode，HashSet 契约恢复")
+    class StableHashCode {
+
+        @Test
+        @DisplayName("hashCode 在 id 赋值前后保持不变（修复 ID-001 可变 id 缺陷）")
+        void hashCode_stableAcrossIdAssignment() {
+            LongEntity e = new LongEntity();
+            int hashBefore = e.hashCode();
+            e.setId(42L); // 模拟 snowflake 在 insert 时回填 id
+            int hashAfter = e.hashCode();
+            assertThat(hashAfter).isEqualTo(hashBefore);
+        }
+
+        @Test
+        @DisplayName("两个同 id 同类实例的 hashCode 相等（满足 equals ⇒ hashCode 契约）")
+        void hashCode_sameForTwoInstancesWithSameId() {
+            LongEntity a = new LongEntity();
+            LongEntity b = new LongEntity();
+            a.setId(7L);
+            b.setId(7L);
+            assertThat(a.hashCode()).isEqualTo(b.hashCode());
+            assertThat(a).isEqualTo(b);
+        }
+
+        @Test
+        @DisplayName("HashSet 契约恢复：先放入再回填 id，contains 仍可找到")
+        void hashSet_containsWorksAfterIdAssignment() {
             LongEntity e = new LongEntity();
             Set<LongEntity> set = new HashSet<>();
             set.add(e);
-            e.setId(99L); // 模拟 snowflake 在 insert 时回填 id
-            // 刻画缺陷的确定性一面：元素物理上仍占位（size 不变），但 contains 的正确性
-            // 取决于新旧 hashCode 是否同桶——即查找契约被破坏。hashCode 变化由前一测试锁定。
+            e.setId(99L); // 模拟持久化回填
+            // hashCode 未变 → 元素仍在原桶 → contains 正确
+            assertThat(set).contains(e);
             assertThat(set).hasSize(1);
-            assertThat(set.iterator().next()).isSameAs(e);
+        }
+
+        @Test
+        @DisplayName("身份语义：两个同 id 的不同实例在 HashSet 中塌缩为单一条目")
+        void hashSet_twoDistinctInstancesWithSameId_collapseToOne() {
+            LongEntity a = new LongEntity();
+            LongEntity b = new LongEntity();
+            a.setId(100L);
+            b.setId(100L); // a.equals(b) → true
+            Set<LongEntity> set = new HashSet<>();
+            set.add(a);
+            set.add(b);
+            assertThat(set).hasSize(1);
         }
     }
 }

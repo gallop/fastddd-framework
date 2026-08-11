@@ -2240,3 +2240,55 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **`fast-ddd-model` 首个测试模块**：此前 model 模块无 `src/test`；本任务建立（继承 parent 的 `spring-boot-starter-test` test 依赖），后续 ID-003 在此模块持续增补。
 - **`AbstractBaseControllerIdResolutionTest` 使用 MP 内部 API**：`TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), entity)` 为 MyBatis-Plus 公开测试惯用法，无需 Spring 上下文；未来 MP 升级若变更签名需同步（登记）。
 - **下一 M2 任务**：SPLIT-003（抽取稳定 Tooling API，依赖 SPLIT-001 ✅ + ID-001 ✅，已解锁）或 ID-002（领域身份契约与相等性重构，依赖 ID-001 ✅）。按依赖序，ID-002 与 SPLIT-003 均已解锁；ID 链（ID-002→003→004→005→006→007→008）为 M2 主干，建议先推进 ID-002。
+
+### 16.19 ID-002 领域身份契约与相等性重构快照
+
+将领域实体身份契约从"`@Data` 全字段 equals/hashCode + 审计字段混入领域层"重构为"基于稳定身份的轻量 `DomainEntity`"。修复 ID-001 锁定的可变 id 进 hashCode 缺陷；将审计字段/逻辑删除/持久化回调逐出领域基类（下沉持久层，为 ID-003 铺路）。**本任务改生产行为**（领域实体 equals/hashCode 语义变更）。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 新增 `Identifiable<ID>`（步骤1） | `fast-ddd-common/.../domain/Identifiable.java`：可标识契约接口，`ID extends Serializable`，`ID getId()`。框架 SPI 据此以类型化 ID 约束交互（ID-004 收口）。 |
+| 新增 `DomainEntity<ID>`（步骤2/3/6） | `fast-ddd-common/.../domain/DomainEntity.java`：实现 `Identifiable<ID>`，提供**具体** `getId/setId`（子类无需重复实现）；稳定身份 equals——同 id + 同 `getClass()` 才相等，瞬态实体（id null）退化为引用同一性；**hashCode 仅基于 `getClass()`**，持久化回填 id 不改变 hashCode（满足禁止"不让持久化后补 ID 改变 hashCode"）。无审计字段、无 MyBatis/Jackson 注解（满足禁止）。 |
+| `BaseEntity` 降级（步骤3/5） | 改为继承 `DomainEntity` 的兼容门面：移除 `@Data`、`@EqualsAndHashCode`、审计字段（createTime/updateTime/createUser/updateUser）、逻辑删除（deleted）、持久化回调（prePersist/preUpdate）。保留为 `EntityRepository`/`EntityMapper` 泛型上界与 `OrderItem` 继承链的兼容入口。 |
+| `AggregateRoot` 迁移（步骤4/5） | 身份契约经 `BaseEntity`→`DomainEntity` 继承；移除持久化回调覆写（prePersist/preUpdate）与零调用方死 API（removeDomainEvent/hasDomainEvents/getDomainEventCount）；保留 addDomainEvent/getDomainEvents/clearDomainEvents（Order 实际使用）。 |
+| `VersionedEntity`（步骤5） | 移除 prePersist/preUpdate 覆写（引用已删 super）、`@Data`/`@EqualsAndHashCode`；`version` 字段改 `@Getter/@Setter`，不参与 equals/hashCode（身份语义）。该类无具体子类（ID-001 取证：dead）。 |
+| `Order`/`OrderItem` 清理 | 移除 `@EqualsAndHashCode(callSuper=true)`（改为继承稳定身份 equals/hashCode）与冗余显式 `getId/setId`（证明"领域实体无需重复实现 getId/setId"）。 |
+| `OrderId` 值对象（步骤7） | `fastddd-studio/.../rich/order/domain/OrderId.java`：继承既有 `ValueObject`，业务标识（`ORD-` 前缀）值对象示例，构造期校验不变式，值相等性。与 Order 数据库主键 Long 解耦，演示 ID-005 强类型标识方向。 |
+| 模板同步（步骤1-5 连带） | `rich/AggregateRoot.ftl`：`isValid()` 简化为 `return true`（deleted 不再在领域聚合根）；移除冗余 getId/setId。`project/context/AggregateRoot.ftl`：`restore()` 工厂移除 deleted/createTime/updateTime 形参与 setter、移除 LocalDateTime 导入；移除冗余 getId/setId。TemplateRendererTest 仍绿（10/10）。 |
+| 特征测试翻转（步骤8） | `BaseEntityIdentityContractTest` 由 ID-001 的"锁定旧缺陷"改写为"锁定新契约"（14 测试）：空 fixture 继承 getId/setId；同 id+同类相等、瞬态退化同一性、明确类型规则；hashCode 跨 id 赋值稳定；**HashSet 契约恢复**（contains 在回填 id 后仍命中；两同 id 实例塌缩为单一条目）。新增 `OrderIdTest`（studio，7 测试）：不变式校验 + 值相等性。 |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，492 tests / 0 failures / 0 errors / 10 skipped**（较 ID-001 基线 479 +13：identity 测试 8→14、OrderIdTest +7；0 回归，2:55）。
+- 逐模块特征测试：fast-ddd-common `BaseEntityIdentityContractTest` **14/0**、studio `OrderIdTest` **7/0**、templates `TemplateRendererTest` **10/0**、studio `GeneratedProjectCompileTest` **7/0**（端到端生成并编译项目，验证模板改动产出合法 Java）。
+- 取证爆炸半径（ID-001 + 本任务 Explore 扫描）：领域基类仅 `Order extends AggregateRoot<Long>`、`OrderItem extends BaseEntity<Long>` 两个生产子类，均仅在 List 中（无 Set/Map 依赖）；审计字段无生产代码依赖（仅 PO 侧 + 本任务测试）；prePersist/preUpdate/removeDomainEvent/hasDomainEvents/getDomainEventCount 零外部调用方（grep 实证）。
+- `OrderMapper.toPo` 的 `@Mapping(target="createTime",ignore=true)` 等仍合法：target（OrderPO via BasePO）保留审计字段，source（Order）已无——`ignore=true` 与 source 字段是否存在无关。
+- `DomainEntity.equals` 类型规则用 `getClass() != obj.getClass()`：MyBatis-Plus 无实体代理，exact-class 为可预测的明确类型规则；未来引入 ORM 代理需补 canonical-type 策略（登记，非本任务范围）。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 新增 Identifiable<ID> | ✅ | `Identifiable.java` |
+| 步骤2 | 新增轻量 DomainEntity<ID>，只负责稳定身份 | ✅ | `DomainEntity.java`（getId/setId 具体 + 稳定 hashCode + id+class equals） |
+| 步骤3 | 移除 BaseEntity 的 @Data 与全字段 equals/hashCode | ✅ | `BaseEntity` 降级为空门面，equals/hashCode 来自 DomainEntity |
+| 步骤4 | AggregateRoot 迁移到新领域实体基类 | ✅ | 经 BaseEntity→DomainEntity 继承稳定身份契约 |
+| 步骤5 | 审计字段/逻辑删除/持久化回调从领域基类移除 | ✅ | BaseEntity/AggregateRoot/VersionedEntity 三处移除；模板 restore/isValid 同步 |
+| 步骤6 | 定义 ID 创建时机和非空约束 | ✅ | DomainEntity javadoc + isNew + equals 瞬态分支；特征测试 `isNew_reflectsIdPresence`/`equals_transientEntities_notEqualUnlessSameReference` |
+| 步骤7 | 增加 OrderId 值对象示例 | ✅ | `OrderId.java` + `OrderIdTest` 7 测试 |
+| 步骤8 | 验证 HashSet、代理类型和相同 ID 的相等性 | ✅ | StableHashCode/StableIdentityEquality 两组共 10 测试（HashSet 契约恢复、同 id 塌缩、明确类型规则） |
+| 验收 | 领域实体无需重复实现 getId/setId | ✅ | 空 fixture（LongEntity 等）+ Order/OrderItem 移除显式实现均编译并通过 |
+| 验收 | 相等性只基于稳定身份和明确类型规则 | ✅ | DomainEntity.equals：getClass + id；hashCode：getClass（稳定） |
+| 禁止 | 不在 domain 引入 MyBatis/Jackson 注解 | ✅ | DomainEntity/BaseEntity 仅 java.util/jdk + Lombok；无持久化注解 |
+| 禁止 | 不让持久化后补 ID 改变 hashCode | ✅ | hashCode=Objects.hashCode(getClass())，与 id 无关；`hashCode_stableAcrossIdAssignment` 锁定 |
+
+**D. 移交与残留**
+
+- **`BaseEntity` 保留为兼容门面（未 @Deprecated）**：因 `EntityRepository<E extends BaseEntity<ID>>`/`EntityMapper<E extends BaseEntity<?>>` 泛型上界与 `OrderItem extends BaseEntity` 仍引用；强 @Deprecated 会在 reactor 产生跨模块 deprecation 噪声。待 ID-004 将 SPI 上界放宽到 `DomainEntity` 后再正式弃用 BaseEntity（登记）。
+- **`BasePO` 侧同一性等价未统一**：ID-001 §2.5 指出 BasePO 无 `@EqualsAndHashCode` 退化为 Object 同一性，与领域侧新契约仍不对称；属 ID-003（PO 重构）范围，本任务仅在 checklist §2.5 标注领域侧已修复。
+- **hashCode 桶退化取舍**：身份等价性下 hashCode 基于 getClass() 导致同类实体共享桶位（HashSet 退化为同类线性查找）。这是满足 Object 契约（equals⇒hashCode）+ 稳定 hashCode 的必要取舍；领域实体典型用于 List/单一聚合根场景，桶退化可接受。
+- **代理类型处理**：当前 exact-class 规则覆盖 MyBatis-Plus（无代理）；若未来引入 Hibernate 等产生代理子类的 ORM，equals 的 `getClass()` 比较需改为 canonical-type 策略。登记，非本任务。
+- **`VersionedEntity` 仍为 dead code**：本任务仅去持久化回调使其与新基类一致，未移除（保留供未来乐观锁领域实体）。无子类、无调用方。
+- **下一 M2 任务**：ID-003（PO 显式 ID 与审计模型重构，依赖 ID-001 ✅，已解锁）或 ID-004（Repository/Service ID 泛型化，依赖 ID-002 ✅ + ID-003）。按 ID 链依赖序，ID-003 先行（ID-004 需其完成）；SPLIT-003 亦仍解锁可并行。

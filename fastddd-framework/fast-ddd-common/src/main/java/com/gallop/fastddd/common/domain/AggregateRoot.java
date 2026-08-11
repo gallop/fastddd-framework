@@ -6,30 +6,36 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 聚合根基类，提供DDD中聚合根的通用行为
- * 聚合根的职责：
- * 1. 维护聚合的一致性边界
- * 2. 管理领域事件
- * 3. 提供聚合的唯一入口
+ * 聚合根基类，提供 DDD 中聚合根的通用行为。
+ *
+ * <p>身份契约继承自 {@link DomainEntity}（经 {@link BaseEntity} 兼容门面）。聚合根的职责：
+ * <ol>
+ *   <li>维护聚合的一致性边界；</li>
+ *   <li>管理领域事件（{@link #addDomainEvent} / {@link #getDomainEvents} / {@link #clearDomainEvents}）；</li>
+ *   <li>提供聚合的唯一入口。</li>
+ * </ol>
+ *
+ * <p>ID-002 移除了无调用方的 {@code removeDomainEvent}/{@code hasDomainEvents}/{@code getDomainEventCount}
+ * 与持久化回调（{@code prePersist}/{@code preUpdate}）——后者本应是持久层职责。
  *
  * @author gallop
  * @since 2025-08-31
- * @version 1.1.0 - 使用统一的 common.domain.DomainEvent
+ * @version 1.1.0 - 使用统一的 common.domain.DomainEvent；ID-002 收敛身份契约
  */
 public abstract class AggregateRoot<ID extends Serializable> extends BaseEntity<ID> {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 领域事件列表
-     * 使用统一的 common.domain.DomainEvent
+     * 领域事件列表（使用统一的 common.domain.DomainEvent）。
+     * <p>{@code transient}：事件不参与序列化，发布后即清除。
      */
     private final transient List<DomainEvent> domainEvents = new ArrayList<>();
 
     /**
-     * 添加领域事件
+     * 添加领域事件。
      *
-     * @param event 领域事件
+     * @param event 领域事件（{@code null} 忽略）
      */
     protected void addDomainEvent(DomainEvent event) {
         if (event != null) {
@@ -38,16 +44,7 @@ public abstract class AggregateRoot<ID extends Serializable> extends BaseEntity<
     }
 
     /**
-     * 移除领域事件
-     *
-     * @param event 领域事件
-     */
-    protected void removeDomainEvent(DomainEvent event) {
-        this.domainEvents.remove(event);
-    }
-
-    /**
-     * 获取所有领域事件（只读）
+     * 获取所有领域事件（只读视图）。
      *
      * @return 领域事件列表
      */
@@ -56,47 +53,9 @@ public abstract class AggregateRoot<ID extends Serializable> extends BaseEntity<
     }
 
     /**
-     * 清空领域事件
+     * 清空领域事件。
      */
     public void clearDomainEvents() {
         this.domainEvents.clear();
-    }
-
-    /**
-     * 检查是否有领域事件
-     *
-     * @return 如果有领域事件返回true，否则返回false
-     */
-    public boolean hasDomainEvents() {
-        return !this.domainEvents.isEmpty();
-    }
-
-    /**
-     * 获取领域事件数量
-     *
-     * @return 领域事件数量
-     */
-    public int getDomainEventCount() {
-        return this.domainEvents.size();
-    }
-
-    /**
-     * 聚合根创建前的回调
-     * 子类可以重写此方法来添加特定的创建逻辑
-     */
-    @Override
-    public void prePersist() {
-        super.prePersist();
-        // 可以在这里添加聚合根特定的创建逻辑
-    }
-
-    /**
-     * 聚合根更新前的回调
-     * 子类可以重写此方法来添加特定的更新逻辑
-     */
-    @Override
-    public void preUpdate() {
-        super.preUpdate();
-        // 可以在这里添加聚合根特定的更新逻辑
     }
 }
