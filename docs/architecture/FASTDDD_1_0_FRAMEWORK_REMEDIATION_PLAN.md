@@ -1459,6 +1459,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | FRM-002 | ✅ 已完成 | 提交 `test(consumer): 独立消费者测试骨架 + P0-2/P0-4 隔离复现 (FRM-002)` | 新增 `fastddd-consumer-tests` 模块（maven-invoker 3.9.0）；默认 gated `web-*` Passed:2/Failed:0；全量 `-Dinvoker.test=*` Passed:4/Failed:3；monitor-minimal 隔离复现审计 P0-4（详见 §16.3） | `-Pconsumer-tests` 装饰性警告（profile 在子模块非根，已实证实际生效）；3 个 ungated 失败登记到 CACHE-001/EVT/MON-001 |
 | 2026-08-11 | SPLIT-001 | ✅ 已完成 | 提交 `docs(arch): 冻结三层产品边界与依赖方向 ADR (SPLIT-001)` | ADR-005 冻结 Framework/Tooling/Studio 三层边界 + 依赖方向 + 坐标/版本/许可证归属（详见 §16.4） | `fast-ddd-web→fastdoc-core` 反向依赖移交 SPLIT-002；Tooling/Studio 许可证为推荐结论待 OSS-001 终审 |
 | 2026-08-11 | CFG-001 | ✅ 核心完成 | 提交 `docs(cfg): 配置契约清单与错配分析 (CFG-001 步骤1-3)` f04e793；`feat(cfg): fast-ddd.* 旧根启动期 fail-fast guard (步骤6)` 94ef8a4；`feat(cfg): 优先属性类补声明式数值约束 + 绑定期校验单测 (步骤4)` ab187e3 | 配置契约单一事实源（16 前缀/14 类字段/错配分析）；`fast-ddd.*` 旧根启动期 fail-fast guard（fast-ddd-config，经 starter 传递，3 单测）；2 优先类补 `@Validated` 数值约束 + 绑定期校验实证（cache 4 / code 5 用例）（详见 §16.5） | 步骤4 残留扩展：Duration 字段需自定义 `@PositiveDuration`（独立小任务）+ 其余类按需补；步骤5 metadata 快照低优先；未绑定配置（cqrs/event）+ id-type 移交 CFG-002 |
+| 2026-08-11 | CFG-002 | ✅ 已完成 | 提交 `fix(cfg): 修复生成模板配置契约 + 渲染期校验 (CFG-002)` eb3ef0c | 3 生成模板（单项目/多端/archetype）修复：根前缀 `fast-ddd→fastddd`、删除未绑定 cqrs/event、JWT secret 改环境变量、`slow-threshold→slow-query-threshold`、多端 http/cors 嵌套修正、`id-type auto→assign_id`；新增 `ProjectConfigContractTest`（snakeyaml 渲染期键路径契约，3 用例）+ archetype 生成冒烟实证（详见 §16.6） | DB `your_password` 占位符（dev 便利，非功能凭据）保留；event/cqrs 真实绑定待 EVT/ADR-003；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 契约测试（覆盖 ANEMIC/RICH）替代，全组合留 QA-001 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1665,3 +1666,35 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - 移交 **CFG-002**：§3.1 未绑定配置（cqrs/event，archetype 生成死配置）+ §3.4 `id-type: auto` 模板错配，由 CFG-002 从模板/archetype 删除或对接真实绑定。
 - 残留 **CFG-001-step4 扩展**：`Duration` 字段（`ttl`/`resendInterval`/`expireAfterWrite*`/`jwt.expiration`/`refreshExpiration`/`meilisearch.timeout`）无内置 bean-validation 约束，需自定义 `@PositiveDuration` 校验器（独立小任务；`resendInterval` 注意用 `@PositiveOrZero` 语义——测试用 `Duration.ZERO`）；其余约 10 类按需补，不批量加空约束；`JwtProperties.secret` 维持程序式校验（更强，不重复）。
 - 残留 **CFG-001-step5**（低优先）：metadata 快照测试。
+
+### 16.6 CFG-002 生成配置模板修复快照
+
+按 CFG-001 清单（§3.1 未绑定配置、§3.4 id-type）修复全部生成模板的配置契约，并落地渲染期校验。单提交 `eb3ef0c`。
+
+**A. 交付物（3 模板 + 1 测试 + 1 pom）**
+
+- `templates/project/application.yml.ftl`（单项目，FreeMarker）：根前缀、删 cqrs/event、JWT secret 环境变量化、`slow-query-threshold`、`assign_id`。
+- `templates/project/multi-channel/sub-app-application.yml.ftl`（多端，FreeMarker）：根前缀、http/cors 嵌套修正、`assign_id`。
+- `archetype-resources/.../application.yml`（archetype，Velocity）：删 cqrs/event、`slow-query-threshold`。
+- `fastddd-templates`：新增 `ProjectConfigContractTest` + `snakeyaml`（test-scope，BOM 管理版本）。
+
+**B. 命令级证据（2026-08-11）**
+
+- 取证（Explore 子代理）：全仓 6 个配置发射文件，缺陷定位到行——`application.yml.ftl:63` 根前缀、`:74` 固定 secret、`:106` slow-threshold、`:64-67/97-102` 未绑定 cqrs/event；`sub-app:61` 根前缀、`:70/74` http/cors 错嵌套（绑定到不存在的 `fastddd.http/cors`）；archetype `:63` slow-threshold、`:40-44/54-59` 未绑定。
+- id-type 决策：`BasePO` 声明 `@TableId(type=IdType.ASSIGN_ID)`（snowflake），全局 `id-type` 仅影响无注解实体；生成 PO 均继承 BasePO → 已强制雪花。故 `auto→assign_id` 零运行期风险，仅使配置诚实（对齐 CFG-001 §3.4）。
+- wechat-mini 决策：无 `@ConfigurationProperties` 类，但 `WechatMiniAuthStrategy.java.ftl` 经 `@Value("${fastddd.security.wechat-mini.*}")` 绑定（CFG-001 step6 已修）→ 非死配置，保留。
+- 渲染期契约测试（步骤5）：`ProjectConfigContractTest` 3 用例——单项目 RICH 全模块 / 单项目 ANEMIC 最小 / 多端 subApp；SnakeYAML 解析渲染产物遍历键路径，断言无 `fast-ddd.*`、无未绑定 `fastddd.application.*`/`fastddd.event.*`、二级域 ⊆ 白名单、`slow-query-threshold` 存在、JWT secret=`${JWT_SECRET}`、多端 `fastddd.security.http.*`/`fastddd.security.cors.*` 嵌套正确。
+- 生成冒烟（步骤6）：`archetype:generate`（ANEMIC+MYSQL+cache/event/monitor）生成 application.yml 实证无 `fast-ddd`/`slow-threshold`/`cqrs`/`event`（即便 enableEvent=true），`slow-query-threshold` 正确。
+- 静态 grep：3 模板四类缺陷（fast-ddd 根 / slow-threshold / 未绑定 cqrs·event / 固定 JWT secret）全部清零。
+- 门禁：`clean verify -Ptest` 29 模块 SUCCESS；测试 **379 run / 0 failures / 0 errors / 6 skipped**（基线 376 + 本步 3），0 回归。
+
+**C. 验收对照**
+
+- 验收①（模板无 fast-ddd 根/固定 secret/未知配置）：✅ 静态 grep + 渲染契约测试 + 生成冒烟三重实证。
+- 验收②（真实启动配置全部绑定）：✅ 结构性保证——生成的每个 `fastddd.*` 键均落在绑定白名单内（契约测试遍历断言）；`fast-ddd.*` 旧根由 CFG-001 step6 guard 启动期拒绝。
+
+**D. 移交与残留**
+
+- 移交 **EVT/ADR-003**：删除的 `fastddd.event.*`（outbox/async）待 OutboxTransport SPI 决定补真实绑定后再恢复生成。
+- 残留：DB `your_password` 占位符（dev 便利，非功能凭据，prod 模板已用 `${DB_PASSWORD:}`）；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 覆盖 ANEMIC/RICH 的契约测试替代，全组合矩阵留 **QA-001**。
+- 过程教训（已规避）：`archetype:generate` 在 reactor 根目录内生成会回写父 pom `<module>`——后续生成冒烟须用 `-DoutputDirectory` 指向仓库外临时目录（本次已 `git restore pom.xml` 回退误改）。
