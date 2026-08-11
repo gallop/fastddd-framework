@@ -2196,3 +2196,47 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **消费方 harness 密钥保留**：`security-minimal` 的 `fastddd-consumer-test-secret-please-not-use-in-production-…` 为测试 harness 自标识密钥（≥64 字节、不含黑名单片段），保留；该 it 由 FRM-002 harness invocation-skipped（reactor `Skipping invocation per configuration`，见 [[ci-infrastructure]]），故可执行门禁落在模块级 `JwtEnableConditionWiringTest`。
 - **原 `SecurityIntegrationTest` 仍 `@Disabled`**：完整 `@SpringBootTest` Web 上下文加载历史性问题（非 SEC-002 范围）未在本任务修复；其覆盖由切片式 `JwtEnableConditionWiringTest` 承接。恢复完整集成测试登记为后续 QA 跟进。
 - **M1 里程碑完成**：SEC-002 为 M1 最后一项（M1 全部任务 FRM-001/002、SPLIT-001/002、WEB-001、CACHE-001、MON-001/002、EVT-001~004、SEC-001/002 均已交付）。下一里程碑 **M2** 起始任务：**ID-001**（当前行为特征测试与迁移清单，依赖 FRM-001/002 ✅，已解锁），随后 SPLIT-003（依赖 SPLIT-001 ✅ + ID-001）。
+
+### 16.18 ID-001 ID 当前行为特征测试与迁移清单快照
+
+在 ID 类型系统破坏性重构（ID-002 ~ ID-008）前锁定当前依赖面与已知错误行为。本任务为纯 characterization：33 个特征测试刻画现状（含缺陷），并输出框架内部 + 业务系统迁移清单。<b>不改任何生产行为</b>。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 取证扫描（步骤1-2） | Explore agent 全仓扫描：4 个基类契约（`BaseEntity`/`AggregateRoot`/`VersionedEntity`/`BasePO`/`VersionedPO`）、全部子类清单（framework/studio/examples/consumer-tests/tooling 模板）、`Serializable getId()` 强转点 19+1 处、字段隐藏（当前 0 处）、`id-type`/`@TableId` 配置、`AbstractBaseController.resolveId` 推测逻辑、`IdStrategy` codegen 枚举 |
+| BaseEntity 特征测试（步骤3-4） | `BaseEntityIdentityContractTest`（fast-ddd-common，8 测试）：泛型 Long/String/UUID ID 往返；`isNew` 契约；equals 含全字段；**hashCode 随 id 赋值变化（缺陷根因，确定性锁定）**；HashSet 插入后赋 id 物理仍占位（查找契约被破坏的确定性一面） |
+| BasePO 特征测试（步骤3） | `BasePOIdContractTest`（fast-ddd-model，8 测试，首个 model 测试）：`getId()` 返回类型为 `Serializable`（强转根源）；`setId` 接受任意 Serializable（弱类型）；字段级 `@TableId(ASSIGN_ID)` 硬编码（反射断言）；文档/实现漂移；无 `@EqualsAndHashCode` 退化同一性 equals；`VersionedPO.@Version` |
+| resolveId 特征测试（步骤5） | `AbstractBaseControllerIdResolutionTest`（fast-ddd-web，7 测试）：无 Spring 环境，用 MP `TableInfoHelper.initTableInfo` 显式注册实体 TableInfo 后刻画 IdType 分支——ASSIGN_ID/AUTO→`Long`（非数字抛 `IllegalArgumentException`）、INPUT→原始 `String`、无 TableInfo 的 fallback（试 Long 失败回退 String）。每个实体配具体控制器子类使 `resolveEntityClass` 解析到 `args[1]` |
+| IdStrategy 特征测试 | `IdStrategyContractTest`（fastddd-code-generator，10 测试）：`fromCode(null/空白/未知)` 默认 `AUTO`（偏离 BasePO 的 ASSIGN_ID）；IdType 映射（NONE→null）；`isValid` |
+| 迁移清单（步骤6） | `docs/architecture/ID_TYPE_MIGRATION_CHECKLIST.md`：基类契约现状表 + 框架内部 8 类迁移项（强转点 file:line 清单、3 个绕过 BasePO 的独立 `@TableId(AUTO)` 实体、resolveId 混淆、文档漂移、equals/hashCode 缺陷、codegen 默认偏离、模板文档漂移、SerializableTypeHandler 全局绑定）+ 业务系统 6 项自检 + 特征测试矩阵 |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，479 tests / 0 failures / 0 errors / 10 skipped**（较 SEC-002 基线 446 +33：4 个特征测试类；0 回归，2:56）。
+- 特征测试逐模块：fast-ddd-common **8/0**、fast-ddd-model **8/0**、fast-ddd-web **7/0**、fastddd-code-generator **10/0**（合计 33，0 失败）。
+- 取证强转点：grep `\(Long\).*getId()` 全仓 → studio 19 处 + crud 测试 1 处，与迁移清单 §2.1 一致。
+- 取证独立实体：`OutboxEvent.java:32-33`/`AuditLogEntity.java:23-24`/`TableDesignVersion.java:27-28` 均 `@TableId(AUTO) private Long id` 不继承 BasePO。
+- BasePO 硬编码策略：`BasePO.java:40` `@TableId(type = IdType.ASSIGN_ID)`（反射断言锁定）。
+- resolveId IdType 分支：`AbstractBaseController.java:58` `idType == ASSIGN_ID || idType == AUTO` → `Long.parseLong`；`:65` 其余返回 `idStr`；`:68-72` fallback。
+- 不改生产行为：本任务仅新增 4 个测试文件 + 1 个文档，零生产代码改动（git diff 仅 5 个新增文件）。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 扫描 BaseEntity/AggregateRoot/BasePO/VersionedPO 全部子类 | ✅ | 取证子类清单（按模块分组，含模板生成的 extends） |
+| 步骤2 | 扫描 Serializable getId 强转、字段隐藏、TableId、id-type 配置 | ✅ | 取证：强转 19+1 处、字段隐藏 0 处、id-type 配置 5 处 + 字段级覆盖、IdStrategy codegen 枚举 |
+| 步骤3 | Long/AUTO/UUID/String ID 特征测试 | ✅ | BaseEntity（Long/String/UUID 泛型）+ BasePO（Serializable 弱类型）+ resolveId（Long/AUTO/INPUT-String）+ IdStrategy（IdType 映射） |
+| 步骤4 | equals/hashCode 可变问题失败测试 | ✅ | `hashCode_changesWhenIdAssigned` 确定性锁定根因 + HashSet 物理占位测试（注释标缺陷） |
+| 步骤5 | AbstractBaseController IdType 推测边界测试 | ✅ | `AbstractBaseControllerIdResolutionTest` 7 测试覆盖 ASSIGN_ID/AUTO/INPUT/fallback |
+| 步骤6 | 输出框架内部和业务系统迁移清单 | ✅ | `ID_TYPE_MIGRATION_CHECKLIST.md` |
+
+**D. 移交与残留**
+
+- **特征测试为重构安全网**：33 个测试在 ID-002 ~ ID-008 改变行为时会显式失败，届时更新断言即标记行为变化。`hashCode_changesWhenIdAssigned` 等缺陷测试在 ID-002 统一为 id 稳定等价性后将翻转断言。
+- **HashSet 查找失效未做确定性断言**：hashCode 变化后 `contains` 的正确性取决于新旧 hashCode 是否同桶（JVM 哈希实现细节），非可稳定断言的契约；改为锁定根因（hashCode 变化）+ 物理占位（确定性）。ID-002 修复后此项自然消失。
+- **`fast-ddd-model` 首个测试模块**：此前 model 模块无 `src/test`；本任务建立（继承 parent 的 `spring-boot-starter-test` test 依赖），后续 ID-003 在此模块持续增补。
+- **`AbstractBaseControllerIdResolutionTest` 使用 MP 内部 API**：`TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), entity)` 为 MyBatis-Plus 公开测试惯用法，无需 Spring 上下文；未来 MP 升级若变更签名需同步（登记）。
+- **下一 M2 任务**：SPLIT-003（抽取稳定 Tooling API，依赖 SPLIT-001 ✅ + ID-001 ✅，已解锁）或 ID-002（领域身份契约与相等性重构，依赖 ID-001 ✅）。按依赖序，ID-002 与 SPLIT-003 均已解锁；ID 链（ID-002→003→004→005→006→007→008）为 M2 主干，建议先推进 ID-002。
