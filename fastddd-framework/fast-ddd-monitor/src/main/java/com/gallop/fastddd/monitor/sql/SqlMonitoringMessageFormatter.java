@@ -6,7 +6,6 @@ import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import net.logstash.logback.argument.StructuredArguments;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -22,7 +21,6 @@ import java.util.regex.Pattern;
  * @since 2025-01-10
  */
 @Slf4j
-@Component
 public class SqlMonitoringMessageFormatter implements MessageFormattingStrategy {
 
     private SqlMonitoringProperties properties;

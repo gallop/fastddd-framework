@@ -1463,6 +1463,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | SPLIT-002 | ✅ 已完成 | 提交 `refactor(split-002): 移除 Framework 对 FastDoc 反向依赖，FastDoc HTTP 适配上移至 Tooling Starter (SPLIT-002 #38)` 2c1da8a | 新建 `fastddd-fastdoc-spring-boot-starter`（Tooling）；fast-ddd-web 移除 fastdoc-core 依赖 + 删除嵌套 FastDocConfiguration/Controller；框架级源码扫描门禁 `FrameworkLayeringDirectionTest`；fastdoc-minimal 消费者实证装配（详见 §16.7） | 框架子模块 parent=root 致聚合器级 enforcer 无法继承，门禁改用测试级源码扫描（持久 per-submodule enforcer 门禁留 OSS-001）；顺带修正原 web 嵌套配置的 `@ConditionalOnBean(DataSource)` 排序存量缺陷 |
 | 2026-08-11 | WEB-001 | ✅ 已完成 | 提交 `refactor(web-001): 隔离 fast-ddd-web 对 fast-ddd-application 的 optional 硬依赖 (WEB-001 #39)` fad9661 | 新建 `CqrsExceptionAdvice`（@ConditionalOnClass）抽离 CommandValidationException 处理；GlobalExceptionHandler 瘦身为 application-free；web-without-application 特征测试翻转为正向 contextLoads；web-minimal 加强 CqrsExceptionAdvice 装配断言（详见 §16.8） | CommandController/QueryController（abstract）仍 import application 包，属组件扫描 ASM 不触发加载的软耦合（实证可启动）；GlobalExceptionHandlerTest 类名历史遗留未改（行为已验证） |
 | 2026-08-11 | CACHE-001 | ✅ 已完成 | 提交 `fix(cache-001): L1 缓存按 cacheName 命名空间隔离 + Redis 类泄漏修复 (CACHE-001 #40)` 76e34a4 | CacheRegistry 每 cacheName 独占 CaffeineLocalCache（对象级命名空间隔离）；抽离 CacheSyncPublisher 核心接口解除核心层对 RedisCacheSyncListener→MessageListener 的硬引用；新增 CacheNamespaceIsolationTest（5 用例）；cache-minimal 消费者升级为正向验收（详见 §16.9） | Redis 跨节点同步完整集成测试（需 broker）留 QA-001；defaultLocalCache 单例降级为启用标记（内部缓存不再共享）；metrics 层面为空白（模块无指标类，非缺陷） |
+| 2026-08-11 | MON-001 | ✅ 已完成 | 提交 `fix(monitor-001): SqlMonitoringProperties 单一注册 + 移除 @Component/@DependsOn (MON-001 #41)` | 移除 SqlMonitoringAutoConfiguration 的 `@Bean sqlMonitoringProperties()`（P0-4 双注册根因，保留 @EnableConfigurationProperties 单一方式）；SqlMetricsCollector/SqlMonitoringMessageFormatter/SqlMonitoringService 移除 @Component/@Service 刻板注解（消除"组件扫描+AutoConfig"双注册同模式隐患）；移除 @DependsOn 固定 Bean 名；三个 @Bean 补 @ConditionalOnMissingBean；新增 SqlMonitoringAutoConfigurationTest（4 用例 ApplicationContextRunner）；monitor-minimal 翻转为正向验收（详见 §16.10） | MeterRegistry 多候选精细退让（@ConditionalOnSingleCandidate）经实证会令 actuator+prometheus 消费者整体退让、SQL 监控永不装配，故不采用，移交 MON-002；SqlMonitoringController 仍为 @RestController（无 AutoConfig @Bean），暴露链路留 MON-002 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1809,3 +1810,42 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **defaultLocalCache 单例语义变化**：原作共享存储，现仅作启用标记；其内部 Caffeine 实例不再被各 cacheName 使用（ negligible 内存，保留是为维持 `@ConditionalOnProperty(local.enabled)` 门禁与最小 diff）。
 - **metrics 空白（非缺陷）**：模块无任何指标类，命名空间处理在指标层不适用；方案步骤3"统一指标命名空间"对此模块无落点，登记为 N/A。
 - **下一 M1 任务**：MON-001（SQL 监控属性 Bean 修复，FRM-002 已隔离复现 P0-4）。
+
+### 16.10 MON-001 SQL 监控属性 Bean 修复快照
+
+修复 SQL 监控属性 Bean 双注册导致的 `NoUniqueBeanDefinitionException`（审计 P0-4），并清理同模式的双重注册与固定名 `@DependsOn`。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| P0-4 根因修复 | `SqlMonitoringAutoConfiguration` 删除 `@Bean sqlMonitoringProperties()`（与 `@EnableConfigurationProperties(SqlMonitoringProperties.class)` 重复注册的根因）；属性类现仅由 `@EnableConfigurationProperties` 单一方式注册 |
+| 同模式双注册清理 | `SqlMetricsCollector`（删 `@Component`）、`SqlMonitoringMessageFormatter`（删 `@Component`）、`SqlMonitoringService`（删 `@Service`）移除刻板注解——消除"组件扫描 + AutoConfig @Bean"双重注册隐患（业务方宽 `@ComponentScan` 时不再 NoUnique）；三类的 AutoConfig `@Bean` 方法补 `@ConditionalOnMissingBean`（业务自定义时框架退让） |
+| 固定名 DependsOn 移除 | `sqlMonitoringMessageFormatter` 上 `@DependsOn({"sqlMonitoringProperties","sqlMetricsCollector"})` 移除——引用已删除的 `sqlMonitoringProperties` Bean 名且方法签名已声明依赖，Spring 自动排序，固定名引用冗余脆弱 |
+| 单测 | `SqlMonitoringAutoConfigurationTest`（4 用例 ApplicationContextRunner）：单 properties bean 无 NoUnique / 业务自定义 Service 框架退让 / 条件满足时 Bean 图完整 / disabled 时整体退让 |
+| 消费者 | `monitor-minimal`：由 FRM-002 预置 shell 翻转为正向验收——无 NoUnique 启动（context loads + SqlMonitoringService 装配）+ SqlMonitoringProperties 单一实例断言 |
+
+**B. 命令级证据**
+
+- monitor 单测：**14 tests / 0 failures**（4 ApplicationContextRunner + 10 原有 POJO 单测）。
+- **monitor-minimal 翻转**：修复前 Failed（`NoUniqueBeanDefinitionException: expected single matching bean but found 2: sqlMonitoringProperties, fastddd.monitor.sql-...SqlMonitoringProperties`，sqlMetricsCollector bean 装配期）→ 修复后 **Passed:1**（context loads + 单 properties bean 双断言）。
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，0 failures / 0 errors**（+4 新增 ApplicationContextRunner 用例，0 回归）。
+- monitor 模块内 `@Component`/`@Service` 刻板注解 grep：`SqlMonitoringAutoConfiguration` 的 4 个 `@Bean` 对应类**零刻板注解命中**；`@DependsOn` 全模块 grep **零命中**。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| ① | 不再出现 NoUniqueBeanDefinitionException | ✅ | monitor-minimal Passed；ApplicationContextRunner `singlePropertiesBean_noNoUniqueException` 用例 |
+| ② | 最小 monitor 消费者可以启动 | ✅ | monitor-minimal Passed（context loads + SqlMonitoringService 装配） |
+| 步骤2 | SqlMonitoringProperties 只保留一种注册方式 | ✅ | 仅 `@EnableConfigurationProperties`；`@Bean sqlMonitoringProperties()` 已删 |
+| 步骤3 | 移除对固定 Bean 名称的 DependsOn | ✅ | `@DependsOn` 全模块零命中 |
+| 步骤4 | 业务已有配置 Bean 验证退让行为 | ✅ | 三 @Bean 补 `@ConditionalOnMissingBean`；`customSqlMonitoringService_frameworkBacksOff` 用例实证 |
+| 步骤5 | conditions 报告确认 Bean 图 | ✅ | `beanGraphFullyAssembled_whenConditionsMet` + `beanGraphEmpty_whenDisabled` 以 bean 在场性实证条件求值 |
+
+**D. 移交与残留**
+
+- **MeterRegistry 多候选退让未采用 `@ConditionalOnSingleCandidate`**：经 monitor-minimal 消费者实证，fast-ddd-monitor 硬依赖 `micrometer-registry-prometheus` + actuator，消费者 classpath 下 `MeterRegistry` 非单候选（simple + prometheus + composite）；类级加 `@ConditionalOnSingleCandidate(MeterRegistry.class)` 会令整个 SQL 监控在标准消费者下**整体退让、永不装配**（实证：SqlMonitoringService bean 缺席）。而原 P0-4 失败仅源于 SqlMonitoringProperties 双注册，MeterRegistry 注入在标准消费者下可解析。故 MON-001 不改 MeterRegistry 注入契约；多 MeterRegistry 精细退让（业务同时启用 Prometheus + Atlas 等场景）移交 **MON-002**。
+- **SqlMonitoringController 未改**：仍为 `@RestController`（无 AutoConfig `@Bean`），在消费者未 `@ComponentScan` 该包时不装配；暴露/Endpoint 化属 MON-002（"将管理接口改为真正的 Actuator Endpoint"）范畴。
+- **P6Spy 真实 SQL 链路**：MessageFormatter 的 Spring `@Bean` 与 P6Spy 反射实例化的桥接、Endpoint exposure、敏感参数脱敏均为 MON-002 范畴，本次不动。
+- **下一 M1 任务**：EVT-001（本地事件与 Outbox 装配边界，依赖 FRM-001/002 ✅）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）三选一按依赖序推进。

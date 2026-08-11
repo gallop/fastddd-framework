@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- FRM-002 预置场景（ungated）：Monitor 模块空消费者。状态待 MON-001 刻画（审计 P0-4：SQL 监控属性 Bean）。 -->
+<!-- MON-001 验收消费者：Monitor 最小 classpath 启动，SqlMonitoringProperties 单一注册（修复 P0-4 NoUnique）。 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">

@@ -2,8 +2,6 @@ package com.gallop.fastddd.monitor.sql;
 
 import io.micrometer.core.instrument.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 2025-01-10
  */
 @Slf4j
-@Component
 public class SqlMetricsCollector {
 
     private final MeterRegistry meterRegistry;
@@ -31,7 +28,6 @@ public class SqlMetricsCollector {
     private final AtomicLong totalQueries = new AtomicLong(0);
     private final AtomicLong slowQueries = new AtomicLong(0);
 
-    @Autowired
     public SqlMetricsCollector(MeterRegistry meterRegistry, SqlMonitoringProperties properties) {
         this.meterRegistry = meterRegistry;
         this.properties = properties;
