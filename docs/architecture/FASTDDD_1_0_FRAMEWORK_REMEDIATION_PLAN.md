@@ -1464,6 +1464,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | WEB-001 | ✅ 已完成 | 提交 `refactor(web-001): 隔离 fast-ddd-web 对 fast-ddd-application 的 optional 硬依赖 (WEB-001 #39)` fad9661 | 新建 `CqrsExceptionAdvice`（@ConditionalOnClass）抽离 CommandValidationException 处理；GlobalExceptionHandler 瘦身为 application-free；web-without-application 特征测试翻转为正向 contextLoads；web-minimal 加强 CqrsExceptionAdvice 装配断言（详见 §16.8） | CommandController/QueryController（abstract）仍 import application 包，属组件扫描 ASM 不触发加载的软耦合（实证可启动）；GlobalExceptionHandlerTest 类名历史遗留未改（行为已验证） |
 | 2026-08-11 | CACHE-001 | ✅ 已完成 | 提交 `fix(cache-001): L1 缓存按 cacheName 命名空间隔离 + Redis 类泄漏修复 (CACHE-001 #40)` 76e34a4 | CacheRegistry 每 cacheName 独占 CaffeineLocalCache（对象级命名空间隔离）；抽离 CacheSyncPublisher 核心接口解除核心层对 RedisCacheSyncListener→MessageListener 的硬引用；新增 CacheNamespaceIsolationTest（5 用例）；cache-minimal 消费者升级为正向验收（详见 §16.9） | Redis 跨节点同步完整集成测试（需 broker）留 QA-001；defaultLocalCache 单例降级为启用标记（内部缓存不再共享）；metrics 层面为空白（模块无指标类，非缺陷） |
 | 2026-08-11 | MON-001 | ✅ 已完成 | 提交 `fix(monitor-001): SqlMonitoringProperties 单一注册 + 移除 @Component/@DependsOn (MON-001 #41)` | 移除 SqlMonitoringAutoConfiguration 的 `@Bean sqlMonitoringProperties()`（P0-4 双注册根因，保留 @EnableConfigurationProperties 单一方式）；SqlMetricsCollector/SqlMonitoringMessageFormatter/SqlMonitoringService 移除 @Component/@Service 刻板注解（消除"组件扫描+AutoConfig"双注册同模式隐患）；移除 @DependsOn 固定 Bean 名；三个 @Bean 补 @ConditionalOnMissingBean；新增 SqlMonitoringAutoConfigurationTest（4 用例 ApplicationContextRunner）；monitor-minimal 翻转为正向验收（详见 §16.10） | MeterRegistry 多候选精细退让（@ConditionalOnSingleCandidate）经实证会令 actuator+prometheus 消费者整体退让、SQL 监控永不装配，故不采用，移交 MON-002；SqlMonitoringController 仍为 @RestController（无 AutoConfig @Bean），暴露链路留 MON-002 |
+| 2026-08-12 | MON-002 | ✅ 已完成 | 提交 `fix(monitor-002): SQL 监控真实链路闭环 — Spring 管理 JDK DataSource 代理 + 真正 Actuator Endpoint + 脱敏 (MON-002 #43)` | 移除 p6spy 依赖/spy.properties/SqlMonitoringMessageFormatter（双实例根因）/SqlMonitoringController（伪 @RestController）；改为 Spring 管理 JDK `DataSource` 动态代理（BeanPostProcessor 包装 → SqlMonitoringJdbcProxy → SqlMonitoringExecutionRecorder → SqlMetricsCollector → Micrometer）；管理接口转真正 Actuator `@Endpoint(id="sqlmonitoring")` 由 exposure 治理；`log-parameters` 默认 true→false + SqlMaskingUtils 脱敏；monitor 模块 24 用例（6 脱敏 + 5 autoconfig + 1 exposure + 2 集成 + 10 legacy）/ 0 failures；monitor-minimal 翻转为正向验收（真实 SQL → sql.queries.total Micrometer 增长 + DataSource 代理断言 + Endpoint 装配）（详见 §16.12） | 多 DataSource 消费者监控代理不装配（@ConditionalOnSingleCandidate 退让）；ResultSet size 指标未采集（代理不包 ResultSet）；batch 计时为整批；INSERT...VALUES 位置脱敏未覆盖（logParameters 默认 false 兜底） |
 | 2026-08-12 | EVT-001 | ✅ 已完成 | 提交 `fix(evt-001): 移除 EventAutoConfiguration 宽扫描，Outbox 按 mode 门禁 (EVT-001 #42)` | EventAutoConfiguration 移除宽 @ComponentScan（此前覆盖 outbox 子包致 OutboxEventServiceImpl 缺 ObjectMapper 装配失败）；新增 EventProperties（fastddd.event.mode，默认 local）；OutboxEventConfiguration 补 @ConditionalOnProperty(mode=outbox)+@ConditionalOnClass(BaseMapper)+@ConditionalOnBean(DataSource)；OutboxEventServiceImpl 移除 @Service、改 OutboxEventConfiguration 显式 @Bean（service+transactionalEventPublisher）；executor 由通用 taskExecutor→eventTaskExecutor；新增 EventAutoConfigurationBoundaryTest（4 用例）；event-minimal 翻转为无 DB local 模式正向验收（详见 §16.11） | mybatis-plus-spring-boot3-starter 为 fast-ddd-event 硬依赖（非 optional），其 AutoConfig 强制要 DataSource；event-minimal 以 spring.autoconfigure.exclude 刻画"无 DB"消费者，根因依赖边界（mybatis 改 optional）移交 EVT-002；RocketMQ @Component(DLQ/Listener) 注册为既有状态未改；outbox 正向装配端到端留 EVT-002 |
 
 ### 16.1 FRM-000 基线快照
@@ -1895,3 +1896,57 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **RocketMQ @Component 注册（既有状态）**：`DeadLetterQueueHandler`/`RocketMQEventListener` 的 `@Component` 注册为既有行为（原宽扫描 exclude rocketmq，本就未扫到），EVT-001 未改、非回归；是否补显式 `@Bean` 留 EVT-002/003 评估。
 - **@EnableScheduling 全局保留**：EventAutoConfiguration 类级 `@EnableScheduling` 为 RocketMQ outbox 调度所需，EVT-001 保留；调度边界精细化留后续任务。
 - **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）/ MON-002（依赖 MON-001 ✅）/ EVT-002（依赖 EVT-001 ✅，已解锁）按依赖序推进。
+
+### 16.12 MON-002 SQL 监控真实链路闭环快照
+
+修复 MON-001 移交的 p6spy"双实例"根因（MessageFormattingStrategy 经反射实例化绕过 Spring DI，指标记录器字段恒 null，真实 SQL 不产生 Micrometer 指标），改为 **Spring 管理的 JDK `DataSource` 动态代理**，使监控链路成为真实闭环。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 双实例根因清除 | 移除 `fast-ddd-monitor/pom.xml` 的 `p6spy:p6spy:3.9.1` 依赖 + 删除 `spy.properties`（starter 全局生效资源）+ 删除 `SqlMonitoringMessageFormatter`（反射实例化绕过 DI 的缺陷类） |
+| 伪 Controller 清除 | 删除 `SqlMonitoringController`（@RestController 伪 `/actuator/sql-monitoring/**`，无 AutoConfig @Bean，不经 exposure 治理） |
+| Spring 管理 JDK 代理 | 新增 `SqlMonitoringJdbcProxy`（`java.lang.reflect.Proxy` 工厂，wrapDataSource/wrapConnection/wrapStatement；Statement 执行类方法计时，Connection 的 createStatement/prepareStatement/prepareCall 捕获 SQL）+ `SqlMonitoringProxied` 标记接口（代理类加载器以此 CL 为准，兼容平台 CL 的 JDBC 接口）+ `SqlMonitoringExecutionRecorder`（普通 Spring bean，record(sql,elapsed,url,success,err,rows) → metricsCollector + 脱敏结构化日志） |
+| BeanPostProcessor | 新增 `SqlMonitoringDataSourcePostProcessor`（构造仅取 `ConfigurableListableBeanFactory` 早期可用，Recorder 双检锁惰性解析；`postProcessAfterInitialization` 包装非已代理的 DataSource；`getOrder()`=LOWEST_PRECEDENCE） |
+| 真正 Actuator Endpoint | 新增 `SqlMonitoringEndpoint`（`@Endpoint(id="sqlmonitoring")`：`@ReadOperation` 输出 statistics+config+health，`@WriteOperation` 配置 enabled/prometheus/elk/slowQuery/reset）；由 `management.endpoints.web.exposure.include` 治理，默认 health-only 不可访问 |
+| 默认关参数 + 脱敏 | `SqlMonitoringProperties.logParameters` 默认 true→false（Javadoc 注明）；新增 `SqlMaskingUtils.mask`（password/passwd/pwd/secret/token/api_key/access_key/credential/private_key/authorization 的赋值与 IN 列表正则脱敏为 `***`）；仅 `logParameters=true` 时日志携带 SQL 文本且经脱敏，**Micrometer 指标不含 SQL 文本** |
+| 重置能力 | `SqlMetricsCollector.reset()` + `SqlMonitoringService.resetStatistics()` + Endpoint `@WriteOperation(reset=true)` 三路复位 |
+| autoconfig 重构 | `SqlMonitoringAutoConfiguration` 改 `@AutoConfiguration @AutoConfigureAfter(DataSourceAutoConfiguration) @ConditionalOnClass({MeterRegistry,DataSource}) @ConditionalOnProperty(matchIfMissing=true)`；@Bean：collector/recorder/service/endpoint（均 @ConditionalOnMissingBean）+ 静态 `sqlMonitoringDataSourcePostProcessor`（`@ConditionalOnSingleCandidate(DataSource) @ConditionalOnBean(recorder)`） |
+| 日志路由 | logback-spring.xml / logback-elk.xml / application-sql-monitoring.yml：`p6spy` logger → `com.gallop.fastddd.monitor.sql` |
+| 单测 | `SqlMaskingUtilsTest`（6 用例）/ `SqlMonitoringAutoConfigurationTest`（5 用例 ApplicationContextRunner，含无 DataSource 退让 + 自定义 Service 退让 + 禁用空 Bean 图）/ `SqlMonitoringIntegrationTest`（2 用例）/ `SqlMonitoringExposureEnabledTest`（1 用例，包私有 MockMvc） |
+| 消费者 | `monitor-minimal`：补 `spring-boot-starter-jdbc`（DataSourceAutoConfiguration 需 HikariCP+spring-jdbc 才创建 DataSource bean）；5 用例——MON-001 回归（contextLoads + 单一 Properties Bean）+ MON-002 真实链路（DataSource 代理断言 + 真实 SQL→Micrometer 指标增长 + Endpoint 装配） |
+
+**B. 命令级证据**
+
+- monitor 模块单测：**24 tests / 0 failures**（6 脱敏 + 5 autoconfig + 1 exposure-enabled + 2 集成 + 10 legacy）。
+- **monitor-minimal 翻转**：修复前真实 SQL 不产生指标（p6spy 双实例）→ 修复后 **Passed:1**（5 用例全绿，含 `realSql_producesMicrometerMetrics` 断言真实 H2 SQL 后 `sql.queries.total` ≥ +3）。
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，0 failures / 0 errors**（0 回归）。
+- 源码 grep：`p6spy`/`spy.properties`/`SqlMonitoringMessageFormatter`/`SqlMonitoringController` **零源码命中**（仅 README/yml/logback 注释与 Java Javadoc 解释迁移历史，保留作可追溯性说明）。
+- JDK Proxy 类加载器坑实证：初用 `DataSource.class.getClassLoader()`（平台 CL，因 `javax.sql.DataSource` 属 java.sql 模块）→ `SqlMonitoringProxied referenced from a method is not visible from class loader: 'platform'`；改用 `SqlMonitoringProxied.class.getClassLoader()`（应用 CL 兼见两者）解决。
+- 代理接口完整性实证：Statement 代理初仅实现 `Statement.class` → `(PreparedStatement) conn.prepareStatement(...)` ClassCastException；改 `proxyInterfaces(target)` 递归收集目标全部接口 + 追加标记接口（覆盖 PreparedStatement/CallableStatement/Wrapper/AutoCloseable）解决。
+- datasource-proxy 库方案：本环境 API 核验受阻（Context7/zread/raw-GitHub 均报错），方案本就允许"Spring-managed DataSource Proxy"，故采手写 JDK 代理。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 决定 Spring 管理 DataSource Proxy 或可靠 P6Spy bridge | ✅ | 选 Spring 管理 JDK DataSource 动态代理（p6spy 双实例不可靠，datasource-proxy API 核验受阻） |
+| 步骤2 | 移除/显式化 starter 全局 spy.properties | ✅ | spy.properties 已删 + p6spy 依赖移除，源码 grep 零命中 |
+| 步骤3 | 管理接口改真正 Actuator Endpoint | ✅ | `@Endpoint(id="sqlmonitoring")` + @ReadOperation/@WriteOperation |
+| 步骤4 | 接入 exposure 和权限控制 | ✅ | 默认 health-only 不可访问；`SqlMonitoringExposureEnabledTest`：未 include→404 / include=sqlmonitoring→200 |
+| 步骤5 | 默认关闭 SQL 参数明文 | ✅ | `logParameters` 默认 false；指标不含 SQL 文本 |
+| 步骤6 | 真实 SQL 断言指标与慢查询记录 | ✅ | `realSql_producesMicrometerMetrics`（模块集成测 + 消费者双断言 sql.queries.total/sql.execution.time Timer/sql.operations.total Counter） |
+| 步骤7 | 密码/Token/敏感字段脱敏测试 | ✅ | `SqlMaskingUtilsTest`（6 用例：单引号 password / 大小写多键 / api_key+authorization / IN 列表 / 非敏感保留 / null 安全） |
+| 验收① | 真实 SQL 能产生 Micrometer 指标 | ✅ | monitor-minimal + 模块集成测双证 |
+| 验收② | 未暴露 Endpoint 时不可访问 | ✅ | ExposureEnabledTest 未 include→404 |
+| 验收③ | 默认日志不包含敏感参数 | ✅ | logParameters 默认 false；启用时经 SqlMaskingUtils.mask |
+
+**D. 移交与残留**
+
+- **多 DataSource 消费者（未覆盖）**：`@ConditionalOnSingleCandidate(DataSource.class)` 在多候选场景整体退让，监控代理不装配。多数据源逐库代理化（含 RoutingDataSource）留后续任务；本任务仅刻画单候选主路径真实闭环。
+- **ResultSet size 指标未采集**：JDK 代理当前包装 DataSource/Connection/Statement，未包装 ResultSet，故 `sql.resultset.size` 分布指标本任务不产生；ResultSet 包装（影响大、需处理游标生命周期）留后续任务。
+- **Batch 计时为整批**：`executeBatch`/`executeLargeBatch` 计时为整批耗时，非逐条；逐条 batch 指标留后续。
+- **INSERT...VALUES 位置脱敏未覆盖**：SqlMaskingUtils 覆盖 `key=value`/`key IN (...)` 命名脱敏，INSERT 位置参数（VALUES 第 N 个 `?`）未按列名脱敏；以 `logParameters` 默认 false 兜底，仅显式启用日志时依赖命名脱敏。
+- **datasource-proxy 库替代**：本环境 API 核验受阻故采手写 JDK 代理；若后续环境可核验，datasource-proxy（成熟、覆盖 ResultSet）可作为增强替代项评估。
+- **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）/ EVT-002（依赖 EVT-001 ✅，已解锁）/ EVT-003（依赖 EVT-002）按依赖序推进。

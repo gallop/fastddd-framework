@@ -81,8 +81,8 @@
             <appender-ref ref="SLOW_QUERY"/>
         </logger>
 
-        <!-- P6Spy日志 -->
-        <logger name="p6spy" level="INFO" additivity="false">
+        <!-- SQL 监控结构化日志（MON-002：由 SqlMonitoringExecutionRecorder 通过此 logger 输出，替代原 P6Spy） -->
+        <logger name="com.gallop.fastddd.monitor.sql" level="INFO" additivity="false">
             <appender-ref ref="SQL_MONITORING"/>
         </logger>
 

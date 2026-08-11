@@ -51,8 +51,8 @@ micrometer:
 # 日志配置
 logging:
   level:
-    com.gallop.fastddd.monitor.sql: DEBUG
-    p6spy: INFO
+    # MON-002：SQL 监控结构化日志由 SqlMonitoringExecutionRecorder 经此 logger 输出（替代原 P6Spy）
+    com.gallop.fastddd.monitor.sql: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

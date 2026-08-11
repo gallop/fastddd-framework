@@ -49,13 +49,6 @@
             <version>3.1.8</version>
         </dependency>
         
-        <!-- P6Spy for SQL Interception -->
-        <dependency>
-            <groupId>p6spy</groupId>
-            <artifactId>p6spy</artifactId>
-            <version>3.9.1</version>
-        </dependency>
-        
         <!-- Logstash Logback Encoder for JSON Logging -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
@@ -106,7 +99,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        
+
+        <!-- MON-002: 嵌入式 Web 容器用于 Actuator Endpoint exposure 真实链路测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- MON-002: H2 用于真实 SQL → Micrometer 指标闭环测试 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

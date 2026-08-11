@@ -25,9 +25,11 @@ public class SqlMonitoringProperties {
     private long slowQueryThreshold = 1000L;
 
     /**
-     * 是否记录SQL参数
+     * 是否在结构化日志中输出 SQL 文本（已脱敏）。
+     * <p>MON-002：默认关闭——即便开启，SQL 文本亦经 {@code SqlMaskingUtils} 敏感参数脱敏，
+     * 满足"默认日志不包含敏感参数"。指标记录不依赖此开关（指标仅按操作类型聚合，不含 SQL 文本）。
      */
-    private boolean logParameters = true;
+    private boolean logParameters = false;
 
     /**
      * 是否记录查询结果集大小

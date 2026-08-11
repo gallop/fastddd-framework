@@ -75,8 +75,7 @@ public class SqlMonitoringService {
      */
     public void resetStatistics() {
         log.info("Resetting SQL monitoring statistics");
-        // 这里可以添加重置逻辑，如果需要的话
-        // 目前使用AtomicLong，可以考虑添加重置方法
+        metricsCollector.reset();
     }
 
     /**

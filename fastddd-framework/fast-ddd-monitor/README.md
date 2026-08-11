@@ -7,7 +7,7 @@ FastDDD SQL监控模块提供了全面的SQL执行监控、性能分析和可视
 ## 功能特性
 
 ### 🔍 SQL执行监控
-- **实时SQL拦截**: 基于P6Spy实现零侵入式SQL拦截
+- **实时SQL拦截**: 基于 Spring 管理的 JDK `DataSource` 动态代理实现零侵入式 SQL 拦截（MON-002，取代早期 P6Spy 方案）
 - **执行时间统计**: 记录每个SQL的执行时间和性能指标
 - **慢查询检测**: 自动识别和记录超过阈值的慢查询
 - **操作类型分析**: 按SELECT、INSERT、UPDATE、DELETE分类统计
@@ -156,35 +156,21 @@ curl -X POST http://localhost:8080/actuator/sql-monitoring/disable
 | `exclude-patterns` | List<String> | [] | SQL排除模式 |
 | `include-patterns` | List<String> | [".*"] | SQL包含模式 |
 
-### P6Spy配置
+### SQL 拦截机制（MON-002）
 
-监控模块使用P6Spy进行SQL拦截，相关配置在`spy.properties`中：
+监控模块通过 **Spring 管理的 JDK `DataSource` 动态代理** 拦截真实 SQL 执行，不再依赖 P6Spy：
 
-```properties
-# 模块列表
-modulelist=com.p6spy.engine.spy.P6SpyFactory,com.p6spy.engine.logging.P6LogFactory
+- `SqlMonitoringDataSourcePostProcessor`（`BeanPostProcessor`）在容器刷新时包装主 `DataSource`，
+  使其返回的 `Connection`/`Statement` 经 `SqlMonitoringJdbcProxy` 代理；
+- 代理在 `Statement` 的执行类方法（`execute`/`executeQuery`/`executeUpdate`/`executeBatch` 等）
+  上计时，回调 `SqlMonitoringExecutionRecorder` → `SqlMetricsCollector` 记录 Micrometer 指标
+  与脱敏结构化日志；
+- 装配条件：`@ConditionalOnSingleCandidate(DataSource.class)`——仅单候选 `DataSource` 消费者生效；
+  多数据源场景监控代理不装配（留后续任务）。
 
-# 自定义消息格式化器
-customLogMessageFormat=com.gallop.fastddd.monitor.sql.SqlMonitoringMessageFormatter
-
-# 日志级别
-logLevel=info
-
-# 日期格式
-dateformat=yyyy-MM-dd HH:mm:ss
-
-# 是否包含类别
-includecategories=true
-
-# 执行时间阈值(毫秒)
-executionThreshold=0
-
-# 启用SQL语句日志
-logStatements=true
-
-# 启用预处理语句参数日志
-logPreparedStatements=true
-```
+与早期 P6Spy 方案的区别：P6Spy 经反射实例化 `MessageFormattingStrategy`，绕过 Spring 依赖注入，
+导致指标记录器字段为 null（"双实例"缺陷，SQL 指标恒不记录）。JDK 代理方案下记录器是普通 Spring bean，
+依赖注入完整，真实 SQL 即可产生 Micrometer 指标。
 
 ### 日志配置
 
@@ -237,8 +223,9 @@ SQL监控模块经过优化，对应用性能影响极小：
 ### 常见问题
 
 1. **监控不生效**
-   - 检查`fast-ddd.sql-monitoring.enabled`是否为true
-   - 确认P6Spy配置文件`spy.properties`在classpath中
+   - 检查`fastddd.monitor.sql.enabled`是否为true
+   - 确认主 `DataSource` 为单候选（`@ConditionalOnSingleCandidate(DataSource.class)`——多数据源消费者监控代理不装配）
+   - 确认 `spring-boot-starter-jdbc`（或等价 JDBC 起步依赖）在 classpath，否则 Spring Boot 不会创建 `DataSource` bean
    - 查看启动日志是否有错误信息
 
 2. **指标不显示**
@@ -259,7 +246,6 @@ SQL监控模块经过优化，对应用性能影响极小：
 logging:
   level:
     com.gallop.fastddd.monitor.sql: DEBUG
-    com.p6spy: DEBUG
 ```
 
 ## 扩展开发
@@ -279,22 +265,23 @@ public class CustomSqlMetricsCollector implements SqlMetricsCollector {
 }
 ```
 
-### 自定义日志格式
+### 自定义记录/日志行为
 
-继承`SqlMonitoringMessageFormatter`自定义日志格式：
+提供自定义 `SqlMonitoringExecutionRecorder` bean 覆盖默认记录/日志行为
+（自动配置 `@ConditionalOnMissingBean` 会退让）：
 
 ```java
-@Component
-public class CustomMessageFormatter extends SqlMonitoringMessageFormatter {
-    
-    @Override
-    public String formatMessage(int connectionId, String now, long elapsed, 
-                               String category, String prepared, String sql, String url) {
-        // 自定义格式化逻辑
-        return super.formatMessage(connectionId, now, elapsed, category, prepared, sql, url);
-    }
+@Bean
+public SqlMonitoringExecutionRecorder customRecorder(SqlMetricsCollector collector,
+                                                     SqlMonitoringProperties properties) {
+    return new SqlMonitoringExecutionRecorder(collector, properties) {
+        // 覆写 record(...) 以自定义指标/日志行为
+    };
 }
 ```
+
+> 注：MON-002 移除了早期基于 P6Spy 的 `SqlMonitoringMessageFormatter`（反射实例化绕过
+> Spring DI 的"双实例"缺陷）。如需自定义 SQL 文本脱敏规则，扩展 `SqlMaskingUtils`。
 
 ## 版本历史
 

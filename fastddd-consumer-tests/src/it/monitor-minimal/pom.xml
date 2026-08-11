@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MON-001 验收消费者：Monitor 最小 classpath 启动，SqlMonitoringProperties 单一注册（修复 P0-4 NoUnique）。 -->
+<!-- Monitor 消费者：MON-001 回归（P0-4 单一注册）+ MON-002 真实链路闭环（代理 DataSource → 真实 SQL → Micrometer 指标）。 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -35,6 +35,11 @@
     <dependency>
       <groupId>com.gallop.fastddd</groupId>
       <artifactId>fast-ddd-monitor</artifactId>
+    </dependency>
+    <!-- JDBC starter：DataSourceAutoConfiguration 依赖 HikariCP + spring-jdbc 才能创建 DataSource
+         （MON-002 真实链路需要可注入的 DataSource 供监控代理包装）。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope>

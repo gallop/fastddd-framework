@@ -191,6 +191,18 @@ public class SqlMetricsCollector {
     }
 
     /**
+     * 重置查询/慢查询计数（MON-002）。
+     *
+     * <p>仅清零本收集器维护的 {@link AtomicLong} 计数器；已注册到 {@link MeterRegistry} 的
+     * Gauge 会即时反映新值。Micrometer 的 Timer/Counter/DistributionSummary 为累计型，
+     * 无法按实例重置——这是 Micrometer 的既有语义，非本框架缺陷。
+     */
+    public void reset() {
+        totalQueries.set(0);
+        slowQueries.set(0);
+    }
+
+    /**
      * SQL统计信息
      */
     @lombok.Builder
