@@ -2458,3 +2458,37 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **`SerializableTypeHandler` 移除 = ID-006**：ID-005 消除了 `resolveId`，`SerializableTypeHandler`（MyBatis 类型处理器，历史为 `Serializable` 主键服务）随之可在 ID-006 安全移除。
 - **`SysRoleService`/`SysUserService` MP-IService**：安全模块独立性，仍不接入 FastDDD `IService`/`IdCodec`，登记不在 ID 链范围。
 - **下一任务**：ID-006（移除 `SerializableTypeHandler`，依赖 ID-005 ✅ 已解锁）；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）亦仍解锁可并行。
+
+### 16.23 ID-006 移除 SerializableTypeHandler 死代码快照
+
+移除 `fast-ddd-crud/.../handler/SerializableTypeHandler.java`——历史上为 `BasePO.id`（`Serializable` 弱类型）能往返存活而全局注册的 MyBatis TypeHandler。ID-003/004 将主键具体类型化（`BasePO<Long/String/UUID>`）后，MyBatis-Plus 按实际 `ID` 选用内置 TypeHandler，该全局 handler 对主键读写已失效（"死代码"）。ID-006 取证确认无非-id 消费面后安全移除，完成 ID-001 §2.8 登记的"框架内部迁移"收尾项。
+
+**A. 取证（移除前）**
+
+| 取证项 | 证据 |
+|---|---|
+| 注册机制 | 唯一注册点 = `FastDddCrudAutoConfiguration.serializableTypeHandlerCustomizer()`（`@Bean ConfigurationCustomizer`，`hasTypeHandler(Serializable.class)` 守卫后 `register(Serializable.class, new SerializableTypeHandler())`）。全仓 `grep type-handlers-package` 零命中——`@MappedTypes(Serializable.class)` 注解惰性（无包扫描则不生效）。 |
+| 消费面 | 全仓 `grep "^\s*(private\|protected\|public)\s+Serializable\s+\w+"`（model/entity/PO）**零 `Serializable` 型字段**——仅命中 handler 自身方法签名。ID-003/004 后所有 `BasePO.id` 具体类型化。 |
+| 测试 | 全仓 `grep SerializableTypeHandler` 测试目录**零命中**——无测试直接依赖。 |
+
+**B. 改动**
+
+| 改动 | 证据 |
+|---|---|
+| 删除 handler | `fast-ddd-crud/.../handler/SerializableTypeHandler.java` 删除（`@MappedTypes(Serializable.class)` + `BaseTypeHandler<Serializable>` 委托 `rs.getObject()`）。 |
+| 移除 @Bean | `FastDddCrudAutoConfiguration`：删除 `serializableTypeHandlerCustomizer()`；随之移除 3 个失效 import（`ConfigurationCustomizer`、`SerializableTypeHandler`、`java.io.Serializable`）。 |
+| 文档 | `BasePO.java:16-18` javadoc 由"不再依赖框架全局注册的 SerializableTypeHandler"改为"历史上注册的 SerializableTypeHandler 已在 ID-006 移除"。 |
+
+**C. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 30/30 SUCCESS
+→ Tests: 527 / 0 Failures / 0 Errors / 10 Skipped（与 ID-005 基线一致，0 回归）
+→ CRUD 模块 H2 集成测试（ComprehensiveIntegrationTest 等）全绿——经验证 handler 为死代码
+```
+
+**D. 登记与遗留**
+
+- **MyBatis 默认回退**：即使未来出现 `Serializable` 型字段，MyBatis 对未注册类型回退到 `UnknownTypeHandler`（同样委托 `rs.getObject()`），行为等价；当前无此字段，回退路径不触发。
+- **下一任务**：ID-007（模板/插件/Archetype/Studio 迁移，依赖 ID-006 ✅ + SPLIT-004）；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）+ SPLIT-004（依赖 SPLIT-003 + ID-006 ✅）均已解锁可并行。ID 链核心代码迁移（ID-001~006）至此收尾，剩余为生成生态消费面迁移。

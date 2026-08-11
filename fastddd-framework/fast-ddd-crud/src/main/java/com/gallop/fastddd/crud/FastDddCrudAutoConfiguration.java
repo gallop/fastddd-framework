@@ -1,9 +1,7 @@
 package com.gallop.fastddd.crud;
 
-import com.baomidou.mybatisplus.autoconfigure.ConfigurationCustomizer;
 import com.baomidou.mybatisplus.core.injector.ISqlInjector;
 import com.gallop.fastddd.crud.handler.AutoFillMetaObjectHandler;
-import com.gallop.fastddd.crud.handler.SerializableTypeHandler;
 import com.gallop.fastddd.crud.injector.FastDddSqlInjector;
 import com.gallop.fastddd.crud.provider.CurrentUserProvider;
 import com.gallop.fastddd.crud.provider.DefaultCurrentUserProvider;
@@ -11,8 +9,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
-
-import java.io.Serializable;
 
 /**
  * FastDDD CRUD模块的自动配置。
@@ -64,13 +60,4 @@ public class FastDddCrudAutoConfiguration {
         return new FastDddSqlInjector();
     }
 
-    @Bean
-    public ConfigurationCustomizer serializableTypeHandlerCustomizer() {
-        return configuration -> {
-            if (!configuration.getTypeHandlerRegistry().hasTypeHandler(Serializable.class)) {
-                configuration.getTypeHandlerRegistry().register(Serializable.class, new SerializableTypeHandler());
-            }
-        };
-    }
-    
 }

@@ -14,8 +14,8 @@ import java.io.Serializable;
  *   <li>主键 Java 类型由类型参数 <b>{@code ID}</b> 决定（{@code ID extends Serializable}），
  *       不再是 {@code Serializable} 弱类型——消费方无需 {@code (Long) po.getId()} 强转。
  *       MyBatis-Plus 按实际 {@code ID} 类型选择内置 TypeHandler（{@code Long}→{@code LongTypeHandler}、
- *       {@code UUID}→{@code UuidTypeHandler}、{@code String}→原生），不再依赖框架全局注册的
- *       {@code SerializableTypeHandler}（满足 ID-003 验收"不需要 SerializableTypeHandler 才能读取主键"）。</li>
+ *       {@code UUID}→{@code UuidTypeHandler}、{@code String}→原生）。历史上框架为 {@code Serializable}
+ *       弱类型主键全局注册的 {@code SerializableTypeHandler} 已在 ID-006 移除——强类型主键不再需要它。</li>
  *   <li><b>不</b>在字段上声明 {@code @TableId}：主键生成策略交由 MyBatis-Plus 全局配置
  *       {@code mybatis-plus.global-config.db-config.id-type}（框架默认 {@code assign_id} 雪花）。
  *       这修复了 ID-001/ADR-001 指出的"字段级 {@code @TableId(ASSIGN_ID)} 覆盖全局配置、文档却声称
