@@ -31,7 +31,7 @@ on:
         value: ${{ jobs.maven-build.outputs.test-results }}
 
 env:
-  MAVEN_OPTS: '-Xmx2048m -XX:MaxPermSize=512m'
+  MAVEN_OPTS: '-Xmx2048m -XX:MaxMetaspaceSize=512m'
   MAVEN_CLI_OPTS: '--batch-mode --errors --fail-at-end --show-version'
 
 jobs:
