@@ -55,7 +55,24 @@ public class OutboxEventStatistics {
      * 超过最大重试次数的失败事件数量
      */
     private long failedExceedingMaxRetriesCount;
-    
+
+    /**
+     * 死信事件数量（EVT-004 步骤6 可观测性）。
+     *
+     * <p>EVT-002 引入显式 {@code DEAD_LETTER} 终态后，死信不再停留于 FAILED——
+     * 独立计数以支撑死信积压告警与人工干预清单。{@code failedExceedingMaxRetriesCount}
+     * 为过渡期保留字段（历史 FAILED+超限查询），逐步由本字段取代。
+     */
+    private long deadLetterCount;
+
+    /**
+     * 平均投递延迟（毫秒，EVT-004 步骤6 可观测性）。
+     *
+     * <p>已发布事件 {@code created_at → published_at} 的平均值（秒粒度经 SQL 聚合后换算为毫秒）。
+     * 持续上升表明 dispatcher 投递能力落后于事件产生速率（积压）。无已发布事件时为 {@code null}。
+     */
+    private Long averagePublishLatencyMillis;
+
     /**
      * 统计时间
      */
@@ -115,20 +132,20 @@ public class OutboxEventStatistics {
     
     /**
      * 是否有需要关注的问题
-     * 如果失败率超过10%或有超过最大重试次数的事件，则需要关注
+     * 如果失败率超过10%或有死信事件，则需要关注
      */
     public boolean hasIssues() {
-        return getFailureRate() > 10.0 || failedExceedingMaxRetriesCount > 0;
+        return getFailureRate() > 10.0 || deadLetterCount > 0;
     }
-    
+
     /**
      * 获取健康状态描述
      */
     public String getHealthStatus() {
-        if (failedExceedingMaxRetriesCount > 0) {
-            return "严重：有事件超过最大重试次数";
+        if (deadLetterCount > 0 || failedExceedingMaxRetriesCount > 0) {
+            return "严重：有死信事件需人工干预 (deadLetter=" + deadLetterCount + ")";
         }
-        
+
         double failureRate = getFailureRate();
         if (failureRate > 20.0) {
             return "警告：失败率过高 (" + String.format("%.1f", failureRate) + "%)";
@@ -140,14 +157,15 @@ public class OutboxEventStatistics {
             return "正常";
         }
     }
-    
+
     @Override
     public String toString() {
         return String.format(
             "OutboxEventStatistics{" +
-            "总计=%d, 待处理=%d, 处理中=%d, 已发布=%d, 失败=%d, 已取消=%d, " +
-            "成功率=%.1f%%, 失败率=%.1f%%, 健康状态='%s', 统计时间=%s}",
+            "总计=%d, 待处理=%d, 处理中=%d, 已发布=%d, 失败=%d, 已取消=%d, 死信=%d, " +
+            "平均延迟=%s ms, 成功率=%.1f%%, 失败率=%.1f%%, 健康状态='%s', 统计时间=%s}",
             totalCount, pendingCount, processingCount, publishedCount, failedCount, cancelledCount,
+            deadLetterCount, averagePublishLatencyMillis,
             getSuccessRate(), getFailureRate(), getHealthStatus(), statisticsTime
         );
     }

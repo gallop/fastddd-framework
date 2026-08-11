@@ -2056,3 +2056,48 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **乐观锁竞态下 markAsPublished/markAsFailed 返回值未校验（既有）**：reclaim 重置 PROCESSING→PENDING→重 claim（version 自增）后，原 dispatcher 的迟到 markAsPublished 经 @Version 乐观锁 updateById 命中 0 行，但 markAsPublished 仍 return true（EVT-002 实现）。属 at-least-once 可接受语义（事件已被重投递处理），返回值收紧登记 **1.1** 小优化。
 - **mybatis-plus 仍硬依赖**：`fast-ddd-event` 的 mybatis-plus-spring-boot3-starter 仍硬依赖（EVT-001/002 同根因），local 无 DB 消费者仍需 spring.autoconfigure.exclude。依赖边界收紧（mybatis 改 optional 或 outbox 拆独立模块）留独立 SPLIT 评估。
 - **下一 M1 任务**：EVT-004（依赖 EVT-003 ✅，已解锁——多实例可靠性验证）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）按依赖序推进。
+
+### 16.15 EVT-004 Outbox 多实例可靠性验证快照
+
+在 EVT-003 契约之上，从两个维度实证多实例可靠性：(1) **不依赖基础设施的确定性竞争测试**——用 `synchronized` 内存仲裁者忠实体现 FOR UPDATE 串行化契约，配合 barrier/latch + 可控时钟稳定复现两 dispatcher 同时 claim、崩溃恢复、重投递幂等；(2) **MySQL Testcontainers 真实 DB 竞争**——InnoDB 行锁/FOR UPDATE 的真实并发行为。同时补齐可观测性（死信计数 + 投递延迟）并产出运维说明与可靠性缺口清单。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 确定性竞争测试（无基础设施） | `OutboxDispatcherConcurrencyTest`（4 用例）：两 dispatcher 经 `CyclicBarrier` 同时 dispatch→并集=全集、无重复投递（步骤3）；崩溃（claim 不 ack）→推进时钟过 lease→reclaim 回 PENDING→新 dispatcher 重投递（步骤4）；transport 失败重试单 claim 单 send、跨周期 at-least-once（步骤5）；重试耗尽→死信终态不再投递。仲裁者 `InMemoryOutboxEventService`：`synchronized` 原子 claimBatch 忠实体现实服务 FOR UPDATE 串行化，无随机 sleep、无 DB、无 MQ |
+| MySQL 真实竞争测试 | `OutboxMultiInstanceMysqlTest`（3 用例，Docker 门控）：4 线程并发 claimBatch 抢占 30 事件→InnoDB FOR UPDATE 串行化、并集=30、PENDING=0（步骤2/3）；崩溃 lease 恢复真实 SQL 路径（步骤4）；FAILED 可重试事件下轮重新抢占（步骤5）。`@EnabledIfSystemProperty(fastddd.test.docker=true)` 门控，CI 无 Docker 时休眠 |
+| 可观测性指标（步骤6） | `OutboxEventStatistics` 新增 `deadLetterCount`（死信独立计数，EVT-002 DEAD_LETTER 终态此前漏计，现已纳入 totalCount）+ `averagePublishLatencyMillis`（已发布事件 created_at→published_at 平均延迟）；Repository 新增 `selectAveragePublishLatencySeconds`（`TIMESTAMPDIFF(SECOND,...)` H2/MySQL 均支持）；`getStatistics()` 填充两新字段；`hasIssues()`/`getHealthStatus()` 以死信计数为"严重需人工干预"判据 |
+| 指标验证测试 | `OutboxEventIntegrationTest#statistics_reportsBacklogFailureDeadLetterAndLatency`（H2 真实 SQL）：断言死信计数、平均延迟非空、totalCount 含死信、hasIssues 命中 |
+| 运维说明与缺口清单（步骤7） | `docs/devops/OUTBOX_OPS_GUIDE.md`：部署形态/投递语义（at-least-once + 消费者幂等前置）、四类指标采集与健康判定、租约/崩溃恢复/重试退避/死信干预行为、7 项无法自动化验证的可靠性缺口（真实多进程、退避不可配、超时重复、时钟漂移、真实 RocketMQ、容器优雅关闭、DB 故障期间行为） |
+
+**B. 命令级证据**
+
+- event 模块单测：**43 tests / 0 failures / 0 errors / 4 skipped**（+8 较 EVT-003：DispatcherConcurrency 4 + MultiInstanceMysql 3[Docker 门控] + Statistics 1；4 skipped = OutboxMultiInstanceMysqlTest 3 + OutboxEventMysqlTestcontainersTest 1，均 Docker 门控）。
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，0 failures / 0 errors**（0 回归，2:49）。
+- 确定性覆盖 CI 默认通过：`OutboxDispatcherConcurrencyTest` 4 用例在无 Docker 的 `clean verify -Ptest` 中全绿——满足验收①"不依赖基础设施的确定性竞争测试在 CI 中稳定通过"。
+- MySQL 竞争测试编译通过 + Docker 门控：`OutboxMultiInstanceMysqlTest` 在无 `-Dfastddd.test.docker` 时 Skipped（3），编译期经 `test-compile` 验证类型正确；运行命令与提交号关联见类 Javadoc（surefire `target/surefire-reports/` + `git rev-parse HEAD`）。
+- 可观测性真实 SQL：`OutboxEventIntegrationTest#statistics_reportsBacklogFailureDeadLetterAndLatency` 在 H2 MySQL 兼容模式断言 `TIMESTAMPDIFF(SECOND, created_at, published_at)` AVG 非 null、死信计数≥1、hasIssues 命中——证实新指标查询在真实 SQL 下工作。
+- 退避行为实证（文档论断校验）：`grep calculateNextRetryTime` → `OutboxEventServiceImpl:194` 在 `markAsFailed` 内调用并 updateById 持久化 `next_retry_at`，claim SQL FAILED 分支谓词 `next_retry_at <= #{maxRetryTime}` 尊重退避——故 §OUTBOX_OPS_GUIDE G2 准确表述为"退避生效但 `retryInterval` 属性仅日志、未接入计算"（非"无退避"）。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 不依赖基础设施的确定性竞争测试 | ✅ | OutboxDispatcherConcurrencyTest（barrier/latch + 可控时钟 + InMemoryOutboxService） |
+| 步骤2 | MySQL Testcontainers 真实 DB 竞争 | ✅（Docker 门控） | OutboxMultiInstanceMysqlTest（4 线程并发 claimBatch，FOR UPDATE 串行化） |
+| 步骤3 | 同一事件只被一个实例 claim | ✅ | 并集=全集、无重叠（确定性 + MySQL 双覆盖） |
+| 步骤4 | 崩溃后 lease 可恢复 | ✅ | claim 不 ack→reclaimExpiredLeases(futureNow)→PENDING→重 claim（确定性 + MySQL） |
+| 步骤5 | transport 重试不重复改变业务状态 | ✅ | 单 claim 单 send；跨周期 at-least-once，消费者幂等前置（FailOnceThenSucceed + 死信耗尽两用例） |
+| 步骤6 | 积压/失败/死信/延迟指标 | ✅ | OutboxEventStatistics 新增 deadLetterCount + averagePublishLatencyMillis + IntegrationTest 断言 |
+| 步骤7 | 运维说明 + 可靠性缺口清单 | ✅ | docs/devops/OUTBOX_OPS_GUIDE.md（7 项缺口） |
+| 验收① | 确定性竞争测试 CI 稳定通过 | ✅ | clean verify -Ptest 默认全绿（无 Docker 依赖） |
+| 验收② | MySQL 多实例竞争/恢复/幂等 + 提交号关联报告 | ✅（门控） | OutboxMultiInstanceMysqlTest 编译通过 + Docker 门控运行；surefire 报告 + git HEAD 关联 |
+
+**D. 移交与残留**
+
+- **MySQL Testcontainers 无法在本环境执行**：CI 无 Docker runner（内网 Gitea，见 [[ci-infrastructure]]），`OutboxMultiInstanceMysqlTest` 仅编译期验证 + Docker 门控休眠。多进程真实竞争（G1）、真实 RocketMQ 端到端（G5）等列为 RC/准生产人工核验项，见 OUTBOX_OPS_GUIDE §4。
+- **退避间隔不可配置（G2）**：`markAsFailed` 已自动指数退避（2^retryCount 分钟），但 `EventProperties.Dispatcher.retryInterval` 仅日志输出、未接入计算——登记 1.1 接入。
+- **乐观锁竞态 markAsPublished 返回值未校验（EVT-003 既有残留延续）**：reclaim→重 claim 后原 dispatcher 迟到 markAsPublished 经 @Version 命中 0 行仍 return true，属 at-least-once 可接受语义，1.1 收紧。
+- **类型化重放 / mybatis-plus 硬依赖**：沿用 EVT-003 残留（LocalOutboxTransport 信封非类型化事件；event 模块 mybatis-plus 硬依赖），分别登记 1.1+ 与独立 SPLIT。
+- **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅，已解锁——移除默认管理员与固定凭据）/ SEC-002（依赖 FRM-001/002 ✅——JWT/安全收口）按依赖序推进；EVT 域全部完成。

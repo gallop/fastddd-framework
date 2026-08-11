@@ -261,6 +261,19 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
      */
     @Select("SELECT COUNT(*) FROM outbox_events WHERE status = 'PENDING'")
     long countEventsWithStatusPending();
+
+    /**
+     * 平均投递延迟（EVT-004 步骤6 可观测性）：已发布事件 created_at → published_at 的平均秒数。
+     *
+     * <p>使用 {@code TIMESTAMPDIFF(SECOND, ...)}，H2（MySQL 兼容模式）与 MySQL 均支持，避免方言差异。
+     * 无已发布事件时返回 {@code null}。调度延迟以秒为粒度足以作为运维积压/健康判据。
+     *
+     * @return 平均投递延迟（秒），无已发布事件时为 null
+     */
+    @Select("SELECT AVG(TIMESTAMPDIFF(SECOND, created_at, published_at)) " +
+            "FROM outbox_events WHERE status = 'PUBLISHED' " +
+            "AND published_at IS NOT NULL AND created_at IS NOT NULL")
+    Double selectAveragePublishLatencySeconds();
     
     /**
      * 统计失败的事件数量

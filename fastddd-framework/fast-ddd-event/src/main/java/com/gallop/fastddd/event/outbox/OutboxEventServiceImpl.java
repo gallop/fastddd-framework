@@ -344,19 +344,28 @@ public class OutboxEventServiceImpl implements OutboxEventService {
         long publishedCount = getEventCountByStatus(OutboxEventStatus.PUBLISHED);
         long failedCount = getEventCountByStatus(OutboxEventStatus.FAILED);
         long cancelledCount = getEventCountByStatus(OutboxEventStatus.CANCELLED);
-        long totalCount = pendingCount + processingCount + publishedCount + failedCount + cancelledCount;
-        
+        long deadLetterCount = getEventCountByStatus(OutboxEventStatus.DEAD_LETTER);
+        // EVT-004 步骤6：DEAD_LETTER 终态纳入 totalCount（EVT-002 前漏计）
+        long totalCount = pendingCount + processingCount + publishedCount
+                + failedCount + cancelledCount + deadLetterCount;
+
         // 查询超过最大重试次数的失败事件数量
         long failedExceedingMaxRetriesCount = outboxEventRepository
                 .selectFailedEventsExceedingMaxRetries(new Page<>(1, Integer.MAX_VALUE))
                 .getTotal();
-        
+
+        // EVT-004 步骤6：平均投递延迟（秒 → 毫秒）。无已发布事件时为 null。
+        Double latencySeconds = outboxEventRepository.selectAveragePublishLatencySeconds();
+        Long averagePublishLatencyMillis = latencySeconds == null ? null : Math.round(latencySeconds * 1000.0);
+
         return OutboxEventStatistics.builder()
                 .pendingCount(pendingCount)
                 .processingCount(processingCount)
                 .publishedCount(publishedCount)
                 .failedCount(failedCount)
                 .cancelledCount(cancelledCount)
+                .deadLetterCount(deadLetterCount)
+                .averagePublishLatencyMillis(averagePublishLatencyMillis)
                 .totalCount(totalCount)
                 .failedExceedingMaxRetriesCount(failedExceedingMaxRetriesCount)
                 .build();

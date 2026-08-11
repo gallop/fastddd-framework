@@ -152,6 +152,34 @@ class OutboxEventIntegrationTest {
                 outboxEventService.findByEventId(saved.getEventId()).orElseThrow().getStatus());
     }
 
+    /* ---------- 步骤6：积压/失败/死信/延迟指标（EVT-004 可观测性） ---------- */
+
+    @Test
+    void statistics_reportsBacklogFailureDeadLetterAndLatency() {
+        // 播种：1 条走完 happy-path（PUBLISHED，贡献延迟），1 条显式死信
+        OutboxEvent publishedEvt = outboxEventService.saveEvent(newEvent(), "agg-1", "TestAggregate");
+        outboxEventService.claimEvents(5);
+        assertTrue(outboxEventService.markAsPublished(publishedEvt.getEventId()));
+
+        OutboxEvent deadEvt = outboxEventService.saveEvent(newEvent(), "agg-1", "TestAggregate");
+        assertTrue(outboxEventService.markAsDeadLetter(deadEvt.getEventId()));
+
+        OutboxEventStatistics stats = outboxEventService.getStatistics();
+
+        // 死信计数独立反映 DEAD_LETTER 终态（EVT-004 新增指标）
+        assertTrue(stats.getDeadLetterCount() >= 1, "死信计数应包含刚置死信的事件");
+        // 已发布事件贡献非空平均投递延迟（created_at → published_at）
+        assertNotNull(stats.getAveragePublishLatencyMillis(),
+                "存在已发布事件时平均延迟应非空");
+        assertTrue(stats.getAveragePublishLatencyMillis() >= 0);
+        // 死信纳入 totalCount（EVT-004 修复：此前 DEAD_LETTER 漏计）
+        assertTrue(stats.getTotalCount() >= 2);
+        assertTrue(stats.getPublishedCount() >= 1);
+        // 有死信 → hasIssues() 命中、健康状态提示人工干预
+        assertTrue(stats.hasIssues(), "存在死信时应判定为需关注");
+        assertTrue(stats.getHealthStatus().contains("死信") || stats.getHealthStatus().contains("deadLetter"));
+    }
+
     /* ---------- 步骤4：eventId 唯一约束幂等 ---------- */
 
     @Test
