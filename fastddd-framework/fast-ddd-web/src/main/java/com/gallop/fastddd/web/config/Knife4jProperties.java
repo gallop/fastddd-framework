@@ -89,14 +89,14 @@ public class Knife4jProperties {
         private boolean enable = false;
 
         /**
-         * 用户名
+         * 用户名（SEC-001：默认空——启用 basic 认证时必须显式配置，不内置已知凭据）
          */
-        private String username = "admin";
+        private String username = "";
 
         /**
-         * 密码
+         * 密码（SEC-001：默认空——启用 basic 认证时必须显式配置，不内置已知凭据）
          */
-        private String password = "123456";
+        private String password = "";
 
         public boolean isEnable() {
             return enable;

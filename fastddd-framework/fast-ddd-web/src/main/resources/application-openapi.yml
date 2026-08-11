@@ -22,8 +22,8 @@ fastddd:
       production: false
       basic:
         enable: false
-        username: "admin"
-        password: "123456"
+        username: "${KNIFE4J_BASIC_USERNAME:}"
+        password: "${KNIFE4J_BASIC_PASSWORD:}"
       setting:
         enable: true
         language: "zh-CN"
@@ -86,5 +86,5 @@ knife4j:
   production: false
   basic:
     enable: false
-    username: admin
-    password: 123456
+    username: ${KNIFE4J_BASIC_USERNAME:}
+    password: ${KNIFE4J_BASIC_PASSWORD:}

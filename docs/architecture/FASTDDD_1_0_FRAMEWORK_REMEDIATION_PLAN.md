@@ -2101,3 +2101,50 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **乐观锁竞态 markAsPublished 返回值未校验（EVT-003 既有残留延续）**：reclaim→重 claim 后原 dispatcher 迟到 markAsPublished 经 @Version 命中 0 行仍 return true，属 at-least-once 可接受语义，1.1 收紧。
 - **类型化重放 / mybatis-plus 硬依赖**：沿用 EVT-003 残留（LocalOutboxTransport 信封非类型化事件；event 模块 mybatis-plus 硬依赖），分别登记 1.1+ 与独立 SPLIT。
 - **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅，已解锁——移除默认管理员与固定凭据）/ SEC-002（依赖 FRM-001/002 ✅——JWT/安全收口）按依赖序推进；EVT 域全部完成。
+
+### 16.16 SEC-001 移除默认管理员与固定凭据快照
+
+消除"开箱即用的已知管理员/固定密钥"暴露面：代码生成模板不再种子 `admin`/BCrypt(`admin`)、登录页不再预填/展示默认凭据、框架自带配置不再内置 Knife4j `admin/123456`、Studio 不再回退真实 AI Key、模板 docker-compose 不再回退固定弱口令 `123456`、生产模板不再默认 `root` 数据库用户；并以凭据扫描测试守住回归。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 生成模板：移除已知管理员种子 | `init-data.sql.ftl`：删除 `admin`/BCrypt(`admin`) INSERT 与 admin→ADMIN 角色绑定，改为注释示例（操作者自带 BCrypt 哈希创建首管理员）；删除文件末尾"默认管理员 admin/admin + 首次登录后修改 + 重置哈希"的默认口令方案文档块（步骤6），替换为"本项目默认不创建已知管理员"的安全说明。生成项目继承的角色/权限/菜单脚手架保留（非凭据） |
+| 生成模板：登录页去默认凭据 | `vue3-login-page.ftl`：表单 `username`/`password` 默认值由 `admin`/`admin123` 改为空；页脚"默认账号: admin / admin123"改为"请使用管理员账号登录" |
+| 框架自带配置：去 Knife4j 固定凭据 | `Knife4jProperties.Basic`：`username`/`password` 字段默认值由 `"admin"`/`"123456"` 改为空串（启用 basic 认证时必须显式配置）；`application-openapi.yml` 两处 `admin`/`123456` 改为 `${KNIFE4J_BASIC_USERNAME:}`/`${KNIFE4J_BASIC_PASSWORD:}` |
+| Studio：去真实 AI Key 回退 | `application-dev.yml`：`${AI_API_KEY:91ce363586...PAHpcm7xuUnqcNwS}`（真实样态 Key）→ `${AI_API_KEY:}`（空回退，未设置时 AI 功能不可用，不影响启动——AiAutoConfiguration 仅装配 PromptTemplateLoader，不依赖 Key） |
+| 生成模板：docker-compose 去固定弱口令 | `multi-channel/docker-compose.yml.ftl`：`${MYSQL_PASSWORD:-123456}`/`${POSTGRES_PASSWORD:-123456}` → `${MYSQL_PASSWORD:?... must be configured}`/`${POSTGRES_PASSWORD:?... must be configured}`（沿用同文件 JWT_SECRET 的 `:?` 必填模式，未设置即 fail） |
+| 生成模板：生产去 root 默认 | `application-prod.yml.ftl`：`${DB_USERNAME:root}`/`${DB_USERNAME:postgres}` → `${DB_USERNAME}`（生产不默认已知 DB 用户，未设置即解析失败显式报错） |
+| 文档：删默认口令方案 | `fastddd-studio/README.md`："默认账号 admin/admin + 首次登录后修改"段改为"默认不内置已知账号"说明 |
+| 凭据扫描门禁（步骤5） | `CredentialScanTest`（fastddd-templates）：正则扫描模板树，命中 BCrypt 哈希 / 已移除 AI Key 片段 / 固定弱口令（123456、admin123、fastddd123、root123）/ 默认账号展示文案即失败；允许 `your_password`、`YOUR_API_KEY_HERE`、`${ENV}` 占位符 |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，0 failures / 0 errors**（0 回归，2:48）。
+- 模板凭据扫描：`CredentialScanTest`（新增）随 `fastddd-templates` 模块测试通过——templates 模块 **14 tests / 0 failures**（+1 较基线：CredentialScanTest）。模板树再扫描 `$2[aby]$10$…` / `admin123` / `:-?123456` / `默认账号.*admin` / `91ce363586…` → **0 匹配**。
+- 生成项目无已知管理员：`init-data.sql.ftl` 经 grep `INSERT INTO sys_user` → 仅注释示例，无 `admin` 字面 INSERT；`vue3-login-page.ftl` 表单默认 `username:''`/`password:''`。
+- 框架代码无固定 Knife4j 凭据：`Knife4jProperties.java` grep `private String username = "admin"` / `password = "123456"` → 0 匹配（已改空串）。
+- Studio 无真实 AI Key：`application-dev.yml` grep `91ce363586` → 0 匹配（已 `${AI_API_KEY:}`）。
+- JWT 已洁净（无需改）：`JwtProperties.secret` 默认 null + `validateHmacSecret` 拒绝 <64 字节启动；模板 `application.yml.ftl` 经 `ProjectConfigContractTest` 守卫输出 `secret: ${JWT_SECRET}` 无字面回退。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 删除模板 admin/admin 与全权限绑定 | ✅ | init-data.sql.ftl 注释化（保留角色/权限脚手架） |
+| 步骤2 | 检查 Studio schema/RBAC 初始化脚本 | ✅（登记） | Studio H2 种子为开发工具自有 dev-profile 数据，非生成/发布产物，登记 D 段为已接受开发凭据 |
+| 步骤3 | 演示账号移入显式 dev profile | ✅ | Studio 种子仅 H2（dev profile）加载；模板生成项目默认无任何账号 |
+| 步骤4 | 保留管理员初始化须 Secret/随机密码 | ✅ | 模板改为操作者自带 BCrypt 哈希（注释示例） |
+| 步骤5 | 模板/构建产物凭据扫描 | ✅ | CredentialScanTest |
+| 步骤6 | 文档删默认口令方案 | ✅ | init-data.sql.ftl 末尾块 + Studio README |
+| 验收① | 默认生成项目不创建已知管理员 | ✅ | 模板无 admin INSERT、登录页无预填 |
+| 验收② | 仓库模板/发布包无固定 JWT、DB、AI Key | ✅ | AI Key/ Knife4j 凭据/ docker-compose 弱口令/ prod root 默认均移除；JWT 本就 env-only |
+
+**D. 移交与残留**
+
+- **Studio H2 开发种子（admin/admin）保留**：`schema-h2.sql`/`schema-h2-rbac.sql`/`data-rbac-init.sql` 仍为 Studio 本机 H2（dev profile）种子 `admin`/BCrypt(`admin`)。Studio 为设计期开发工具、`1.0.0-jdk21-SNAPSHOT` 绝不 GA（见 [[refactor-program-decisions]]）、H2 仅本机——非"生成项目"亦非"发布产物"，不在 SEC-001 验收表面。README 已显式标注"仅供本机 H2、严禁共享/生产"。若 Studio 未来需部署，须改为一次性随机密码/环境变量（登记 SEC-003 或独立跟进）。
+- **仓库自有开发设施口令保留**：根 `docker-compose.yml`（fastddd123/root123）、`.github/workflows/ci.yml`（声明式未启用，见 [[ci-infrastructure]]）、`docker/mysql/init/01-init-database.sql`、Grafana `admin123`、`docs/devops/DOCKER.md` 均为开发者本机/CI 基础设施口令，非发布产物，不在验收表面；凭证扫描有意不覆盖此范围。生产化时须经 `.env`/Secret 注入（登记 DEVOPS 跟进）。
+- **模板内 `your_password`/`codegen.password=password` 示例占位符保留**：明显占位符（非真实凭据），扫描白名单允许；属示例文档，操作者必须替换。
+- **JWT/安全收口（SEC-002）**：JWT 已 env-only 无回退（洁净），SEC-002 聚焦 `enabled=false` 完整关闭与启用态缺 Secret fail-fast。
+- **下一 M1 任务**：SEC-002（依赖 FRM-001/002 ✅——JWT disabled 完整关闭与安全默认值）按依赖序推进。
