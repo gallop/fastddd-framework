@@ -1464,6 +1464,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | WEB-001 | ✅ 已完成 | 提交 `refactor(web-001): 隔离 fast-ddd-web 对 fast-ddd-application 的 optional 硬依赖 (WEB-001 #39)` fad9661 | 新建 `CqrsExceptionAdvice`（@ConditionalOnClass）抽离 CommandValidationException 处理；GlobalExceptionHandler 瘦身为 application-free；web-without-application 特征测试翻转为正向 contextLoads；web-minimal 加强 CqrsExceptionAdvice 装配断言（详见 §16.8） | CommandController/QueryController（abstract）仍 import application 包，属组件扫描 ASM 不触发加载的软耦合（实证可启动）；GlobalExceptionHandlerTest 类名历史遗留未改（行为已验证） |
 | 2026-08-11 | CACHE-001 | ✅ 已完成 | 提交 `fix(cache-001): L1 缓存按 cacheName 命名空间隔离 + Redis 类泄漏修复 (CACHE-001 #40)` 76e34a4 | CacheRegistry 每 cacheName 独占 CaffeineLocalCache（对象级命名空间隔离）；抽离 CacheSyncPublisher 核心接口解除核心层对 RedisCacheSyncListener→MessageListener 的硬引用；新增 CacheNamespaceIsolationTest（5 用例）；cache-minimal 消费者升级为正向验收（详见 §16.9） | Redis 跨节点同步完整集成测试（需 broker）留 QA-001；defaultLocalCache 单例降级为启用标记（内部缓存不再共享）；metrics 层面为空白（模块无指标类，非缺陷） |
 | 2026-08-11 | MON-001 | ✅ 已完成 | 提交 `fix(monitor-001): SqlMonitoringProperties 单一注册 + 移除 @Component/@DependsOn (MON-001 #41)` | 移除 SqlMonitoringAutoConfiguration 的 `@Bean sqlMonitoringProperties()`（P0-4 双注册根因，保留 @EnableConfigurationProperties 单一方式）；SqlMetricsCollector/SqlMonitoringMessageFormatter/SqlMonitoringService 移除 @Component/@Service 刻板注解（消除"组件扫描+AutoConfig"双注册同模式隐患）；移除 @DependsOn 固定 Bean 名；三个 @Bean 补 @ConditionalOnMissingBean；新增 SqlMonitoringAutoConfigurationTest（4 用例 ApplicationContextRunner）；monitor-minimal 翻转为正向验收（详见 §16.10） | MeterRegistry 多候选精细退让（@ConditionalOnSingleCandidate）经实证会令 actuator+prometheus 消费者整体退让、SQL 监控永不装配，故不采用，移交 MON-002；SqlMonitoringController 仍为 @RestController（无 AutoConfig @Bean），暴露链路留 MON-002 |
+| 2026-08-12 | EVT-001 | ✅ 已完成 | 提交 `fix(evt-001): 移除 EventAutoConfiguration 宽扫描，Outbox 按 mode 门禁 (EVT-001 #42)` | EventAutoConfiguration 移除宽 @ComponentScan（此前覆盖 outbox 子包致 OutboxEventServiceImpl 缺 ObjectMapper 装配失败）；新增 EventProperties（fastddd.event.mode，默认 local）；OutboxEventConfiguration 补 @ConditionalOnProperty(mode=outbox)+@ConditionalOnClass(BaseMapper)+@ConditionalOnBean(DataSource)；OutboxEventServiceImpl 移除 @Service、改 OutboxEventConfiguration 显式 @Bean（service+transactionalEventPublisher）；executor 由通用 taskExecutor→eventTaskExecutor；新增 EventAutoConfigurationBoundaryTest（4 用例）；event-minimal 翻转为无 DB local 模式正向验收（详见 §16.11） | mybatis-plus-spring-boot3-starter 为 fast-ddd-event 硬依赖（非 optional），其 AutoConfig 强制要 DataSource；event-minimal 以 spring.autoconfigure.exclude 刻画"无 DB"消费者，根因依赖边界（mybatis 改 optional）移交 EVT-002；RocketMQ @Component(DLQ/Listener) 注册为既有状态未改；outbox 正向装配端到端留 EVT-002 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1849,3 +1850,48 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **SqlMonitoringController 未改**：仍为 `@RestController`（无 AutoConfig `@Bean`），在消费者未 `@ComponentScan` 该包时不装配；暴露/Endpoint 化属 MON-002（"将管理接口改为真正的 Actuator Endpoint"）范畴。
 - **P6Spy 真实 SQL 链路**：MessageFormatter 的 Spring `@Bean` 与 P6Spy 反射实例化的桥接、Endpoint exposure、敏感参数脱敏均为 MON-002 范畴，本次不动。
 - **下一 M1 任务**：EVT-001（本地事件与 Outbox 装配边界，依赖 FRM-001/002 ✅）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）三选一按依赖序推进。
+
+### 16.11 EVT-001 本地事件与 Outbox 装配边界快照
+
+修复 `EventAutoConfiguration` 宽 `@ComponentScan` 无条件拾取 outbox 子包导致的 `local` 场景装配失败（审计 EVT-001），以 `fastddd.event.mode` 显式门禁 Outbox 装配边界。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| EVT-001 根因修复 | `EventAutoConfiguration` 删除宽 `@ComponentScan(basePackages="com.gallop.fastddd.event", excludeFilters=[rocketmq])`——此前无条件拾取 outbox 子包，local 场景下 `OutboxEventServiceImpl` 缺 ObjectMapper/DataSource 装配失败（`UnsatisfiedDependencyException`） |
+| 模式门禁 | 新增 `EventProperties`（`@ConfigurationProperties(prefix="fastddd.event")`，`mode=local|outbox`，默认 local）；`springEventPublisher` `@Bean` 补 `@ConditionalOnProperty(mode=local, matchIfMissing=true)`；Outbox 链路改由 `@Import(OutboxEventConfiguration.class)` 显式引入 |
+| Outbox 边界三重门禁 | `OutboxEventConfiguration` 补 `@ConditionalOnProperty(mode=outbox)` + `@ConditionalOnClass(BaseMapper)` + `@ConditionalOnBean(DataSource)`——local 模式整体退让，零 Outbox Bean |
+| 刻板注解清理 + 显式 @Bean | `OutboxEventServiceImpl` 删 `@Service`；OutboxEventConfiguration 改为显式 `@Bean outboxEventService(...)` + `@Bean transactionalEventPublisher(...)`（均 `@ConditionalOnMissingBean`） |
+| 模块专用 executor | `eventTaskExecutor` `@Bean`（`@ConditionalOnMissingBean(name="eventTaskExecutor")`，线程名前缀 `event-async-`）替代通用 `taskExecutor` |
+| 单测 | `EventAutoConfigurationBoundaryTest`（4 用例 ApplicationContextRunner）：local 默认启动 + 零 Outbox Bean / 显式 local 等价 / outbox 无 DataSource 退让 / 模块专用 executor 名 |
+| 消费者 | `event-minimal`：由 FRM-002 预置 shell 翻转为正向验收——local 模式无 DB 启动 + 发布领域事件被监听 + 零 Outbox Bean |
+
+**B. 命令级证据**
+
+- event 单测：**7 tests / 0 failures**（4 ApplicationContextRunner 边界 + 2 原有集成 + 1 SpringEventPublisher 简单用例）。
+- **event-minimal 翻转**：修复前 Failed（`UnsatisfiedDependencyException`：OutboxEventServiceImpl 缺 ObjectMapper，源于宽扫描拾取 outbox 子包）→ 修复后 **Passed:2**（local 启动 + 事件发布 latch 接收 / 零 Outbox Bean 断言）。
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，0 failures / 0 errors**（+4 新增 ApplicationContextRunner 用例，0 回归）。
+- event 模块内 `@ComponentScan`/`@Service`/`name="taskExecutor"` grep：**零实际注解命中**（仅 Javadoc 文本提及）；`@AutoConfigureAfter(DataSourceAutoConfiguration.class)` 确保 `@ConditionalOnBean(DataSource)` 求值顺序正确。
+- `RocketMQEventAutoConfiguration` 经 Read 实证为独立 `@AutoConfiguration`（自带 `@ConditionalOnClass(RocketMQTemplate.class)` + `@ConditionalOnProperty("rocketmq.enabled")` 与 3 个 `@Bean`），与移除的宽扫描无关（原扫描本就 exclude rocketmq 包）——移除宽扫描对 RocketMQ 注册**零影响**。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 添加无 DataSource、无 MyBatis 的本地事件消费者测试 | ✅ | event-minimal：application.yml 排除 DataSourceAutoConfiguration + MybatisPlusAutoConfiguration |
+| 步骤2 | 移除 EventAutoConfiguration 对整个 event 包的扫描 | ✅ | 宽 `@ComponentScan` 已删；grep 零命中 |
+| 步骤3 | 显式声明 event-core Bean | ✅ | `springEventPublisher`/`eventTaskExecutor` 显式 `@Bean` + `@ConditionalOnMissingBean` |
+| 步骤4 | Outbox 配置仅在模式为 outbox 且依赖满足时加载 | ✅ | OutboxEventConfiguration 三重门禁（mode=outbox + BaseMapper + DataSource） |
+| 步骤5 | 使用模块专用 executor 和 scheduler 名称 | ✅ | `eventTaskExecutor`（grep 通用 `taskExecutor` 零命中） |
+| 步骤6 | 本地模式不注册 Outbox Mapper、Repository、Dispatcher | ✅ | `localMode_noOutboxBeansInConditions` 消费者断言 + 单测 `localMode_noDataSource_startsAndNoOutboxBeans` |
+| 验收① | local 模式无数据库可启动并发布事件 | ✅ | event-minimal Passed（context loads + publishEvent latch 接收） |
+| 验收② | conditions 中没有 Outbox Bean | ✅ | 消费者 + 单测双断言 OutboxEventService/Repository/Configuration/MybatisPlusInterceptor 缺席 |
+
+**D. 移交与残留**
+
+- **mybatis-plus 硬依赖（EVT-002）**：`fast-ddd-event/pom.xml` 中 `mybatis-plus-spring-boot3-starter` + `mybatis-plus-jsqlparser` 为**硬依赖（非 optional）**，其 `MybatisPlusAutoConfiguration` 在所有消费者强制要求 DataSource。event-minimal 以 `spring.autoconfigure.exclude` 刻画"无 DB local 消费者"；根因依赖边界（mybatis 改 optional 或拆 outbox 为独立模块）移交 **EVT-002**。
+- **outbox 正向装配端到端（EVT-002）**：outbox 模式正向装配需完整 MyBatis 基础设施（DataSource + SqlSessionFactory + Mapper 扫描），本任务仅刻画装配边界（退让语义）；outbox 正向映射/持久化测试属 EVT-002。
+- **RocketMQ @Component 注册（既有状态）**：`DeadLetterQueueHandler`/`RocketMQEventListener` 的 `@Component` 注册为既有行为（原宽扫描 exclude rocketmq，本就未扫到），EVT-001 未改、非回归；是否补显式 `@Bean` 留 EVT-002/003 评估。
+- **@EnableScheduling 全局保留**：EventAutoConfiguration 类级 `@EnableScheduling` 为 RocketMQ outbox 调度所需，EVT-001 保留；调度边界精细化留后续任务。
+- **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）/ MON-002（依赖 MON-001 ✅）/ EVT-002（依赖 EVT-001 ✅，已解锁）按依赖序推进。

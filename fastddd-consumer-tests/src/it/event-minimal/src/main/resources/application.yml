@@ -1,9 +1,14 @@
+# EVT-001 验收消费者：local 模式，无 DataSource、无 MyBatis 活跃。
+#
+# 说明：fast-ddd-event 当前以硬依赖传递 mybatis-plus-spring-boot3-starter（EVT-002/依赖边界
+# 议题），其 MybatisPlusAutoConfiguration 会强制要求 DataSource。为刻画"无数据库的本地事件"
+# 消费者，显式排除 DataSource 与 MybatisPlus 自动配置；fast-ddd-event 自身的 local 事件链路
+# （SpringEventPublisher）不依赖二者。
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  sql:
-    init:
-      mode: always
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
+fastddd:
+  event:
+    mode: local

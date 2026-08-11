@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- FRM-002 预置场景（ungated）：Event 模块空消费者。状态待 EVT 任务刻画（ADR-003 / 审计 P0-3 多实例重复投递）。 -->
+<!-- EVT-001 验收消费者：fast-ddd-event local 模式（无 DataSource、无 MyBatis 活跃）可启动并发布事件，零 Outbox Bean。 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -13,7 +13,7 @@
   <groupId>com.gallop.fastddd.consumer</groupId>
   <artifactId>event-minimal</artifactId>
   <version>1.0.0-SNAPSHOT</version>
-  <name>FastDDD Consumer :: Event Minimal (preset)</name>
+  <name>FastDDD Consumer :: Event Minimal (local mode)</name>
 
   <properties>
     <java.version>21</java.version>
@@ -36,9 +36,7 @@
       <groupId>com.gallop.fastddd</groupId>
       <artifactId>fast-ddd-event</artifactId>
     </dependency>
-    <dependency>
-      <groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope>
-    </dependency>
+    <!-- 故意不引入 H2/DataSource：EVT-001 验收 local 模式无数据库可启动 -->
     <dependency>
       <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
     </dependency>
