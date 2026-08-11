@@ -57,7 +57,7 @@ public class RocketMQPublisher {
         }
 
         try {
-            long pendingCount = outboxEventRepository.countPendingEvents();
+            long pendingCount = outboxEventRepository.countEventsWithStatusPending();
             if (pendingCount == 0) {
                 logger.debug("No pending events to publish");
                 return;

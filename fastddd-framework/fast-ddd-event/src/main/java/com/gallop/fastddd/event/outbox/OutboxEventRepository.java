@@ -197,12 +197,13 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
     List<OutboxEvent> findFailedEvents(@Param("limit") int limit);
     
     /**
-     * 统计待发布事件数量
-     * 
-     * @return 待发布事件数量
+     * 统计 status=PENDING 的事件数量（EVT-002：重命名消除与 {@link #countPendingEvents(LocalDateTime)}
+     * 的 statement id 冲突——两者语义不同，不可共用同一 Mapper 方法名）。
+     *
+     * @return status=PENDING 的事件数量
      */
     @Select("SELECT COUNT(*) FROM outbox_events WHERE status = 'PENDING'")
-    long countPendingEvents();
+    long countEventsWithStatusPending();
     
     /**
      * 统计失败的事件数量
@@ -231,9 +232,33 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
      * @param retryCount 重试次数
      */
     @Update("UPDATE outbox_events SET status = #{status}, updated_at = #{updatedAt}, error_message = #{errorMessage}, retry_count = #{retryCount} WHERE event_id = #{eventId}")
-    void updateEventStatusWithError(@Param("eventId") String eventId, 
-                                   @Param("status") OutboxEventStatus status, 
+    void updateEventStatusWithError(@Param("eventId") String eventId,
+                                   @Param("status") OutboxEventStatus status,
                                    @Param("updatedAt") LocalDateTime updatedAt,
                                    @Param("errorMessage") String errorMessage,
                                    @Param("retryCount") Integer retryCount);
+
+    /**
+     * 显式流转为死信（EVT-002 步骤2：dead-letter 明确方法名）。
+     * 由 {@link OutboxEventServiceImpl#markAsFailed} 在重试耗尽时调用。
+     *
+     * @param eventId 事件ID
+     * @param updatedAt 更新时间
+     * @param errorMessage 错误信息
+     * @return 更新记录数
+     */
+    @Update("UPDATE outbox_events SET status = 'DEAD_LETTER', updated_at = #{updatedAt}, " +
+           "error_message = #{errorMessage} WHERE event_id = #{eventId}")
+    int updateToDeadLetter(@Param("eventId") String eventId,
+                           @Param("updatedAt") LocalDateTime updatedAt,
+                           @Param("errorMessage") String errorMessage);
+
+    /**
+     * 查询死信事件（EVT-002：取代此前"FAILED + 超限"的隐式查询，按 DEAD_LETTER 终态显式检索）。
+     *
+     * @param page 分页参数
+     * @return 死信事件列表
+     */
+    @Select("SELECT * FROM outbox_events WHERE status = 'DEAD_LETTER' ORDER BY updated_at DESC")
+    IPage<OutboxEvent> selectDeadLetterEvents(Page<OutboxEvent> page);
 }

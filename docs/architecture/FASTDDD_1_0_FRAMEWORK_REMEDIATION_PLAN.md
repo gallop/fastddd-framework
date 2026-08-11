@@ -1466,6 +1466,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | MON-001 | ✅ 已完成 | 提交 `fix(monitor-001): SqlMonitoringProperties 单一注册 + 移除 @Component/@DependsOn (MON-001 #41)` | 移除 SqlMonitoringAutoConfiguration 的 `@Bean sqlMonitoringProperties()`（P0-4 双注册根因，保留 @EnableConfigurationProperties 单一方式）；SqlMetricsCollector/SqlMonitoringMessageFormatter/SqlMonitoringService 移除 @Component/@Service 刻板注解（消除"组件扫描+AutoConfig"双注册同模式隐患）；移除 @DependsOn 固定 Bean 名；三个 @Bean 补 @ConditionalOnMissingBean；新增 SqlMonitoringAutoConfigurationTest（4 用例 ApplicationContextRunner）；monitor-minimal 翻转为正向验收（详见 §16.10） | MeterRegistry 多候选精细退让（@ConditionalOnSingleCandidate）经实证会令 actuator+prometheus 消费者整体退让、SQL 监控永不装配，故不采用，移交 MON-002；SqlMonitoringController 仍为 @RestController（无 AutoConfig @Bean），暴露链路留 MON-002 |
 | 2026-08-12 | MON-002 | ✅ 已完成 | 提交 `fix(monitor-002): SQL 监控真实链路闭环 — Spring 管理 JDK DataSource 代理 + 真正 Actuator Endpoint + 脱敏 (MON-002 #43)` | 移除 p6spy 依赖/spy.properties/SqlMonitoringMessageFormatter（双实例根因）/SqlMonitoringController（伪 @RestController）；改为 Spring 管理 JDK `DataSource` 动态代理（BeanPostProcessor 包装 → SqlMonitoringJdbcProxy → SqlMonitoringExecutionRecorder → SqlMetricsCollector → Micrometer）；管理接口转真正 Actuator `@Endpoint(id="sqlmonitoring")` 由 exposure 治理；`log-parameters` 默认 true→false + SqlMaskingUtils 脱敏；monitor 模块 24 用例（6 脱敏 + 5 autoconfig + 1 exposure + 2 集成 + 10 legacy）/ 0 failures；monitor-minimal 翻转为正向验收（真实 SQL → sql.queries.total Micrometer 增长 + DataSource 代理断言 + Endpoint 装配）（详见 §16.12） | 多 DataSource 消费者监控代理不装配（@ConditionalOnSingleCandidate 退让）；ResultSet size 指标未采集（代理不包 ResultSet）；batch 计时为整批；INSERT...VALUES 位置脱敏未覆盖（logParameters 默认 false 兜底） |
 | 2026-08-12 | EVT-001 | ✅ 已完成 | 提交 `fix(evt-001): 移除 EventAutoConfiguration 宽扫描，Outbox 按 mode 门禁 (EVT-001 #42)` | EventAutoConfiguration 移除宽 @ComponentScan（此前覆盖 outbox 子包致 OutboxEventServiceImpl 缺 ObjectMapper 装配失败）；新增 EventProperties（fastddd.event.mode，默认 local）；OutboxEventConfiguration 补 @ConditionalOnProperty(mode=outbox)+@ConditionalOnClass(BaseMapper)+@ConditionalOnBean(DataSource)；OutboxEventServiceImpl 移除 @Service、改 OutboxEventConfiguration 显式 @Bean（service+transactionalEventPublisher）；executor 由通用 taskExecutor→eventTaskExecutor；新增 EventAutoConfigurationBoundaryTest（4 用例）；event-minimal 翻转为无 DB local 模式正向验收（详见 §16.11） | mybatis-plus-spring-boot3-starter 为 fast-ddd-event 硬依赖（非 optional），其 AutoConfig 强制要 DataSource；event-minimal 以 spring.autoconfigure.exclude 刻画"无 DB"消费者，根因依赖边界（mybatis 改 optional）移交 EVT-002；RocketMQ @Component(DLQ/Listener) 注册为既有状态未改；outbox 正向装配端到端留 EVT-002 |
+| 2026-08-12 | EVT-002 | ✅ 已完成 | 提交 `fix(evt-002): Outbox Repository/Mapper 修复 — statement 冲突 + DEAD_LETTER 死信 + eventId 幂等 + 状态转换数据库测试 (EVT-002 #53)` | OutboxEventRepository 重载 Mapper 重命名（`countPendingEvents()`→`countEventsWithStatusPending()`）消除 statement id 冲突；新增 `claimEvents`/`markAsDeadLetter`/`findDeadLetterEvents`/`updateToDeadLetter`/`selectDeadLetterEvents` 明确方法名；新增 `DEAD_LETTER` 终态 + `markAsFailed` 重试耗尽自动流转死信；TransactionalEventPublisher eventId UNIQUE 幂等（catch DuplicateKeyException/SQLSTATE 23505）；OutboxEventConfiguration 升级 @AutoConfiguration 经 imports 注册 + `@MapperScan(markerInterface=BaseMapper)` 修非 Mapper 接口被注册冲突 + 补 OptimisticLockerInnerInterceptor（@Version 残留缺陷）；MySQL/PostgreSQL CHECK 约束补 DEAD_LETTER；新增 OutboxEventIntegrationTest（7 用例 H2 MySQL 兼容真实 SQL）+ OutboxEventStatusTest（5 用例）+ OutboxEventMysqlTestcontainersTest（Docker 门控休眠）；event 模块 20 用例 / 0 failures（详见 §16.13） | Testcontainers MySQL 变体无 Docker 环境休眠（@EnabledIfSystemProperty 门控）；重试耗尽自动死信分支写 retryCount=max（==max 满足 CHECK，正常路径不到 max+1，遗留：FAILED+retryCount==max 历史脏数据再 markAsFailed 理论越限，需手动 markAsDeadLetter 路径兜底，已用 @Update 不触 retry_count 的 updateToDeadLetter 提供）；mybatis-plus 仍硬依赖（与 EVT-001 同根因，依赖边界收紧留 EVT-003/SPLIT 评估） |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1950,3 +1951,57 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **INSERT...VALUES 位置脱敏未覆盖**：SqlMaskingUtils 覆盖 `key=value`/`key IN (...)` 命名脱敏，INSERT 位置参数（VALUES 第 N 个 `?`）未按列名脱敏；以 `logParameters` 默认 false 兜底，仅显式启用日志时依赖命名脱敏。
 - **datasource-proxy 库替代**：本环境 API 核验受阻故采手写 JDK 代理；若后续环境可核验，datasource-proxy（成熟、覆盖 ResultSet）可作为增强替代项评估。
 - **下一 M1 任务**：SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）/ EVT-002（依赖 EVT-001 ✅，已解锁）/ EVT-003（依赖 EVT-002）按依赖序推进。
+
+### 16.13 EVT-002 Outbox Repository 与 Mapper 修复快照
+
+修复 EVT-001 移交的 outbox 正向装配端到端缺失，并消除既有的 Mapper statement 冲突、缺死信终态、eventId 无幂等等数据完整性缺陷。本任务是 outbox 链路首个带**真实 SQL 数据库**（H2 MySQL 兼容模式）的状态转换验证。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| statement id 冲突修复 | `OutboxEventRepository.countPendingEvents()`（无参，`@Select COUNT(*) WHERE status='PENDING'`）重命名为 `countEventsWithStatusPending()`——与既有 `countPendingEvents(LocalDateTime)` 重载方法注册同一 statement id（namespace+methodName）致 MyBatis `BindingException`；调用方 `RocketMQPublisher` 同步更新 |
+| dead-letter 明确方法 | `OutboxEventStatus` 新增 `DEAD_LETTER("死信")` 终态，`isFinalState()` 纳入（`canRetry()` 不变，DEAD_LETTER 天然不可重试）；`OutboxEvent.markAsDeadLetter()` 领域方法；`OutboxEventRepository.updateToDeadLetter`/`selectDeadLetterEvents`；`OutboxEventService.markAsDeadLetter`/`findDeadLetterEvents` |
+| claim/mark-sent 明确方法 | `OutboxEventService.claimEvents(limit)`——悲观锁 `selectPendingEventsWithLock` + 同事务 `batchUpdateToProcessing` 原子抢占，杜绝并发 worker 重复处理；mark-sent 沿用 `markAsPublished` |
+| 重试耗尽自动死信 | `OutboxEventServiceImpl.markAsFailed` 重写：`event.markAsFailed` 后若 `!canRetry()`（retryCount≥maxRetryCount）→ `markAsDeadLetter` 流转终态，不再停留 FAILED |
+| eventId 幂等 | `TransactionalEventPublisher.publishEvent` 捕获 `DuplicateKeyException`（eventId UNIQUE 触发）→ 幂等日志跳过、不抛异常；`isDuplicateKeyViolation(Throwable)` 兜底 MyBatis-Plus 偶发未翻译原生异常（按 SQLSTATE 23505 / `JdbcSQLIntegrityConstraintViolationException` 类名启发式判定异常链） |
+| eventType 统一 | saveEvent/saveEvents 的 eventType 由 `getClass().getSimpleName()` 改 `getClass().getName()`（FQN）——与 TransactionalEventPublisher 反序列化键一致，避免同名简单类名跨包冲突 |
+| OutboxEventConfiguration 升级 @AutoConfiguration | 由 EVT-001 的 `@Configuration`（@Import 拾取）改为独立 `@AutoConfiguration(after=DataSourceAutoConfiguration.class)`，经 `AutoConfiguration.imports` 注册——修复类级 `@ConditionalOnBean(DataSource)` 在 @Import 普通配置上求值时机不可靠（Spring Boot 文档：@ConditionalOnBean 仅用于自动配置类）致 outbox 正向装配（DataSource 已在场）仍整体退让；`EventAutoConfiguration` 同步移除 `@Import(OutboxEventConfiguration.class)` |
+| @MapperScan 边界修复（潜伏缺陷） | `@MapperScan` 加 `markerInterface=BaseMapper.class`——原全包扫描把非 Mapper 接口 `OutboxEventService` 注册为 Mapper bean（名 `outboxEventService`），与 `@Bean outboxEventService()` 同名冲突（`ConflictingBeanDefinitionException`），在 outbox 正向装配首个真实 DataSource 测试才暴露 |
+| OptimisticLockerInnerInterceptor（潜伏缺陷） | `mybatisPlusInterceptor` 链首补 `OptimisticLockerInnerInterceptor`——`OutboxEvent.version` 带 `@Version`，`updateById` 走乐观锁 SQL 改写注入 `MP_OPTLOCK_VERSION_ORIGINAL`，缺此拦截器以 `BindingException: Parameter 'MP_OPTLOCK_VERSION_ORIGINAL' not found` 失败（生产 `updateById` 同样会失败） |
+| DB 约束统一 | MySQL/PostgreSQL `outbox_events` CHECK 约束补 `'DEAD_LETTER'`；新增 `outbox_events_h2.sql`（H2 兼容 DDL，6 态 CHECK，无 ENGINE/CHARSET/ON UPDATE）供测试 |
+| pom 依赖 | event 模块新增 compile `spring-tx`（@Transactional + DuplicateKeyException）；test：spring-boot-starter-jdbc、h2、mysql-connector-j、testcontainers mysql |
+| 状态转换单测 | `OutboxEventStatusTest`（5 用例）：deadLetter_isFinalState / deadLetter_cannotRetry / allTerminalStates_areFinal / nonTerminalStates / sixStatusValues_present |
+| 状态转换数据库测 | `OutboxEventIntegrationTest`（7 用例 H2 MySQL 兼容真实 SQL + MyBatis-Plus + 注解 SQL）：saveEvent 落 PENDING + FQN eventType / happyPath claim→PROCESSING→markAsPublished→PUBLISHED 终态 / 重试耗尽→DEAD_LETTER / 显式 markAsDeadLetter / eventId 重复幂等 / 失败事务回滚无脏数据 / claim 事务回滚无 PROCESSING 残留 |
+| MySQL 映射变体 | `OutboxEventMysqlTestcontainersTest`（@Testcontainers + @EnabledIfSystemProperty(fastddd.test.docker=true)）：MySQL 8.0 真实映射（CHECK 约束/InnoDB 行锁/utf8mb4）；CI 无 Docker runner 默认休眠 |
+
+**B. 命令级证据**
+
+- event 模块单测：**20 tests / 0 failures / 0 errors / 1 skipped**（4 边界 + 7 outbox 集成 + 5 状态 + 2 原有集成 + 1 SpringEventPublisher；1 skipped = Docker 门控 Testcontainers 变体）。
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，0 failures / 0 errors**（0 回归）。
+- statement 冲突消除：`OutboxEventRepository` grep `countPendingEvents\(` 无重载同名方法（无参版已重命名）；surefire 报告与 reactor 日志无 `BindingException`/`statement id` 冲突。
+- @MapperScan 冲突消除：surefire 报告无 `ConflictingBeanDefinitionException: bean name 'outboxEventService'`（首轮 H2 集成测复现，加 markerInterface 后消失）。
+- 乐观锁缺陷消除：surefire 报告无 `Parameter 'MP_OPTLOCK_VERSION_ORIGINAL' not found`（补 OptimisticLockerInnerInterceptor 后消失）；happyPath/retryExhaustion 两个 `updateById` 路径用例转绿。
+- 迭代取证：本轮 4 个潜伏缺陷（@MapperScan 全包扫描 / ObjectMapper 测试装配 / JSR310 Instant 序列化 / OptimisticLocker 缺失）经逐轮 surefire 报告根因链定位修复——前 3 个仅在此首个真实 DataSource outbox 正向测试才暴露，EVT-001 装配边界测（无 DataSource）从未触及。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | 修复重载 Mapper statement id 冲突 | ✅ | `countPendingEvents()`→`countEventsWithStatusPending()`；reactor 无 BindingException |
+| 步骤2 | insert/claim/mark-sent/retry/dead-letter 明确方法名 | ✅ | claimEvents / markAsPublished / markAsFailed(retry) / markAsDeadLetter / updateToDeadLetter |
+| 步骤3 | 统一状态枚举和数据库约束 | ✅ | DEAD_LETTER 枚举 + MySQL/PostgreSQL/H2 CHECK 约束含 6 态 |
+| 步骤4 | eventId 唯一约束和幂等键 | ✅ | TransactionalEventPublisher catch DuplicateKeyException + isDuplicateKeyViolation 兜底；`duplicateEventId_isIdempotent` 用例 |
+| 步骤5 | MySQL/Testcontainers 映射测试 | ✅ | OutboxEventMysqlTestcontainersTest（Docker 门控）+ H2 兼容映射由 OutboxEventIntegrationTest 承载 |
+| 步骤6 | 失败回滚不留下错误状态 | ✅ | `failedTransaction_rollsBackNoDirtyState` / `failedClaim_rollsBackNoProcessingState`（TransactionTemplate 抛异常→回滚→countByStatus 无残留） |
+| 验收① | 无 mapper ignored 或 statement 冲突日志 | ✅ | reactor 日志 + surefire 报告零 BindingException / ignored |
+| 验收② | 所有状态转换有数据库测试 | ✅ | PENDING→PROCESSING→PUBLISHED / FAILED 重试 / →DEAD_LETTER 均有 H2 真实 SQL 用例 |
+
+**D. 移交与残留**
+
+- **Testcontainers MySQL 变体休眠**：本仓库 CI 为内网 Gitea 无 Docker runner，`OutboxEventMysqlTestcontainersTest` 以 `@EnabledIfSystemProperty(fastddd.test.docker=true)` 门控默认休眠；开发者本机 `./mvnw test -Dtest=OutboxEventMysqlTestcontainersTest -Dfastddd.test.docker=true` 显式开启。MySQL 专有映射（CHECK/InnoDB 行锁/utf8mb4）的权威验证依赖该变体；H2 兼容映射覆盖由 OutboxEventIntegrationTest 承载。
+- **FAILED+retryCount==max 历史脏数据越限（理论）**：`markAsFailed` 自动死信分支写 `retryCount=max`（==max 满足 CHECK `retry_count<=max_retry_count`）。正常路径重试耗尽即死信，retryCount 不会到 max+1；唯一理论越限场景是历史脏数据已处 FAILED+retryCount==max 再被 markAsFailed（写 max+1 触 CHECK）。手动干预路径 `markAsDeadLetter(eventId)` 走 `updateToDeadLetter` @Update（仅改 status/updated_at/error_message，不触 retry_count）兜底。生产 markAsFailed 自动分支可后续改用 updateToDeadLetter 收敛（独立小优化）。
+- **mybatis-plus 仍硬依赖**：`fast-ddd-event` 的 `mybatis-plus-spring-boot3-starter` 仍为硬依赖（EVT-001 同根因），其 AutoConfig 强制要 DataSource；local 无 DB 消费者仍需 `spring.autoconfigure.exclude`。依赖边界收紧（mybatis 改 optional 或 outbox 拆独立模块）留 EVT-003/SPLIT 评估。
+- **ObjectMapper 测试桩件**：OutboxEventIntegrationTest/MysqlTest 的 TestApp 提供 `@Bean ObjectMapper`（`findAndRegisterModules()`）而非依赖 JacksonAutoConfiguration——聚焦测试不依赖完整自动配置发现链；生产环境由 @SpringBootApplication 全量自动配置提供，FastDDD 自定义 Jackson 配置照常生效（CLAUDE.md "不在框架配置定义 ObjectMapper" 规则仅约束生产配置，不约束测试桩件）。
+- **Dispatcher/Transport 契约（EVT-003）**：claim/dispatch 逻辑现散落在 OutboxEventServiceImpl.claimEvents + RocketMQPublisher；EVT-003 将定义 OutboxTransport SPI，Dispatcher 只负责 claim/transport/状态转换/重试，RocketMQ 实现只传输不自扫描。
+- **下一 M1 任务**：EVT-003（依赖 EVT-002 ✅，已解锁）/ SEC-001（依赖 FRM-002 ✅）/ SEC-002（依赖 FRM-001/002 ✅）按依赖序推进。

@@ -39,7 +39,7 @@ public class OutboxEventServiceImpl implements OutboxEventService {
                     .eventId(domainEvent.getEventId().toString())
                     .aggregateId(aggregateId)
                     .aggregateType(aggregateType)
-                    .eventType(domainEvent.getClass().getSimpleName())
+                    .eventType(domainEvent.getClass().getName())
                     .eventData(eventData)
                     .status(OutboxEventStatus.PENDING)
                     .build();
@@ -68,7 +68,7 @@ public class OutboxEventServiceImpl implements OutboxEventService {
                                 .eventId(event.getEventId().toString())
                                 .aggregateId(aggregateId)
                                 .aggregateType(aggregateType)
-                                .eventType(event.getClass().getSimpleName())
+                                .eventType(event.getClass().getName())
                                 .eventData(eventData)
                                 .status(OutboxEventStatus.PENDING)
                                 .build();
@@ -181,15 +181,50 @@ public class OutboxEventServiceImpl implements OutboxEventService {
         OutboxEvent event = outboxEventRepository.selectByEventId(eventId);
         if (event != null) {
             event.markAsFailed(errorMessage);
+            // EVT-002：重试耗尽自动流转死信，避免停留 FAILED + 超 max_retry_count 触发 CHECK 约束
+            if (!event.canRetry()) {
+                event.markAsDeadLetter();
+                outboxEventRepository.updateById(event);
+                log.warn("事件重试耗尽，流转死信: eventId={}, retryCount={}, maxRetryCount={}",
+                        eventId, event.getRetryCount(), event.getMaxRetryCount());
+                return true;
+            }
             event.calculateNextRetryTime();
             outboxEventRepository.updateById(event);
-            log.debug("标记事件为失败: eventId={}, retryCount={}, nextRetryAt={}", 
+            log.debug("标记事件为失败: eventId={}, retryCount={}, nextRetryAt={}",
                      eventId, event.getRetryCount(), event.getNextRetryAt());
             return true;
         } else {
             log.warn("未找到事件: eventId={}", eventId);
             return false;
         }
+    }
+
+    @Override
+    @Transactional
+    public boolean markAsDeadLetter(String eventId) {
+        OutboxEvent event = outboxEventRepository.selectByEventId(eventId);
+        if (event != null) {
+            int updated = outboxEventRepository.updateToDeadLetter(
+                    eventId, LocalDateTime.now(), event.getErrorMessage());
+            log.debug("标记事件为死信: eventId={}, updated={}", eventId, updated);
+            return updated > 0;
+        }
+        log.warn("未找到事件: eventId={}", eventId);
+        return false;
+    }
+
+    @Override
+    @Transactional
+    public List<String> claimEvents(int limit) {
+        // EVT-002 步骤2：claim 明确方法名——悲观锁查询 + 同事务批量置 PROCESSING，原子抢占
+        List<OutboxEvent> locked = outboxEventRepository.selectPendingEventsWithLock(LocalDateTime.now(), limit);
+        if (locked.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        List<Long> ids = locked.stream().map(OutboxEvent::getId).collect(Collectors.toList());
+        outboxEventRepository.batchUpdateToProcessing(ids, LocalDateTime.now());
+        return locked.stream().map(OutboxEvent::getEventId).collect(Collectors.toList());
     }
     
     @Override
@@ -258,6 +293,12 @@ public class OutboxEventServiceImpl implements OutboxEventService {
     @Transactional(readOnly = true)
     public IPage<OutboxEvent> findFailedEventsExceedingMaxRetries(Page<OutboxEvent> page) {
         return outboxEventRepository.selectFailedEventsExceedingMaxRetries(page);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public IPage<OutboxEvent> findDeadLetterEvents(Page<OutboxEvent> page) {
+        return outboxEventRepository.selectDeadLetterEvents(page);
     }
     
     @Override

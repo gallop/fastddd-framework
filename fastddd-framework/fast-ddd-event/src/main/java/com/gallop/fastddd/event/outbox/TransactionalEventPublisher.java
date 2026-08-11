@@ -7,6 +7,7 @@ import com.gallop.fastddd.event.EventPublishException;
 import com.gallop.fastddd.event.EventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.lang.NonNull;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
@@ -56,18 +57,28 @@ public class TransactionalEventPublisher implements EventPublisher {
             int result = outboxEventRepository.insert(outboxEvent);
             if (result <= 0) {
                 throw new EventPublishException(
-                    String.format("Failed to store event %s with ID %s to outbox", 
+                    String.format("Failed to store event %s with ID %s to outbox",
                         event.getClass().getSimpleName(), event.getEventId()));
             }
-            
-            logger.debug("Successfully stored domain event to outbox: {} with ID: {}", 
+
+            logger.debug("Successfully stored domain event to outbox: {} with ID: {}",
                 event.getClass().getSimpleName(), event.getEventId());
-                
+
+        } catch (DuplicateKeyException e) {
+            // EVT-002 步骤4：eventId UNIQUE 触发的重复插入视为幂等成功（事件已落库），不抛异常。
+            // 保证生产者重投递 / 事务边界外重试不会因唯一约束报错而中断业务事务。
+            logger.info("Outbox event already stored (idempotent skip): type={}, eventId={}",
+                event.getClass().getSimpleName(), event.getEventId());
         } catch (Exception e) {
-            logger.error("Failed to store domain event to outbox: {} with ID: {}", 
+            if (isDuplicateKeyViolation(e)) {
+                logger.info("Outbox event already stored (idempotent skip, wrapped): type={}, eventId={}",
+                    event.getClass().getSimpleName(), event.getEventId());
+                return;
+            }
+            logger.error("Failed to store domain event to outbox: {} with ID: {}",
                 event.getClass().getSimpleName(), event.getEventId(), e);
             throw new EventPublishException(
-                String.format("Failed to store event %s with ID %s to outbox", 
+                String.format("Failed to store event %s with ID %s to outbox",
                     event.getClass().getSimpleName(), event.getEventId()), e);
         }
     }
@@ -125,6 +136,30 @@ public class TransactionalEventPublisher implements EventPublisher {
         return 0;
     }
     
+    /**
+     * 判断异常链是否为唯一约束（eventId UNIQUE）违反（EVT-002 步骤4）。
+     *
+     * <p>Spring 通常将 SQLSTATE 23505 翻译为 {@link DuplicateKeyException} 由上层 catch 直接命中；
+     * 此方法兜底 MyBatis-Plus 偶发的未翻译原生异常（按 SQLSTATE 23505 / 异常类名启发式判定）。
+     */
+    private static boolean isDuplicateKeyViolation(Throwable e) {
+        Throwable cur = e;
+        while (cur != null) {
+            if (cur instanceof DuplicateKeyException) {
+                return true;
+            }
+            String name = cur.getClass().getName();
+            // SQLSTATE 23505 = unique violation（H2/PostgreSQL/MySQL 通用）
+            if (name.endsWith("JdbcSQLIntegrityConstraintViolationException")
+                    || name.endsWith("SQLIntegrityConstraintViolationException")
+                    || (cur.getMessage() != null && cur.getMessage().contains("23505"))) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
+    }
+
     /**
      * 创建Outbox事件
      * 

@@ -35,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EventAutoConfigurationBoundaryTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(EventAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(
+                    EventAutoConfiguration.class, OutboxEventConfiguration.class));
 
     /**
      * 验收①：local 模式（默认）无数据库可启动，EventPublisher 装配，零 Outbox Bean。

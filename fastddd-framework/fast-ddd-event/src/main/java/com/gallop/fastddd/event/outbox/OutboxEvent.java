@@ -170,6 +170,16 @@ public class OutboxEvent {
         this.errorMessage = errorMessage;
         this.retryCount++;
     }
+
+    /**
+     * 标记为死信（EVT-002）
+     * 重试次数耗尽时由 {@link OutboxEventServiceImpl#markAsFailed} 触发，
+     * 进入终态不再重试。
+     */
+    public void markAsDeadLetter() {
+        this.status = OutboxEventStatus.DEAD_LETTER;
+        this.updatedAt = LocalDateTime.now();
+    }
     
     /**
      * 标记为处理中

@@ -33,13 +33,20 @@ public enum OutboxEventStatus {
      * 事件发布失败，可能需要重试
      */
     FAILED("失败"),
-    
+
+    /**
+     * 死信状态（EVT-002）
+     * 事件重试次数耗尽（retry_count &gt;= max_retry_count），进入终态，不再重试。
+     * 取代此前"FAILED + 超限"的隐式表达，提供明确的状态转换与查询语义。
+     */
+    DEAD_LETTER("死信"),
+
     /**
      * 已取消状态
      * 事件被手动取消，不再处理
      */
     CANCELLED("已取消");
-    
+
     private final String description;
     
     OutboxEventStatus(String description) {
@@ -61,7 +68,7 @@ public enum OutboxEventStatus {
      * @return 如果是终态返回true，否则返回false
      */
     public boolean isFinalState() {
-        return this == PUBLISHED || this == CANCELLED;
+        return this == PUBLISHED || this == CANCELLED || this == DEAD_LETTER;
     }
     
     /**

@@ -108,12 +108,36 @@ public interface OutboxEventService {
     
     /**
      * 标记事件为失败
-     * 
+     *
+     * <p>EVT-002：当重试次数耗尽（retryCount &gt;= maxRetryCount）时，自动流转为死信
+     * （{@link OutboxEventStatus#DEAD_LETTER}），不再停留 FAILED。
+     *
      * @param eventId 事件ID
      * @param errorMessage 错误信息
      * @return 是否成功
      */
     boolean markAsFailed(String eventId, String errorMessage);
+
+    /**
+     * 显式标记事件为死信（EVT-002 步骤2：dead-letter 明确方法名）。
+     *
+     * <p>供手动干预或超限事件补流转使用；正常路径由 {@link #markAsFailed} 自动触发。
+     *
+     * @param eventId 事件ID
+     * @return 是否成功
+     */
+    boolean markAsDeadLetter(String eventId);
+
+    /**
+     * 抢占待处理事件（EVT-002 步骤2：claim 明确方法名）。
+     *
+     * <p>悲观锁（SELECT ... FOR UPDATE）查询 PENDING / 可重试 FAILED 事件，
+     * 并在同一事务内批量置为 PROCESSING——原子抢占，杜绝并发 worker 重复处理。
+     *
+     * @param limit 抢占上限
+     * @return 被抢占（已置 PROCESSING）的事件ID列表
+     */
+    List<String> claimEvents(int limit);
     
     /**
      * 标记事件为已取消
@@ -156,11 +180,19 @@ public interface OutboxEventService {
     
     /**
      * 查找超过最大重试次数的失败事件
-     * 
+     *
      * @param page 分页参数
      * @return 失败事件列表
      */
     IPage<OutboxEvent> findFailedEventsExceedingMaxRetries(Page<OutboxEvent> page);
+
+    /**
+     * 查找死信事件（EVT-002：按 DEAD_LETTER 终态显式检索）。
+     *
+     * @param page 分页参数
+     * @return 死信事件列表
+     */
+    IPage<OutboxEvent> findDeadLetterEvents(Page<OutboxEvent> page);
     
     /**
      * 获取事件统计信息

@@ -33,7 +33,7 @@ CREATE INDEX idx_outbox_retry_status ON outbox_events(retry_count, status);
 
 -- 添加约束
 ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_status
-    CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'CANCELLED'));
+    CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'DEAD_LETTER', 'CANCELLED'));
 ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_retry_count
     CHECK (retry_count >= 0 AND retry_count <= max_retry_count);
 ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_max_retry_count
