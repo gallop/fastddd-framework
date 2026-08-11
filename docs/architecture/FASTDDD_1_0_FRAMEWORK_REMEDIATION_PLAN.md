@@ -2148,3 +2148,51 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **模板内 `your_password`/`codegen.password=password` 示例占位符保留**：明显占位符（非真实凭据），扫描白名单允许；属示例文档，操作者必须替换。
 - **JWT/安全收口（SEC-002）**：JWT 已 env-only 无回退（洁净），SEC-002 聚焦 `enabled=false` 完整关闭与启用态缺 Secret fail-fast。
 - **下一 M1 任务**：SEC-002（依赖 FRM-001/002 ✅——JWT disabled 完整关闭与安全默认值）按依赖序推进。
+
+### 16.17 SEC-002 JWT disabled 完整关闭与安全默认值快照
+
+关闭 FRM-002 审计 P0-7（`jwt.enabled=false` 仍装配 JWT Bean / 暴露认证端点 / 强制要求 Secret）。根因：`FastDddSecurityAutoConfiguration`（`@AutoConfiguration`）未受 `enabled` 门控，其 `jwtSigner` Bean 总被创建，而 `HmacJwtSigner` 构造函数调用 `validateHmacSecret` → 禁用态无 Secret 即启动失败；`frameworkAuthController`（认证端点）同理在禁用态仍暴露。修复：6 个 JWT/认证 Bean 统一 `@ConditionalOnProperty(fastddd.security.jwt.enabled, matchIfMissing=true)`，与 `SecurityAutoConfiguration`（SecurityFilterChain/PasswordEncoder/AuthenticationManager）启用条件对齐；`validateHmacSecret` 增补占位符片段黑名单与配置路径文案。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 一致启用条件（步骤3） | `FastDddSecurityAutoConfiguration`：`jwtSigner`、`jwtTokenRevocationStore`、`jwtTokenProvider`、`jwtAuthenticationEntryPoint`、`jwtAccessDeniedHandler`、`frameworkAuthController` 六个 Bean 统一加 `@ConditionalOnProperty(prefix="fastddd.security.jwt", name="enabled", havingValue="true", matchIfMissing=true)`（与 `SecurityAutoConfiguration` 同条件）。`matchIfMissing=true` 保留"缺省即启用"的现有外部契约（步骤2/验收④） |
+| disabled 完整关闭（步骤4） | 上述门控后：`enabled=false` 时无 JwtSigner/JwtTokenProvider/JwtTokenRevocationStore/认证端点 AuthController，`SecurityAutoConfiguration` 退避故无框架 SecurityFilterChain，且 `validateHmacSecret` 不被触发——最小消费者无需 Secret 即可启动 |
+| enabled fail-fast（步骤5） | `JwtProperties.validateHmacSecret`：除既有 null/blank 与 <64 字节检查外，新增占位符片段黑名单（`your-secret`/`change-me`/`placeholder`/`example`/`dummy`/`sample-secret` 等，大小写不敏感 contains）；三类不安全取值均抛 `IllegalStateException`，消息统一指明配置路径 `fastddd.security.jwt.secret`（env `JWT_SECRET`）。注意：黑名单不含 `please-not-use-in-production`，避免破坏消费方测试 harness 自标识密钥 |
+| 三场景装配契约测试（步骤6） | `JwtEnableConditionWiringTest`（fast-ddd-security-starter，6 测试，替代原 `@Disabled` 的 `SecurityIntegrationTest`）：用 `ApplicationContextRunner`/`WebApplicationContextRunner` 覆盖 disabled（无 JWT Bean/无端点/可启动）、disabled+消费方自定义链（框架不装配、消费方链唯一）、enabled+合法 Secret（装配 JwtSigner/Provider）、enabled fail-fast（缺/短/占位符 Secret 三例，断言 `hasFailed` + 根因消息含 `fastddd.security.jwt.secret`）。每个 Runner 为独立最小 Spring 上下文，即"独立最小消费者" |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，446 tests / 0 failures / 0 errors / 10 skipped**（0 回归，2:51）。
+- fast-ddd-security-starter 模块测试：**75 tests / 0 failures / 6 skipped**（较 SEC-001 基线 69 +6：新增 `JwtEnableConditionWiringTest` 6 测试；skipped 6 为原 `@Disabled` 的 `SecurityIntegrationTest`，由切片测试替代）。
+- disabled 无 Secret 可启动：`JwtEnableConditionWiringTest$Disabled.disabled_startsAndCreatesNoJwtBeansOrAuthEndpoint` 通过——`enabled=false` 且不设 secret，`assertThat(context).hasNotFailed()` 且 `doesNotHaveBean(JwtSigner/JwtTokenProvider/AuthController)`。
+- disabled 消费方链胜出：`Disabled.disabled_consumerSecurityFilterChainWins` 通过——`hasSingleBean(SecurityFilterChain.class)` 且为消费方实例（框架 `SecurityAutoConfiguration` 退避，未装配自己的链）。
+- enabled fail-fast 指明路径：`EnabledFailFast.missingSecret_failsFast`/`shortSecret_failsFast`/`placeholderSecret_failsFast` 通过——`hasFailed()` 且根因消息含 `fastddd.security.jwt.secret`（占位符例另含 `placeholder`）。
+- 一致启用条件：`FastDddSecurityAutoConfiguration.java` grep `@ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX` → **6 处**（六个 JWT/认证 Bean）；`SecurityAutoConfiguration` 第 40 行同条件 `matchIfMissing=true`，二者对齐。
+- 启用态外部契约不变：默认 `matchIfMissing=true`（缺省即启用）；studio-server 随 reactor `verify` 通过，证明默认启用态行为未变。
+- 占位符黑名单不误伤 harness：`security-minimal` 消费方密钥 `fastddd-consumer-test-secret-please-not-use-in-production-…`（≥64 字节）不含黑名单片段，enabled 合法 Secret 测试用同源密钥 `test-secret-key-for-jwt-token-generation-…` 亦通过。
+
+**C. 验收对照（方案步骤验收）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 步骤1 | disabled 且无 secret 的失败复现 | ✅ | 取证确认：修复前 `jwtSigner` 总被创建→`HmacJwtSigner` 构造→`validateHmacSecret` 无 Secret 抛异常；以 `JwtEnableConditionWiringTest` 反向锁定（修复后该场景 `hasNotFailed`） |
+| 步骤2 | 1.0 保留现有 `enabled` 开关及启用态行为，不新增安全模式枚举 | ✅ | 仅加条件注解，无新枚举/新模式；`matchIfMissing=true` 保留缺省启用 |
+| 步骤3 | signer/provider/filter/Controller/SecurityFilterChain 一致启用条件 | ✅ | 六个 JWT/认证 Bean + `SecurityAutoConfiguration` 全部 `@ConditionalOnProperty(...enabled, matchIfMissing=true)` |
+| 步骤4 | disabled 不创建 JWT Bean/认证端点/框架 SecurityFilterChain，不要求 Secret | ✅ | `Disabled` 场景测试（无 Bean + 可启动 + 无 Secret） |
+| 步骤5 | enabled 移除内置 Secret 回退；缺/短/示例值 fail-fast | ✅ | `validateHmacSecret` 三类检查 + `EnabledFailFast` 三测试（Secret 本就 env-only 无回退，见 SEC-001 快照 B） |
+| 步骤6 | ApplicationContextRunner + 独立消费者覆盖 disabled/enabled/自定义链 | ✅ | `JwtEnableConditionWiringTest` 三 Runner 场景（每个 Runner 即独立最小消费者上下文） |
+| 步骤7 | resource-server/auth-server/RSA/JWK/撤销存储/认证端点模块化记为 1.1 ADR 待办 | ✅ | 见 D 段登记 |
+| 验收① | disabled 模式无 JWT Bean 和认证端点 | ✅ | `Disabled.disabled_startsAndCreatesNoJwtBeansOrAuthEndpoint` |
+| 验收② | disabled 且无 Secret 的最小消费者可以启动 | ✅ | 同上 `hasNotFailed()` |
+| 验收③ | enabled 缺少安全 Secret 时启动失败并指出准确配置路径 | ✅ | `EnabledFailFast.missingSecret_failsFast`（消息含 `fastddd.security.jwt.secret`） |
+| 验收④ | 1.0 不发布 resource-server/auth-server 新模式，不改现有启用态外部认证契约 | ✅ | 无新协议/新模式（遵守禁止项）；`matchIfMissing=true` + studio-server reactor 通过 |
+
+**D. 移交与残留**
+
+- **1.1 ADR 待办（步骤7）**：resource-server/auth-server 模式拆分、RSA/JWK 非对称签名、Token 撤销存储（当前 `InMemoryJwtTokenRevocationStore` 单实例不可持久/不可跨实例）、认证端点模块化——均登记为 1.1 ADR backlog，1.0 不引入（遵守禁止项：不引入 OAuth2 Authorization Server、不引入新 Token 协议、不以三模式设计扩大 GA 范围）。
+- **占位符黑名单为启发式**：`PLACEHOLDER_SECRET_FRAGMENTS` 覆盖常见示例文案，但无法穷举；最终防线仍是 ≥64 字节随机密钥要求与 env-only 无回退。运维须确保 `JWT_SECRET` 为高熵随机值（≥64 字节）。
+- **消费方 harness 密钥保留**：`security-minimal` 的 `fastddd-consumer-test-secret-please-not-use-in-production-…` 为测试 harness 自标识密钥（≥64 字节、不含黑名单片段），保留；该 it 由 FRM-002 harness invocation-skipped（reactor `Skipping invocation per configuration`，见 [[ci-infrastructure]]），故可执行门禁落在模块级 `JwtEnableConditionWiringTest`。
+- **原 `SecurityIntegrationTest` 仍 `@Disabled`**：完整 `@SpringBootTest` Web 上下文加载历史性问题（非 SEC-002 范围）未在本任务修复；其覆盖由切片式 `JwtEnableConditionWiringTest` 承接。恢复完整集成测试登记为后续 QA 跟进。
+- **M1 里程碑完成**：SEC-002 为 M1 最后一项（M1 全部任务 FRM-001/002、SPLIT-001/002、WEB-001、CACHE-001、MON-001/002、EVT-001~004、SEC-001/002 均已交付）。下一里程碑 **M2** 起始任务：**ID-001**（当前行为特征测试与迁移清单，依赖 FRM-001/002 ✅，已解锁），随后 SPLIT-003（依赖 SPLIT-001 ✅ + ID-001）。

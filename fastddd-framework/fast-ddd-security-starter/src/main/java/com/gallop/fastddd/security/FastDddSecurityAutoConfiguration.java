@@ -75,7 +75,20 @@ public class FastDddSecurityAutoConfiguration {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FastDddSecurityAutoConfiguration.class);
 
+    /**
+     * SEC-002：JWT 相关 Bean 的统一启用条件。
+     *
+     * <p>仅当 {@code fastddd.security.jwt.enabled=true}（默认缺省视为 true）时才装配
+     * {@link JwtSigner}、{@link JwtTokenProvider}、{@link JwtTokenRevocationStore}、
+     * 认证异常处理器以及 {@link AuthController} 认证端点。{@code enabled=false} 时这些 Bean
+     * 一律不创建，因此最小消费者在禁用 JWT 时无需配置 {@code secret} 即可启动，
+     * 也不会暴露框架认证端点。{@link SecurityAutoConfiguration}（SecurityFilterChain/
+     * PasswordEncoder/AuthenticationManager）已使用同一条件，二者保持一致。
+     */
+    private static final String JWT_ENABLED_CONDITION_PREFIX = "fastddd.security.jwt";
+
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(JwtSigner.class)
     public JwtSigner jwtSigner(JwtProperties jwtProperties) {
         log.info("FastDDD security: using default HmacJwtSigner (HS512)");
@@ -83,12 +96,14 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public JwtTokenRevocationStore jwtTokenRevocationStore() {
         return new InMemoryJwtTokenRevocationStore();
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public JwtTokenProvider jwtTokenProvider(JwtProperties jwtProperties,
                                              JwtSigner jwtSigner,
@@ -98,12 +113,14 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint() {
         return new JwtAuthenticationEntryPoint();
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public JwtAccessDeniedHandler jwtAccessDeniedHandler() {
         return new JwtAccessDeniedHandler();
@@ -225,6 +242,7 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnClass(name = "com.gallop.fastddd.web.response.ApiResponse")
     @ConditionalOnMissingBean(name = "authController")
     public AuthController frameworkAuthController(JwtTokenProvider jwtTokenProvider,
