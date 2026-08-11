@@ -2492,3 +2492,65 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 
 - **MyBatis 默认回退**：即使未来出现 `Serializable` 型字段，MyBatis 对未注册类型回退到 `UnknownTypeHandler`（同样委托 `rs.getObject()`），行为等价；当前无此字段，回退路径不触发。
 - **下一任务**：ID-007（模板/插件/Archetype/Studio 迁移，依赖 ID-006 ✅ + SPLIT-004）；SPLIT-003（依赖 SPLIT-001 ✅ + ID-001 ✅）+ SPLIT-004（依赖 SPLIT-003 + ID-006 ✅）均已解锁可并行。ID 链核心代码迁移（ID-001~006）至此收尾，剩余为生成生态消费面迁移。
+
+### 16.24 SPLIT-003 抽取稳定 Tooling API 快照
+
+为 Studio、Maven Plugin 与未来模板扩展提供与生成器内部解耦的稳定契约。分三阶段交付：**Phase A**（API 模块 + 契约 + 枚举规范上移 + 依赖契约 enforcer 门禁）、**Phase B**（生成引擎实现契约 + 适配层）、**Phase C**（弃用重复枚举、消费面耦合取证、acceptance 证据化）。完整 Studio 源码切契约属 **SPLIT-004**（依赖 SPLIT-003 + ID-006，均已 ✅），本任务交付契约与适配地基。
+
+**A. 取证（耦合面）**
+
+| 取证项 | 证据 |
+|---|---|
+| Studio 消费 codegen 内部包 | 5 文件：`DesignCodegenService`、`UnifiedProjectService`、`MultiChannelProjectBuilder`、`UnifiedProjectRequest`（DTO）、`FastDddStudioApplication`（`@Import CodeGeneratorAutoConfiguration`）。注入 `CodeGeneratorService`（具体类，非接口）。 |
+| Maven 插件消费 | 仅 `CodeGenMojo`；`InitProjectMojo` 不依赖 codegen（只用 `templates.TemplateContext`/`TemplateRenderer`）。 |
+| 重复 ModelType 面 | 5 处：`tooling.api.ModelType`（新规范）、`GeneratorConfig.ModelType`、`TemplateContext.ModelType`、`UnifiedProjectRequest.ModelType`、`common.enums.DomainModelType`。 |
+| 重复 IdStrategy 面 | 2 处：`tooling.api.IdStrategy`（新规范，无 MyBatis-Plus 依赖）、`codegen.constants.IdStrategy`（含 `IdType`，ORM 泄漏）。 |
+| 生成器实际读取的 config 字段 | `CodeGeneratorService.createGeneratorModel` 仅读 `modelType/isEnableCQRS/isUseLombok/isUseSwagger/idStrategy/author`——`grep` 确认 `isGenerateEntity/.../isGenerateMapper/isUseJpa/isUseValidation/getOutputDir/isOverwrite` **零命中**（生成器不读取，消费方事后过滤返回 Map）。 |
+
+**B. Phase A 改动（commit `5437333`）—— 新建 `fastddd-tooling-api` 轻量契约模块**
+
+| 改动 | 证据 |
+|---|---|
+| 9 个契约类型 | `ModelType`、`IdStrategy`、`GenerationRequest`（不可变 + builder）、`GenerationResult`（不可变）、`GenerationException`、`ProjectGenerator`、`DatabaseIntrospector`、`TemplateCatalog`、`GenerationProgressListener`（均位于 `com.gallop.fastddd.tooling.api`）。 |
+| 二进制面 + 契约测试 | `ToolingApiContractTest`（9 测试）：`apiSurfaceIsComplete` 锁 9 类型清单 + 同包；ModelType/IdStrategy 解析与默认值；Request/Result 不变式。 |
+| 依赖契约 enforcer 门禁 | `enforce-tooling-api-dep-contract` 执行项，`bannedDependencies` 禁 FreeMarker/MyBatis-Plus(`com.baomidou:*`)/Spring-MVC(`spring-web`/`spring-webmvc`/`spring-boot-starter-web`)/DB 驱动(Druid/HikariCP/mysql/postgresql)。 |
+| 模块注册 | `fastddd-tooling/pom.xml` 将 `fastddd-tooling-api` 置于首个 module；API 仅依赖 `fast-ddd-common`（ADR-005 合规：Tooling→API，API 复用 `TableMetadata` 而非昂贵的 rehome）。 |
+
+**C. Phase B 改动（commit `41bfb1c`）—— 生成引擎实现契约 + 适配层**
+
+| 改动 | 证据 |
+|---|---|
+| `DatabaseMetadataService implements DatabaseIntrospector` | 签名同构（`getAllTables()`/`getTable(String)`），erasure-compatible，行为零变。 |
+| `ToolingProjectGenerator implements ProjectGenerator` | 薄适配层：`GenerationRequest → GeneratorConfig`（仅生成语义字段，不搬输出写入关切——遵守禁止项）；`ModelType` 同构映射、`IdStrategy` 经 `code` 桥接（AUTO/ASSIGN_ID/INPUT/NONE 与内部枚举一致）；引擎异常包装为 `GenerationException`，稳定 API 异常契约。 |
+| 模块依赖 | `fastddd-code-generator` 依赖 `fastddd-tooling-api`（ADR-005 合规）；根 pom `dependencyManagement` 登记受管版本。 |
+| 适配层测试 | `ToolingProjectGeneratorTest`（3 测试）：类型装配（`ProjectGenerator/DatabaseIntrospector` 可赋值具体实现）、请求→配置映射（`ArgumentCaptor` 校验 ModelType/IdStrategy code/开关/author）、引擎异常→`GenerationException` 透传。 |
+
+**D. Phase C 改动（本提交）—— 弃用重复枚举 + acceptance 证据化**
+
+| 改动 | 证据 |
+|---|---|
+| 弃用 4 处可迁移重复枚举 | `@Deprecated` + Javadoc 指向 API 规范：`GeneratorConfig.ModelType`、`codegen.constants.IdStrategy`、`TemplateContext.ModelType`、`UnifiedProjectRequest.ModelType`（4 文件 `grep @Deprecated` 命中）。 |
+| 不弃用 `common.enums.DomainModelType` | 该枚举位于 `fast-ddd-common`（Framework 层），ADR-005 禁止 Framework→Tooling，故无法迁移至 `tooling.api.ModelType`；弃用并指向 API 会误导。API 的 `ModelType` Javadoc 已将其登记为历史重复（文档级）。 |
+
+**E. acceptance 证据化（命令级）**
+
+| 验收项 | 结论 | 证据 |
+|---|---|---|
+| (a) Studio 生成需求可由 API 表达 | ✅ | `GenerationRequest` 承载生成器**实际读取**的全部字段（`modelType/enableCQRS/useLombok/useSwagger/idStrategy/author/package/module`）；`generate*/useJpa/useValidation` 经 grep 确认为生成期死配置（消费方事后过滤），不计入 API 面（遵守"不搬 GeneratorConfig 全量"禁止项）。`ToolingProjectGeneratorTest` 以 `ArgumentCaptor` 可执行地锁定该映射。 |
+| (b) API 不依赖 Studio/Web/DB 驱动/模板引擎 | ✅ | enforcer `bannedDependencies` 构建期强制（Phase A 验证 `BannedDependencies passed`）。 |
+| (c) 生成器内部包可变而不影响 Studio 编译 | 🟡 地基已就位，完整达成属 SPLIT-004 | 契约 + 适配 + `ProjectGenerator`/`DatabaseIntrospector` Spring bean 已就位（`ToolingProjectGenerator` 为 `@Component`，经 `CodeGeneratorAutoConfiguration` 的 `@ComponentScan("com.gallop.fastddd.codegen")` 发布）。Studio 源码仍直接 import `codegen.**`（5 文件）——切契约属 SPLIT-004 显式范围。 |
+
+**F. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 31/31 SUCCESS（新增 FastDDD :: Tooling API 模块）
+→ Tests: 539 / 0 Failures / 0 Errors / 10 Skipped（基线 527 + PhaseA 9 + PhaseB 3；PhaseC 0 增减，0 回归）
+→ enforcer enforce-tooling-api-dep-contract: BannedDependencies passed
+```
+
+**G. 登记与遗留（→ SPLIT-004 / ID-007）**
+
+- **CodeGenMojo 生成路径既有缺陷**：`CodeGenMojo:215` 以 `new CodeGeneratorService(databaseMetadataService, null, databaseConfig)` 构造——第二参 `TemplateProcessorService` 为 `null`，实际触达模板渲染即 NPE；插件生成路径当前非功能。元数据读取路径（`getAllTables/getTable`）正常。修复 = 在 Mojo 构造 `TemplateProcessorService`（拉入 FreeMarker 装配）= 与 Studio 共享的 `GeneratorConfig` 生成调用切契约，统一归入 **SPLIT-004**（Studio + 插件同为 Tooling API 消费者）。
+- **步骤 7（Maven 插件经 Tooling API 调用 Generator）**：插件 `DatabaseMetadataService` 字段因同时作为 `CodeGeneratorService` 构造实参（需具体类型）暂无法干净改型为 `DatabaseIntrospector`；生成调用切 `ProjectGenerator` 与上述缺陷修复同属 SPLIT-004。
+- **下一任务**：SPLIT-004（Studio 改为 Tooling API 消费者，依赖 SPLIT-003 ✅ + ID-006 ✅，已解锁）——rewire 5 个 Studio 文件 + CodeGenMojo 生成路径至 `ProjectGenerator`/`DatabaseIntrospector`，并修复上述 null-TPS 缺陷；随后 ID-007（模板/Archetype 迁移，依赖 SPLIT-004）。
