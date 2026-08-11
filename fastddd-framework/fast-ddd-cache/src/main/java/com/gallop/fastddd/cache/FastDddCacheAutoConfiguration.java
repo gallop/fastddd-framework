@@ -37,7 +37,7 @@ public class FastDddCacheAutoConfiguration {
     public CacheRegistry cacheRegistry(CacheProperties properties,
                                        ObjectProvider<CaffeineLocalCache> localCacheProvider,
                                        ObjectProvider<RedisCache> redisCacheProvider,
-                                       ObjectProvider<RedisCacheSyncListener> syncListenerProvider) {
+                                       ObjectProvider<CacheSyncPublisher> syncListenerProvider) {
         return new CacheRegistry(properties,
                 localCacheProvider.getIfAvailable(),
                 redisCacheProvider.getIfAvailable(),

@@ -2,7 +2,6 @@ package com.gallop.fastddd.cache;
 
 import com.gallop.fastddd.cache.local.CaffeineLocalCache;
 import com.gallop.fastddd.cache.redis.RedisCache;
-import com.gallop.fastddd.cache.redis.RedisCacheSyncListener;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -20,14 +19,14 @@ public class MultiLevelCache {
     private final String cacheName;
     private final CaffeineLocalCache localCache;
     private final RedisCache redisCache;
-    private final RedisCacheSyncListener syncListener;
+    private final CacheSyncPublisher syncListener;
     private final boolean allowNullValues;
     private final ConcurrentHashMap<String, Object> loadingLocks = new ConcurrentHashMap<>();
 
     public MultiLevelCache(String cacheName,
                            CaffeineLocalCache localCache,
                            RedisCache redisCache,
-                           RedisCacheSyncListener syncListener,
+                           CacheSyncPublisher syncListener,
                            boolean allowNullValues) {
         this.cacheName = cacheName;
         this.localCache = localCache;

@@ -1,6 +1,7 @@
 package com.gallop.fastddd.cache.redis;
 
 import com.gallop.fastddd.cache.CacheRegistry;
+import com.gallop.fastddd.cache.CacheSyncPublisher;
 import com.gallop.fastddd.common.util.JsonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;
@@ -17,7 +18,7 @@ import java.util.UUID;
  * @author gallop
  */
 @Slf4j
-public class RedisCacheSyncListener implements MessageListener {
+public class RedisCacheSyncListener implements CacheSyncPublisher, MessageListener {
 
     private final String nodeId = UUID.randomUUID().toString();
     private final CacheRegistry cacheRegistry;
