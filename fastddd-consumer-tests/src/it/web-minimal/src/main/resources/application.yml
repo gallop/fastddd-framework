@@ -1,0 +1,24 @@
+# FRM-002 web-minimal 消费者配置：最小可启动。
+# MyBatis-Plus 是 web/crud 的硬传递依赖，须提供 DataSource。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+
+# 关闭非必要 Web 表面，缩小启动失败面
+fastddd:
+  web:
+    openapi:
+      enabled: false
+    knife4j:
+      enabled: false
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: assign_id

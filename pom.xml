@@ -63,6 +63,8 @@
     <!-- 治理插件 -->
     <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
     <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
+    <!-- 消费者测试隔离 harness（FRM-002），显式 pin 满足 enforcer requirePluginVersions -->
+    <maven-invoker-plugin.version>3.9.0</maven-invoker-plugin.version>
     <!-- Profile-specific properties (defaults) -->
     <profile.active>dev</profile.active>
     <logging.level.root>INFO</logging.level.root>
@@ -86,6 +88,8 @@
     <module>fastddd-studio</module>
     <!-- 示例 -->
     <module>fastddd-examples</module>
+    <!-- 消费者测试：独立 classpath 隔离 harness（FRM-002） -->
+    <module>fastddd-consumer-tests</module>
   </modules>
   <dependencyManagement>
     <dependencies>

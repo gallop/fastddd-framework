@@ -1,0 +1,12 @@
+# Security 消费者预设配置（ADR-004：HMAC 密钥 ≥64 字节硬门禁）。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+fastddd:
+  security:
+    jwt:
+      # 预设占位密钥（≥64 字节，仅供 harness 启动；SEC-001 将移除默认凭据相关项）
+      secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"

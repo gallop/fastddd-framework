@@ -1456,6 +1456,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 |---|---|---|---|---|---|
 | 2026-08-11 | FRM-000 | ✅ 已完成 | 分支 `refactor/fastddd-1.0-framework` ← `upgrade/jdk21-boot3.5.16` @ 740da39；提交 `docs: 建立 FastDDD 1.0 架构整改执行基线` | reactor 27/27 SUCCESS；测试 364 run / 0 failures / 0 errors / 6 skipped；archetype(ANEMIC, 3.5.16) 生成 + 生成项目 `clean compile` BUILD SUCCESS（详见 §16.1） | 3 个 carry-over 文件随基线纳入版本控制（§16.1.E）；invoker javadoc 子构建噪声非致命（§16.1.D） |
 | 2026-08-11 | FRM-001 | ✅ 已完成 | 提交 `docs(arch): 冻结 FastDDD 1.0 四域 ADR 与消费者清单 (FRM-001)` | 4 份 ADR + consumers.yaml 冻结；ID go/no-go=GO（详见 §16.2） | 方案 §6 验收"ID-002～ID-008"笔误（实际只到 ID-006），已登记；go/no-go 对"UNKNOWN 不阻塞"的偏离已显式记录，待用户 review 可回退 |
+| 2026-08-11 | FRM-002 | ✅ 已完成 | 提交 `test(consumer): 独立消费者测试骨架 + P0-2/P0-4 隔离复现 (FRM-002)` | 新增 `fastddd-consumer-tests` 模块（maven-invoker 3.9.0）；默认 gated `web-*` Passed:2/Failed:0；全量 `-Dinvoker.test=*` Passed:4/Failed:3；monitor-minimal 隔离复现审计 P0-4（详见 §16.3） | `-Pconsumer-tests` 装饰性警告（profile 在子模块非根，已实证实际生效）；3 个 ungated 失败登记到 CACHE-001/EVT/MON-001 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1547,3 +1548,52 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 
 - go/no-go 的"UNKNOWN 不阻塞"偏离为承重判断，虽已显式记录并设回退条件，仍提请用户在下一 review 点确认或回退。
 - 事件多实例 claim 一致性（EVT-004）、真实 MQ（QA-002）等 Testcontainers 验证只能本地跑（无 CI runner，见 [[ci-infrastructure]]），列为 RC 验证项。
+
+### 16.3 FRM-002 独立消费者测试骨架快照
+
+用 maven-invoker-plugin 3.9.0 在**隔离 forked Maven 进程**里构建最小消费者工程，验证 `fast-ddd-*` 作为**外部依赖**被消费的真实边界——而非 reactor classpath 掩盖 optional 依赖问题（审计 P0-2 正是被 reactor classpath 掩盖的典型）。
+
+**A. 交付物（新增模块 `fastddd-consumer-tests`）**
+
+| 文件 | 内容 |
+|---|---|
+| `fastddd-consumer-tests/pom.xml` | packaging=pom；maven-invoker 3.9.0；`<invoker.skip>true</invoker.skip>` 默认 + profile `consumer-tests` 翻转；`<invoker.test>web-*</invoker.test>` 默认 gated 选择器；execution `consumer-integration-test` 绑 integration-test phase；`cloneProjectsTo=target/its`、`streamLogsOnFailures=true`、`writeJunitReport=true` |
+| `fastddd-consumer-tests/README.md` | 骨架说明 + 隔离原理 + 两步 CI 命令 + 7 场景刻画表 + 实测根因（build.log 证据逐条 grep 比对） |
+| `src/it/web-minimal/` | gated 正向：starter + application + H2，`ContextLoadsTest` 验上下文启动 |
+| `src/it/web-without-application/` | gated 特征测试：无 application 依赖，`ReproducesP02Test` 断言上下文抛 `CommandValidationException`（P0-2） |
+| `src/it/{security,cache,event,monitor,search}-minimal/` | 5 个 ungated scaffold，各挂对应任务（SEC-001 / CACHE-001 / EVT / MON-001 / SEARCH-001） |
+| 根 `pom.xml` | `<modules>` 增 `fastddd-consumer-tests`；`<properties>` 增 `<maven-invoker-plugin.version>3.9.0</maven-invoker-plugin.version>` |
+
+**B. 验收证据（命令级，2026-08-11）**
+
+1. **验收①最小消费者独立 classpath 启动**：`web-minimal` → `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`（`ContextLoadsTest`）。
+2. **验收②复现 Web 缺 application 失败**：`web-without-application` 特征测试通过；build.log 因果链 `BeanCreationException: Error creating bean with name 'globalExceptionHandler'` → `NoClassDefFoundError: com/gallop/fastddd/application/exception/CommandValidationException` → `ClassNotFoundException`。
+3. **验收③诊断日志保留**：每场景 `target/its/<scenario>/build.log`。
+4. **验收④六类空消费者预置**：7 场景（web ×2 + security/cache/event/monitor/search 5 scaffold）。
+5. **验收⑤公共命令接入 CI、不强制全绿**：默认 gated `web-*` → `Passed: 2, Failed: 0`（BUILD SUCCESS）；全量 `-Dinvoker.test=*` → `Passed: 4, Failed: 3`。
+6. **标准门禁不回归**：`clean verify -Ptest` → BUILD SUCCESS；consumer-tests 模块 invoker 默认 skip（日志 `invoker:3.9.0:run ... Skipping invocation per configuration`），0 surefire 单测；基线 364 run 不变（§16.1.B）。
+
+**C. 全量场景实测刻画（Passed 4 / Failed 3）**
+
+| 场景 | 结果 | 根因 / 备注 |
+|---|---|---|
+| web-minimal | ✅ | 上下文独立 classpath 启动 |
+| web-without-application | ✅ | 特征测试通过（P0-2 存在）；WEB-001 修复后翻转为正向 `contextLoads` |
+| security-minimal | ✅ | 启动（给 ≥64B dummy JWT secret）；SEC-001 待刻画 |
+| search-minimal | ✅ | 启动（无 ES 后端不崩）；SEARCH-001 待刻画 |
+| cache-minimal | ❌ | `NoClassDefFoundError: org/springframework/data/redis/connection/MessageListener`——cache 硬引用 Redis 未 `@ConditionalOnClass` 门禁（P0-2 同类 optional 边界泄漏）；CACHE-001 |
+| event-minimal | ❌ | bean `outboxEventServiceImpl` 构造器参数缺 `ObjectMapper`——`OutboxEventServiceImpl` 假设 web starter 提供；ADR-002 自动配置门禁 / EVT |
+| monitor-minimal | ❌ | bean `sqlMetricsCollector` 参数 `expected single matching bean but found 2: sqlMonitoringProperties, fastddd.monitor.sql-...SqlMonitoringProperties`——**审计 P0-4 直接、隔离复现**；MON-001 |
+
+> monitor-minimal 的失败是对审计 P0-4（SQL 监控 `@ConfigurationProperties` bean 重复注册）的独立隔离复现——无需额外单测即锁定根因，证实骨架已具备暴露此类 consumer-boundary 缺陷的能力。
+
+**D. 自审发现并已修正**
+
+- README 初稿写"标准 `./mvnw verify`（27 模块全量门禁）保持 27/27 绿"——`clean verify -Ptest` 实证 reactor summary 现含 consumer-tests 模块（29 行含根 parent），"27/27"为过期基线数。已改为陈述机制 + 日志实证（`Skipping invocation per configuration` + 0 surefire），不写过期的硬编码模块数。
+- `clean verify` 会清掉 `target/its/`（含先前 build.log 证据）。自审发现证据丢失后，已用 `install -DskipTests` + `-Dinvoker.test=*` 复跑重建证据，README 所列根因字符串均经 grep 逐条比对 build.log 原文确认。
+- `-Pconsumer-tests` 从 reactor 根调用时 Maven 打印 `profile "consumer-tests" could not be activated` 装饰性警告（profile 在子模块而非根 pom）。已用反证 + 实测证明 profile 实际生效：若未生效则 invoker 被默认 skip、跑 0 场景，与实测跑出 2（gated）/ 7（全量）相悖；README 显式说明该警告无害。
+
+**E. 遗留**
+
+- 3 个 ungated 失败（cache / event / monitor）登记到 M1 任务 CACHE-001 / EVT / MON-001；本任务仅刻画、不修（修复属各任务范围）。
+- consumer-tests 模块为 packaging=pom + 0 surefire，不贡献 reactor 测试计数，但使 reactor 模块数 +1；README 已以机制陈述取代硬编码模块数，避免再次失真。

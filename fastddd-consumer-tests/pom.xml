@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fastddd</artifactId>
+    <version>${revision}</version>
+  </parent>
+  <artifactId>fastddd-consumer-tests</artifactId>
+  <packaging>pom</packaging>
+  <name>FastDDD :: Consumer Tests</name>
+  <description>
+    独立消费者验证 harness（FRM-002）。用 maven-invoker-plugin 在隔离的 forked Maven
+    进程里构建最小消费者工程，确保 fast-ddd-* 从本地仓库（已 install 的制品）解析，
+    而非从 reactor classpath 继承——后者会掩盖 optional 依赖的真实边界（审计 P0-2）。
+  </description>
+
+  <properties>
+    <!-- 默认跳过：invoker 需要 reactor 先 install 到本地仓库，标准 `mvn verify` 不触发
+         （日志：invoker:run ... Skipping invocation per configuration；本模块 0 surefire 单测），
+         标准门禁不受影响。CI 用 -Pconsumer-tests 显式启用（前置 mvn install -DskipTests）。 -->
+    <invoker.skip>true</invoker.skip>
+    <!-- 默认只跑已 gated 的 web 场景；-Dinvoker.test=* 跑全部（含 5 个 scaffold）。
+         invoker.test 用 glob；逗号分隔等价枚举。 -->
+    <invoker.test>web-*</invoker.test>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-invoker-plugin</artifactId>
+        <version>${maven-invoker-plugin.version}</version>
+        <configuration>
+          <!-- 把 src/it/<scenario> 复制到 target/its/<scenario> 后在副本里执行，保留 build.log -->
+          <cloneProjectsTo>${project.build.directory}/its</cloneProjectsTo>
+          <projectsDirectory>src/it</projectsDirectory>
+          <!-- 用默认本地仓库（~/.m2）：forked 构建从已 install 的 fast-ddd-* 制品解析，
+               模拟真实外部消费者；不设 localRepositoryPath 以避免空仓库解析失败。 -->
+          <streamLogsOnFailures>true</streamLogsOnFailures>
+          <writeJunitReport>true</writeJunitReport>
+          <parallelThreads>1</parallelThreads>
+        </configuration>
+        <executions>
+          <execution>
+            <id>consumer-integration-test</id>
+            <phase>integration-test</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <skip>${invoker.skip}</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- 启用消费者测试：mvn install -DskipTests && mvn verify -pl fastddd-consumer-tests -Pconsumer-tests -->
+    <profile>
+      <id>consumer-tests</id>
+      <properties>
+        <invoker.skip>false</invoker.skip>
+      </properties>
+    </profile>
+  </profiles>
+</project>
