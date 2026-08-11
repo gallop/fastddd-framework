@@ -2292,3 +2292,48 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - **代理类型处理**：当前 exact-class 规则覆盖 MyBatis-Plus（无代理）；若未来引入 Hibernate 等产生代理子类的 ORM，equals 的 `getClass()` 比较需改为 canonical-type 策略。登记，非本任务。
 - **`VersionedEntity` 仍为 dead code**：本任务仅去持久化回调使其与新基类一致，未移除（保留供未来乐观锁领域实体）。无子类、无调用方。
 - **下一 M2 任务**：ID-003（PO 显式 ID 与审计模型重构，依赖 ID-001 ✅，已解锁）或 ID-004（Repository/Service ID 泛型化，依赖 ID-002 ✅ + ID-003）。按 ID 链依赖序，ID-003 先行（ID-004 需其完成）；SPLIT-003 亦仍解锁可并行。
+
+### 16.20 ID-003 PO 显式强类型 ID 与审计基类重构快照
+
+将持久化基类 `BasePO` 的主键从"`Serializable` 弱类型 + 字段级 `@TableId(ASSIGN_ID)` 硬编码（覆盖全局配置）"重构为"强类型 `Long`（对应 BIGINT 列）+ 移除字段级 `@TableId`（ID 策略唯一由全局 `id-type` 决定）"。修复 ID-001/ADR-001 §2.4 锁定的"文档/实现漂移"与 ADR-001 §M1 的"字段注解覆盖全局配置"矛盾；将审计字段上移到独立 `AuditedPO`，使审计能力可被"有审计但无统一主键"的持久化对象复用。**本任务改生产 API 签名**（`getId()/setId()` 由 `Serializable` 收窄为 `Long`），并暴露修复一处真实隐患（`FieldLibraryServiceImpl` 把 String 塞入 PO id）。UUID/String/值对象主键的泛型化（`BasePO<ID>`）按 ADR-001 §6 显式推迟到 ID-004。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 新增 `AuditedPO` | `fast-ddd-model/.../po/AuditedPO.java`：抽象基类，承载审计字段（createTime/updateTime/createUser/updateUser，带 `@TableField(fill=...)`）与逻辑删除（`@TableLogic deleted`），`implements Serializable`，**不**含主键。Javadoc 记录步骤2 逻辑删除评估结论（`@TableLogic` 作为框架默认保留）。 |
+| `BasePO` 重写 | `fast-ddd-model/.../po/BasePO.java`：`extends AuditedPO`；`protected Long id`（**无**字段级 `@TableId`——策略交全局 `id-type`）；显式 `public Long getId()` / `public void setId(Long)`（收窄自 `Serializable`）。`@Getter/@Setter/@ToString(callSuper=true)`。Javadoc 修正漂移声明、记录 ID-004 泛型化展望。 |
+| 控制器过渡桥接（2 处） | `BaseAdminCrudController.java:107`、`FieldLibraryController.java:132`：`entity.setId((Long) id)`。`resolveId` 仍返回 `Serializable`（ID-005 以 `IdCodec<Long>` 替换后强转消失），注释标注过渡性质。 |
+| 真实隐患修复（1 处） | `FieldLibraryServiceImpl.java:123`：`updateField(String id, ...)` 原 `fieldLibrary.setId(id)` 把 String 塞入 PO id（弱类型下的隐患）。改为 `Long.valueOf(id)`（field-library 主键为 Long 雪花）。这正是强类型化要暴露的那类缺陷。 |
+| 特征测试翻转 | `BasePOIdContractTest`（fast-ddd-model）由 ID-001 的"锁定弱类型现状（8 测试）"改写为"锁定强类型契约（11 测试）"：`getId` 返回 `Long`、`setId` 收窄 Long（反射断言 String/UUID 重载不存在）、字段无 `@TableId`、审计字段上移 `AuditedPO`、`VersionedPO.@Version` + 继承 Long id。`AbstractBaseControllerIdResolutionTest` 的 `InputFixture`/`AutoFixture` 字段类型对齐 Long（字段隐藏仅用于挂载 `@TableId`，resolveId 只读 TableInfo）；`AssignIdFixture` 注释更新（IdType 现 来自 MP 默认 ASSIGN_ID）。 |
+| 文档同步（ADR §3 即时项） | `FASTDDD_REFERENCE.md`：移除"@TableId(ASSIGN_ID) 内置""全局配置覆盖""Serializable id + SerializableTypeHandler"声明，改为强类型 Long + 全局 `id-type` 驱动 + LongTypeHandler。`UPGRADE_GUIDE_1.1.md`：移除"全局配置可覆盖此默认值"。`templates/project/README.md.ftl`：`id-type: auto` → `assign_id`（与生成配置一致）。`ID_TYPE_MIGRATION_CHECKLIST` §2.4/§2.8/§4 标注 ID-003 已修复。 |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**30/30 SUCCESS，495 tests / 0 failures / 0 errors / 10 skipped**（较 ID-002 基线 492 +3：BasePOIdContractTest 8→11；0 回归，2:51）。
+- 逐模块特征测试：fast-ddd-model `BasePOIdContractTest` **11/0**（GetIdContract 3、IdStrategyAnnotation 2、AuditFieldsExtraction 2、EqualsHashCodeContract 2、VersionedPoContract 2）；fast-ddd-web `AbstractBaseControllerIdResolutionTest` **7/0**（LongIdResolution 3、StringIdResolution 2、FallbackResolution 2，含无字段注解的 AssignIdFixture 走 MP 默认 ASSIGN_ID 分支）。
+- Enforcer `requireJavaVersion [21,)` 通过（构建在 JDK 21 运行）。
+- 取证爆炸半径（Explore 扫描）：14 个生产 BasePO 子类（1 VersionedPO + 12 studio + 1 examples）均**不**重声明 id/@TableId（无需改动）；3 个独立 `@TableId(AUTO)` 实体（OutboxEvent/AuditLogEntity/TableDesignVersion）不继承 BasePO，不受影响；20 处弱类型消费点（16 `(Long)getId()` 强转 + 3 `getId().toString()` + 1 `Long.valueOf(getId().toString())`）在 ID-003 后变多余但无害，清理归入 ID-004。
+- `SerializableTypeHandler`（`fast-ddd-crud/.../handler/`）经 `@MappedTypes(Serializable.class)` 全局注册——`BasePO.id` 收窄 Long 后内置 `LongTypeHandler` 直接处理主键读写，该 handler 对 id 读取已失效（死代码），移除归入 ID-006（可能仍服务其它 Serializable 列，故本任务不移除）。
+
+**C. 验收对照**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| §2.2 | BasePO.id 强类型（默认 Long） | ✅ | `protected Long id` + `getId():Long` |
+| §2.2 | 移除字段级 @TableId override | ✅ | `idField_hasNoTableIdAnnotation` 测试 + 源码 |
+| §3 | 即时文档修正 | ✅ | REFERENCE/UPGRADE/README.ftl/checklist 四处 |
+| §5 | ID-003 范围 = 类型化 BasePO.id + 移除字段 override | ✅ |SerializableTypeHandler 移除严格归 ID-006，未越界 |
+| 验收 | 主键读写不依赖 SerializableTypeHandler | ✅ | Long → 内置 LongTypeHandler；SerializableTypeHandler 对 id 已失效 |
+| 验收 | 14 BasePO 子类零改动 | ✅ | 取证：无子类重声明 id/@TableId |
+| 禁止 | 不通过排除测试/降断言/关插件通过门禁 | ✅ | 全量 verify -Ptest 30/30、495/0/0 |
+
+**D. 移交与残留**
+
+- **3 处过渡强转**（`BaseAdminCrudController`/`FieldLibraryController` 的 `(Long) id`）：`resolveId` 仍返回 `Serializable`，ID-005 以 `IdCodec<ID>` 替换 `resolveId` 后自然消失。注释已标注。
+- **20 处弱类型消费点**（`(Long) x.getId()` 等）：强类型化后多余但无害；ID-004 泛型化 Repository/Service/Controller 时一并清理。
+- **`SerializableTypeHandler` 未移除**：对 id 已失效，但可能服务其它 Serializable 列；归 ID-006 评估后决定。
+- **UUID/String/值对象主键未泛型化**：ADR-001 §6 显式归 ID-004（`BasePO<ID>` + SPI `<ID>` 泛型化）。Java 无默认泛型参数语法，故当前非泛型 Long 覆盖绝大多数业务表为最小爆炸半径决策。
+- **`BasePO` 同一性等价保留**：ID-002 §D 曾登记"BasePO 侧同一性等价待 ID-003 统一"。ID-003 评估后**决定保留**同一性等价（持久化对象以主键+表为身份，跨聚合字段相等比较有副作用风险），并在 BasePO javadoc 明确记录为有意决策（与领域侧 DomainEntity 身份等价是两套并行契约）。
+- **下一任务**：ID-004（Repository/Service/Controller ID 泛型化，依赖 ID-002 ✅ + ID-003 ✅，现已解锁）—— `BasePO<ID>` 泛型化 + `IService<T,ID>` + Controller `<ID>` + 清理 20 处 cast；ID-005（IdCodec，消除 resolveId + 过渡强转）、ID-006（移除 SerializableTypeHandler）随后；SPLIT-003 亦仍解锁可并行。
+

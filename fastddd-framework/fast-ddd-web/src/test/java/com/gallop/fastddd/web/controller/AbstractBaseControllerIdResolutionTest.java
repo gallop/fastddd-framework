@@ -33,35 +33,42 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class AbstractBaseControllerIdResolutionTest {
 
-    /** 继承 BasePO 的 ASSIGN_ID 实体（字段级 @TableId 由 BasePO 提供）。 */
+    /**
+     * 继承 BasePO 的 ASSIGN_ID 实体（ID-003 后 BasePO.id 不再带字段级 @TableId，
+     * IdType 由 MP 默认 ASSIGN_ID 提供——本 fixture 刻画"无字段注解"分支）。
+     */
     @TableName("t_assign_id")
     static class AssignIdFixture extends BasePO {
     }
 
-    /** 重声明 id 为 INPUT 策略（也刻画"字段级重声明覆盖 BasePO 策略"机制）。 */
+    /**
+     * 重声明 id 为 INPUT 策略（刻画"子类字段级 @TableId 重声明"机制）。
+     * ID-003 后字段类型须与 BasePO 强类型 Long 对齐（字段隐藏仅用于挂载 @TableId，
+     * resolveId 只读 TableInfo 的 IdType，对隐藏字段本身无副作用）。
+     */
     @TableName("t_input")
     static class InputFixture extends BasePO {
         @TableId(type = IdType.INPUT)
-        private Serializable id;
+        private Long id;
 
         @Override
-        public Serializable getId() { return id; }
+        public Long getId() { return id; }
 
         @Override
-        public void setId(Serializable id) { this.id = id; }
+        public void setId(Long id) { this.id = id; }
     }
 
-    /** 重声明 id 为 AUTO 策略。 */
+    /** 重声明 id 为 AUTO 策略（字段类型对齐 BasePO 强类型 Long）。 */
     @TableName("t_auto")
     static class AutoFixture extends BasePO {
         @TableId(type = IdType.AUTO)
-        private Serializable id;
+        private Long id;
 
         @Override
-        public Serializable getId() { return id; }
+        public Long getId() { return id; }
 
         @Override
-        public void setId(Serializable id) { this.id = id; }
+        public void setId(Long id) { this.id = id; }
     }
 
     /** 无 TableInfo 注册的实体——用于刻画 fallback 分支。 */

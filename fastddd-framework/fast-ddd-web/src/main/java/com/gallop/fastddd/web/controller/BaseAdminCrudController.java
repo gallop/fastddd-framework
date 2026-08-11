@@ -102,7 +102,9 @@ public abstract class BaseAdminCrudController<S extends IService<T>, T extends B
             @Valid @RequestBody T entity) {
         try {
             Serializable id = resolveId(idStr);
-            entity.setId(id);
+            // ID-003 过渡桥接：BasePO.id 已收窄为 Long，resolveId 仍返回 Serializable（ID-005 以
+            // IdCodec<Long> 替换 resolveId 后此处强转消失）。BasePO 实体主键恒为 Long（全局 assign_id）。
+            entity.setId((Long) id);
             beforeUpdate(id, entity);
             boolean success = service.updateById(entity);
             if (success) {

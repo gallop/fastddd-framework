@@ -231,7 +231,7 @@ mybatis-plus:
       # id-type: input      # 手动输入
 ```
 
-> `BasePO` 的 `id` 字段声明了 `@TableId(type = IdType.ASSIGN_ID)`，全局配置可覆盖此默认值。如果业务需要不同策略，子类可重新声明 `id` 字段并指定不同的 `@TableId`。
+> `BasePO.id` 为强类型 `Long` 且**不**携带字段级 `@TableId`，ID 策略唯一由全局配置 `id-type`（默认 `assign_id`）决定。如果业务需要不同策略，子类自行重声明 `id` 字段并指定 `@TableId(type=...)`。
 
 ---
 

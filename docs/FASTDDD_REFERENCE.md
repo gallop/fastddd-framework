@@ -74,21 +74,21 @@ public class Order extends BasePO {
     private String orderNo;
     private Integer status;
 
-    // id 字段已由 BasePO 内置，无需声明 @TableId / getId() / setId()
-    // getId() 返回 Serializable，需具体类型时强转: (Long) entity.getId()
+    // id 字段已由 BasePO 内置（强类型 Long），无需声明 @TableId / getId() / setId()
+    // getId() 直接返回 Long，无需强转: Long id = entity.getId();
 }
-// BasePO 自动提供: id, createTime, updateTime, createUser, updateUser, deleted
+// BasePO 自动提供: id(Long), createTime, updateTime, createUser, updateUser, deleted
 // createTime/updateTime/createUser/updateUser 由框架 AutoFill 自动填充
 // 需要乐观锁的实体请继承 VersionedPO（自动包含 version 字段）
 ```
 
 **关键规则**:
 - 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
-- `BasePO` 已内置 `id` 字段（`@TableId(type = IdType.ASSIGN_ID)`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
-- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `BasePO` 提供
-- ID 策略通过全局配置 `mybatis-plus.global-config.db-config.id-type` 控制，子类可重新声明 `id` 覆盖
+- `BasePO` 已内置强类型 `Long id` 字段（**不**携带字段级 `@TableId`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
+- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `AuditedPO`（`BasePO` 父类）提供
+- ID 策略唯一由全局配置 `mybatis-plus.global-config.db-config.id-type`（默认 `assign_id` 雪花）决定；需要不同策略的子类自行重声明 `id` 并加 `@TableId(type=...)`
 - 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
-- `BasePO.id` 类型为 `Serializable`（兼容 Long/String 等），框架自动注册 `SerializableTypeHandler`，MyBatis-Plus 结果映射无需额外配置
+- `BasePO.id` 类型为强类型 `Long`（对应 BIGINT 列），MyBatis-Plus 内置 `LongTypeHandler` 直接处理读写，无需框架额外注册 TypeHandler
 
 ### 2. 充血模型 — AggregateRoot (fast-ddd-common)
 
