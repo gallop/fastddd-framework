@@ -1460,6 +1460,7 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 | 2026-08-11 | SPLIT-001 | ✅ 已完成 | 提交 `docs(arch): 冻结三层产品边界与依赖方向 ADR (SPLIT-001)` | ADR-005 冻结 Framework/Tooling/Studio 三层边界 + 依赖方向 + 坐标/版本/许可证归属（详见 §16.4） | `fast-ddd-web→fastdoc-core` 反向依赖移交 SPLIT-002；Tooling/Studio 许可证为推荐结论待 OSS-001 终审 |
 | 2026-08-11 | CFG-001 | ✅ 核心完成 | 提交 `docs(cfg): 配置契约清单与错配分析 (CFG-001 步骤1-3)` f04e793；`feat(cfg): fast-ddd.* 旧根启动期 fail-fast guard (步骤6)` 94ef8a4；`feat(cfg): 优先属性类补声明式数值约束 + 绑定期校验单测 (步骤4)` ab187e3 | 配置契约单一事实源（16 前缀/14 类字段/错配分析）；`fast-ddd.*` 旧根启动期 fail-fast guard（fast-ddd-config，经 starter 传递，3 单测）；2 优先类补 `@Validated` 数值约束 + 绑定期校验实证（cache 4 / code 5 用例）（详见 §16.5） | 步骤4 残留扩展：Duration 字段需自定义 `@PositiveDuration`（独立小任务）+ 其余类按需补；步骤5 metadata 快照低优先；未绑定配置（cqrs/event）+ id-type 移交 CFG-002 |
 | 2026-08-11 | CFG-002 | ✅ 已完成 | 提交 `fix(cfg): 修复生成模板配置契约 + 渲染期校验 (CFG-002)` eb3ef0c | 3 生成模板（单项目/多端/archetype）修复：根前缀 `fast-ddd→fastddd`、删除未绑定 cqrs/event、JWT secret 改环境变量、`slow-threshold→slow-query-threshold`、多端 http/cors 嵌套修正、`id-type auto→assign_id`；新增 `ProjectConfigContractTest`（snakeyaml 渲染期键路径契约，3 用例）+ archetype 生成冒烟实证（详见 §16.6） | DB `your_password` 占位符（dev 便利，非功能凭据）保留；event/cqrs 真实绑定待 EVT/ADR-003；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 契约测试（覆盖 ANEMIC/RICH）替代，全组合留 QA-001 |
+| 2026-08-11 | SPLIT-002 | ✅ 已完成 | 提交 `refactor(split-002): 移除 Framework 对 FastDoc 反向依赖，FastDoc HTTP 适配上移至 Tooling Starter (SPLIT-002 #38)` 2c1da8a | 新建 `fastddd-fastdoc-spring-boot-starter`（Tooling）；fast-ddd-web 移除 fastdoc-core 依赖 + 删除嵌套 FastDocConfiguration/Controller；框架级源码扫描门禁 `FrameworkLayeringDirectionTest`；fastdoc-minimal 消费者实证装配（详见 §16.7） | 框架子模块 parent=root 致聚合器级 enforcer 无法继承，门禁改用测试级源码扫描（持久 per-submodule enforcer 门禁留 OSS-001）；顺带修正原 web 嵌套配置的 `@ConditionalOnBean(DataSource)` 排序存量缺陷 |
 
 ### 16.1 FRM-000 基线快照
 
@@ -1698,3 +1699,41 @@ Task Master 状态不得超前于代码证据：只有骨架、空接口或字�
 - 移交 **EVT/ADR-003**：删除的 `fastddd.event.*`（outbox/async）待 OutboxTransport SPI 决定补真实绑定后再恢复生成。
 - 残留：DB `your_password` 占位符（dev 便利，非功能凭据，prod 模板已用 `${DB_PASSWORD:}`）；CFG-002 步骤6 的"4 组合"以单组合冒烟 + 覆盖 ANEMIC/RICH 的契约测试替代，全组合矩阵留 **QA-001**。
 - 过程教训（已规避）：`archetype:generate` 在 reactor 根目录内生成会回写父 pom `<module>`——后续生成冒烟须用 `-DoutputDirectory` 指向仓库外临时目录（本次已 `git restore pom.xml` 回退误改）。
+
+### 16.7 SPLIT-002 移除 Framework→FastDoc 反向依赖快照
+
+消除 ADR-005 违禁的 `fast-ddd-web（Framework）→ fastddd-fastdoc-core（Tooling）` 反向依赖，将 FastDoc HTTP 适配整体上移至 Tooling 层新建 starter。
+
+**A. 交付物**
+
+| 类别 | 产物 |
+|---|---|
+| 新建模块 | `fastddd-tooling/fastddd-fastdoc-spring-boot-starter`：`FastDocController`（13 端点 `/api/fastdoc/*`，包改为 `com.gallop.fastddd.fastdoc.web`）+ `FastDocWebAutoConfiguration`（`@AutoConfiguration` + `@ConditionalOnClass(FastDocService.class)` + `@AutoConfigureAfter(DataSourceAutoConfiguration.class)`，4 个 @Bean：fastDocService/fastDocTemplateService/fastDocExportService/fastDocController）+ `META-INF/spring/...AutoConfiguration.imports` + README |
+| fast-ddd-web 瘦身 | 删除 `fastdoc-core` 依赖（pom 留说明注释）；删除 `web/fastdoc/` 包（FastDocController + README）；`FastDddWebAutoConfiguration` 移除 fastdoc import、`excludeFilters` 正则、嵌套 `FastDocConfiguration`，瘦身为纯 web 职责（ComponentScan + Import + GlobalExceptionHandler @Bean） |
+| 模块注册 | tooling 聚合器 `<module>` + 根 pom `<dependencyManagement>` + `fastddd-bom` + `fastddd-studio-server` 消费依赖 |
+| 框架级门禁 | `fast-ddd-common/FrameworkLayeringDirectionTest`：从 common basedir 遍历同级 `fast-ddd-*` 各模块主源码树，断言无 import 命中 `com.gallop.fastddd.{fastdoc,codegen,doc,templates,maven.plugin,studio}.` 前缀 |
+| 消费者验证 | `fastddd-consumer-tests/src/it/fastdoc-minimal`：forked 构建（spring-boot-starter-parent 3.5.16 + import fastddd-bom + fastdoc-starter + jdbc + h2），`@SpringBootTest` 断言 FastDocService + FastDocController bean 装配 |
+
+**B. 命令级证据**
+
+- 全量 reactor `clean verify -Ptest`：**29/29 SUCCESS，380 tests / 0 failures / 0 errors**（新 starter 入 reactor；Studio 46 tests 含 FastDoc 已激活仍 PASS）。
+- Framework 独立构建（显式列出 14 个 `fast-ddd-*` 模块 `-pl ... -am`，无 Tooling）：**15/15 SUCCESS，320 tests / 0 failures**；Reactor Summary 仅 framework 模块，无 tooling/studio。
+- fastdoc-minimal 消费者（maven-invoker forked）：**Tests run: 1, Failures: 0**（FastDocService + FastDocController 双 bean 注入成功）。
+- 14 个 framework 模块 `dependency:list` 对禁忌自模块（fastdoc/codegen/doc-generator/templates/maven-plugin/doc-maven-plugin/archetype/studio）命中数 **均为 0**。
+- framework 源码 `import com.gallop.fastddd.{fastdoc,codegen,doc,templates,maven.plugin,studio}.` grep **零命中**。
+- `FrameworkLayeringDirectionTest` 经负向探针证明非空（植入违禁 import → 测试失败；移除 → 通过）。
+
+**C. 验收对照（方案三验收标准）**
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| ① | fastddd-framework 可在不构建 Tooling 下 `clean verify` | ✅ | 14 模块独立 reactor 320 tests / 0 fail，无 tooling/studio 入 reactor |
+| ② | FastDoc 在 Studio + 消费者可用 | ✅ | fastdoc-minimal Tests run:1 pass；Studio 全量 reactor 46 tests pass |
+| ③ | Framework 无 fastdoc/codegen/templates/studio 引用 | ✅ | 14 模块 dependency:list 0 命中 + 源码 import 0 命中 + 门禁测试守卫 |
+
+**D. 移交与残留**
+
+- **门禁形态决策（持久化登记）**：framework 各子模块 `<parent>` 为根 pom（非 `fastddd-framework` 聚合器），故聚合器级 maven-enforcer `bannedDependencies` **不被 14 个子模块继承**——实证仅在聚合器自身运行（trivially pass）。本任务改用 `FrameworkLayeringDirectionTest`（源码级 Java import 扫描，一次覆盖全部 framework 模块）作为 `verify` 阶段失败即阻断的门禁。**持久 per-submodule enforcer 门禁（POM 声明级）移交 OSS-001**：需将 enforcer 下沉到根 pom `<build><plugins>`（被全部子模块继承）并配合 `<dependencyManagement>` 收敛，属独立改造范围。
+- **顺带修正的存量缺陷**：原 fast-ddd-web 嵌套 `FastDocConfiguration` 的 `fastDocService` @Bean 标注 `@ConditionalOnBean(DataSource.class)` 但**未声明 `@AutoConfigureAfter(DataSourceAutoConfiguration.class)`**——条件在 DataSource 注册前求值被跳过，该配置**从未在真实消费者中激活**（FRM-002 取证佐证）。新 starter 补排序注解，消费者测试实证 FastDoc 首次真正装配。此为 SPLIT-002 的附带收益，非新增风险。
+- **消费者门禁纳入**：fastdoc-minimal 已纳入 `fastddd-consumer-tests`，默认 `invoker.skip=true`，需 `-Pconsumer-tests -Dinvoker.test=fastdoc-*` 触发（与 FRM-002 骨架一致）。
+- WEB-001（Web optional application 隔离）依赖项 FRM-002 + SPLIT-002 均已完成，**已解锁**，作为下一 M1 任务。
