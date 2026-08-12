@@ -2685,5 +2685,53 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **templates.** 解耦**：`DesignCodegenService`/`MultiChannelProjectBuilder`/`ProjectGeneratorService` 直用 `templates.TemplateRenderer`/`TemplateContext`——独立轴，待后续任务（不在 codegen 边界规则内）。
 - **下一任务**：SPLIT-004 步骤 4/7 评估与收尾，随后 ID-007（模板/插件/Archetype 迁移，依赖 SPLIT-004 ✅ 主体）。
 
+### 16.28 SPLIT-004 步骤 4（裁定 N/A）+ 步骤 7（生成路径集成测试）+ 主体收尾快照
+
+SPLIT-004 主体（Studio 改为 Tooling API 消费者）至此交付。本快照收口步骤 4 的契约适用性裁定、补步骤 7 的生成路径集成测试，并汇总验收。
+
+**A. 步骤 4 裁定：进度监听契约 N/A（无需迁移）**
+
+| 取证 | 结论 |
+|---|---|
+| Studio 是否直访生成器内部生成流程 | 否。`grep "import com.gallop.fastddd.codegen" studio/src/main/java` 零命中；§16.27 ArchUnit 规则 `studio.. → codegen..` 构建期锁定零类级依赖。 |
+| 进度反馈实现方式 | Studio 自编排逐表循环（逐表模型解析/文件过滤/前端/打包均需 Studio 侧控制），在 `projectGenerator.generate()` 调用前后经自有 `WebSocketProgressService.publishProgress` 上报（`UnifiedProjectService:694`）。 |
+| `GenerationProgressListener` 契约定位 | 该 API 为"生成器驱动批量 + 回调"的消费形态预留（如未来插件/批处理消费者）；Studio 是"消费方驱动循环"形态，二者正交，无需切换。 |
+| **裁定** | 步骤 4 无需动作——Studio 不存在对内部生成流程的直接访问，ArchUnit 已证。契约保留供其他消费形态。 |
+
+**B. 步骤 7 改动：经 `ProjectGenerator` 契约的端到端生成集成测试**
+
+既有测试 `ToolingProjectGeneratorTest`（mock 引擎）与 `CodeGeneratorServiceTest`（mock 模板渲染）均未走真实模板渲染；`GeneratedProjectCompileTest` 仅覆盖 FreeMarker 多端骨架，不触达 codegen 引擎。本提交补真实集成：
+
+| 测试 | 证据 |
+|---|---|
+| `ProjectGeneratorIntegrationTest`（2 测试，codegen 模块） | 用 `ApplicationContextRunner + AutoConfigurations.of(CodeGeneratorAutoConfiguration)` 装配真实引擎（真实 `TemplateEngineConfig`/`CodeGeneratorService`/`ToolingProjectGenerator`，FreeMarker 从 classpath 读真实模板），按 Studio 同款方式构造 `GenerationRequest`。 |
+| ①`anemicGenerationProducesAllLayersThroughContract` | 断言经契约生成 5 层（entity/mapper/service/serviceImpl/controller）于既定路径，且实体含 `public class User extends BasePO`——契约路径真实可运行。 |
+| ②`useLombokFlagPropagatesToRenderedEntity` | useLombok=true → 实体含 `@Builder`；false → 不含（Entity.ftl 以 `@Getter/@Setter` 为基线，useLombok 门控 `@Builder`）。**固化 §16.25 行为保留修正**——若有人误把 GenerationRequest 默认 false 当 Studio 默认，本测试失败。 |
+
+**C. SPLIT-004 验收汇总**
+
+| 验收项（§5） | 结论 | 证据 |
+|---|---|---|
+| Studio 只依赖 Tooling API 和公开 Starter | ✅ | §16.27 ArchUnit `studio.. → codegen..` / `→ maven.plugin..` 构建期锁定；两迁移文件 `import codegen` 零命中。 |
+| 替换 Generator Engine 实现不需改 Studio 源码 | ✅ | Studio 按契约类型（`ProjectGenerator`/`DatabaseIntrospectorFactory`）注入；codegen 自注册（§16.26），Studio 不命名实现。 |
+| Studio 生成/下载/进度反馈功能保持可用 | ✅（编译+单元+集成级） | 6 生成语义字段行为保留（§16.25，含 useLombok 修正 + 集成测试固化）；编译期零 codegen 依赖；契约路径端到端集成测试通过。运行时全链路冒烟待发布前手动确认。 |
+
+**D. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 31/31 SUCCESS（BUILD SUCCESS）
+→ Tests: 553 / 0 Failures / 0 Errors / 10 Skipped（surefire XML 解析，124 报告；基线 546 + §16.26 的 3 + §16.27 的 2 + 本提交 2，0 回归）
+→ ProjectGeneratorIntegrationTest 2/2 PASS（契约路径全层生成 + useLombok 透传）
+```
+
+**E. 登记与遗留（→ ID-007 / 后续）**
+
+- **SPLIT-004 步骤 7 剩余**：AI 设计（`DesignCodegenService` 端到端，需 TableDesign/ProjectCodegenRequest 夹具）、DB 反向工程（真实库内省 → 生成，Testcontainers/docker-gated）两条集成测试未补——生成调用契约经 `ProjectGeneratorIntegrationTest` 已间接覆盖，余为专项测试增强，归入 ID-007 或独立测试增强任务。
+- **templates.** 解耦**：`MultiChannelProjectBuilder`/`DesignCodegenService`/`ProjectGeneratorService` 直用 `templates.TemplateRenderer`/`TemplateContext`——独立轴（ID-007 模板迁移范围）。
+- **Security @Import 冗余**：`FastDddSecurityAutoConfiguration` 已经其 starter 自注册，Studio 的 `@Import` 冗余——清理归入后续。
+- **SPLIT-004 主体完成**：§1~§3、§5、§6、§8 全部交付且构建期锁定；§4 裁定 N/A（证据化）；§7 补生成路径集成测试，剩余两条专项测试登记。**下一任务：ID-007（模板/插件/Archetype 迁移，依赖 SPLIT-004 ✅）。**
+
+
 
 
