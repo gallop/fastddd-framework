@@ -32,6 +32,15 @@ import java.time.format.DateTimeFormatter;
  * FastDDD Jackson 自动配置类
  * 使用 Jackson2ObjectMapperBuilderCustomizer 增强，不覆盖 Spring Boot 原生配置
  *
+ * <p>WEB-002 opt-in 门控：类级别 {@code @ConditionalOnProperty(matchIfMissing=false)}——
+ * 仅当 {@code fastddd.jackson.enabled=true} 时装配（默认关）。「仅引入 fast-ddd-web」不应改写
+ * 消费者既有的 Long/日期/枚举 JSON 表示；框架聚合消费者（studio/examples/archetype）显式设
+ * {@code fastddd.jackson.enabled=true} 还原能力。
+ *
+ * <p>退让契约：customizer 为 {@link Jackson2ObjectMapperBuilderCustomizer}（增强 builder、不替换
+ * {@code ObjectMapper} bean），与业务自定义 {@code @Bean ObjectMapper} 不冲突——后者触发 Spring Boot
+ * {@code @ConditionalOnMissingBean} back-off，框架 customizer 对业务 bean 零影响。
+ *
  * @author gallop
  * @since 2026-02-28
  * @version 1.0.0-SNAPSHOT
@@ -40,7 +49,7 @@ import java.time.format.DateTimeFormatter;
 @AutoConfiguration
 @ConditionalOnClass(ObjectMapper.class)
 @EnableConfigurationProperties(JacksonProperties.class)
-@ConditionalOnProperty(prefix = "fastddd.jackson", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "fastddd.jackson", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 public class FastDddJacksonAutoConfiguration {
 

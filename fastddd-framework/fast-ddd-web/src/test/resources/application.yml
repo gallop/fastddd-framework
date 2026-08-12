@@ -19,3 +19,5 @@ fastddd:
   web:
     response-wrapper:
       enabled: true
+  jackson:
+    enabled: true

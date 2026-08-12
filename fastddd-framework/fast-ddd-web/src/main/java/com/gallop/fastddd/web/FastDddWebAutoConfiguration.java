@@ -1,6 +1,5 @@
 package com.gallop.fastddd.web;
 
-import com.gallop.fastddd.web.config.ApiResponseWrapperConfiguration;
 import com.gallop.fastddd.web.config.WebMvcConfig;
 import com.gallop.fastddd.web.config.OpenApiConfiguration;
 import com.gallop.fastddd.web.config.Knife4jConfiguration;
@@ -27,7 +26,7 @@ import org.springframework.context.annotation.Import;
 @Slf4j
 @AutoConfiguration
 @ComponentScan(basePackages = "com.gallop.fastddd.web")
-@Import({ApiResponseWrapperConfiguration.class, WebMvcConfig.class,
+@Import({WebMvcConfig.class,
          OpenApiConfiguration.class, Knife4jConfiguration.class})
 public class FastDddWebAutoConfiguration {
 

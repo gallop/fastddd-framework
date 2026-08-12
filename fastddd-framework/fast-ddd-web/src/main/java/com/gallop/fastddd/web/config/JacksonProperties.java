@@ -14,7 +14,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class JacksonProperties {
 
     /**
-     * 是否启用自定义Jackson配置（默认启用）
+     * 是否启用自定义Jackson配置。
+     *
+     * <p>WEB-002：默认关（opt-in）。真正的默认关门控在 {@link FastDddJacksonAutoConfiguration} 类级别
+     * {@code @ConditionalOnProperty(matchIfMissing=false)}——属性缺失时整个自动配置不装配。
+     * 本字段值在装配后恒为 {@code true}（类仅在 {@code fastddd.jackson.enabled=true} 时加载，
+     * 属性绑定覆盖字段默认值）；{@code fastddd.jackson.enabled=false} 由类级别条件直接拦截止。
      */
     private boolean enabled = true;
 

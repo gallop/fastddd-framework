@@ -2,7 +2,6 @@ package com.gallop.fastddd.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gallop.fastddd.web.annotation.EnableApiResponseWrapper;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +20,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "fastddd.web.response-wrapper.enabled=true"
         })
 @AutoConfigureMockMvc
-@EnableApiResponseWrapper
 class SimpleDebugTest {
 
     private static final Logger logger = LoggerFactory.getLogger(SimpleDebugTest.class);
