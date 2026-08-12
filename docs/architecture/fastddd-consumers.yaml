@@ -83,11 +83,11 @@ consumers:
 
 # go/no-go 汇总（ADR-001 §2.1）
 id_deletion_go_no_go:
-  decision: "GO"
+  decision: "REASSESS_REQUIRED"
   rationale: >
     所有已核实消费者（studio/examples/archetype）均为 DEVELOPMENT；
-    在研业务系统为 TEST_UAT 且迁移由 UPG-011 承载；
+    DataChat 已成为具名试点，但实际生产状态为 UNKNOWN，不能再沿用原“在研业务系统为 TEST_UAT”的推断；
     外部 UNKNOWN 因无 GA 制品而实质性不阻塞。
-    满足用户预决策 #1 的"无 PRODUCTION 消费者"前提。
-  fallback: "若 M2 执行前发现真实 PRODUCTION 消费者，回退到 ADR-001 备选 B（保留兼容层，破坏性删除延后 1.1）"
+    在完成所有真实业务消费者的生产状态审计前，不再批准新的破坏性公共契约删除。
+  fallback: "若发现真实 PRODUCTION 消费者，回退 ADR-001 备选 B（保留兼容层，破坏性删除延后 1.1）；DataChat 状态确认后重新决策。"
   decided_in: "ADR-001"
