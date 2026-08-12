@@ -3,6 +3,10 @@
 > 本指南指导业务系统从旧基线（JDK 17 / Spring Boot 3.4.5 / FastDDD `1.0.0-SNAPSHOT`）升级到
 > **JDK 21 / Spring Boot 3.5.16 / FastDDD `1.0.0-jdk21-SNAPSHOT`**。
 >
+> 本文是 JDK/Boot/BOM 的基础操作指引，不能替代完整的业务升级验收。使用 Framework 1.0 强类型 ID、CRUD、
+> Security、Event、缓存或外部基础设施的业务系统，必须同时执行
+> [业务系统升级与试点实施方案](architecture/BUSINESS_SYSTEM_UPGRADE_PLAN.md)。
+>
 > 对应升级方案 UPG-011（在研业务系统联调）。兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)；
 > 发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
 
@@ -18,9 +22,10 @@
 | MySQL 驱动坐标 | `mysql:mysql-connector-java` | **`com.mysql:mysql-connector-j`** 9.7.0 |
 | Druid 坐标 | `druid-spring-boot-starter` | **`druid-spring-boot-3-starter`** |
 
-**本次升级为 minor 线内升级**（Java 主版本 17→21 属构建/运行基线抬升，非框架 API 破坏）。
-FastDDD 公开 API 在 1.0.x 线保持向后兼容，业务代码的框架调用基本无需改动；
-主要工作在**环境（JDK 21）+ 依赖坐标（BOM）+ 配置（重复键等 Boot 3.5 严格解析）**。
+**本次升级包含构建基线抬升与 Framework 1.0 契约收紧。**Java 主版本 17→21 属构建/运行基线变更；
+对于使用 `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 或旧 CRUD 辅助 API 的业务系统，
+还需要完成强类型 ID 与源码适配。发布后的 1.0.x 补丁/次版本线保持兼容，但从旧 SNAPSHOT 迁入首个 1.0 RC/GA
+不得假设“只改依赖即可完成”。
 
 ---
 
