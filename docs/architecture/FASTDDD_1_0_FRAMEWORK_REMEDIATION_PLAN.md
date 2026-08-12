@@ -3188,5 +3188,38 @@ Mapper 解析失败也会返回空集合，混淆“没有搜索结果”和“�
 - 诊断使用当前运行线程的 classloader，确保 optional 依赖在独立消费者 classpath 被排除时仍能正确检测。
 - SEARCH-001 完成。下一任务：GEN-001（数据源与 Profile 模板修复）。
 
+### 16.37 GEN-001：数据源与 Profile 模板保持输入并显式选择连接池
+
+**问题与设计**
+
+原 `application-prod.yml.ftl` 以 artifactId 重新拼接数据库 URL，并无条件写入 Hikari 属性；这既会
+覆盖 Studio/Initializr 已确认的数据源 URL、账号和密码，也会让实际选择 Druid 的项目拿到无效的
+Hikari 配置。整改后基础 `application.yml` 是唯一写入连接信息的位置，profile 只写连接池调优项；
+模板上下文新增 `connectionPool`（默认 `HIKARI`，可选 `DRUID`）作为明确选择。
+
+**实现与验收**
+
+- 单项目和多端 application 模板均显式输出 Hikari 或 Druid 的 `spring.datasource.type`。
+- prod profile 不再拼接 DB_HOST/DB_PORT/artifactId URL，也不再输出 username/password；Hikari 只生成
+  `hikari.*`，Druid 只生成 `druid.*`。
+- Druid 选择在生成 POM 中显式加入 `druid-spring-boot-3-starter`，使其属性与实际依赖同源；Hikari
+  继续使用 Spring Boot 默认连接池。
+- `ProjectConfigContractTest` 同时渲染 Hikari/Druid，解析 YAML 并断言用户 URL/账号不变、prod 无连接
+  覆盖、连接池属性互斥且 Druid POM 依赖存在。
+
+**命令级证据**
+
+```
+./mvnw.cmd -B -pl fastddd-tooling/fastddd-templates test
+→ Tests run: 18, Failures: 0, Errors: 0
+```
+
+**阶段 review**
+
+- 不为 profile 引入第二套数据库连接来源；部署期想用环境变量覆盖时由用户在基础 datasource 字段显式
+  配置，生成器不再猜测或重组 URL。
+- `connectionPool` 为向后兼容的默认 HIKARI 字符串，缺失旧上下文仍会生成原有 Hikari 行为；DRUID
+  才额外引入依赖，未扩张默认生成项目的依赖面。
+- GEN-001 完成。下一任务：DOC-001（参考手册、AI 契约与迁移指南）。
 
 
