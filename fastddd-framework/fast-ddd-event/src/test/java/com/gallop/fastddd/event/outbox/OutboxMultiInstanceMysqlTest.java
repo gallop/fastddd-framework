@@ -1,6 +1,8 @@
 package com.gallop.fastddd.event.outbox;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -78,6 +80,12 @@ class OutboxMultiInstanceMysqlTest {
 
     @Autowired
     OutboxEventRepository outboxEventRepository;
+
+    @BeforeEach
+    void clearOutboxEvents() {
+        // 同一 Testcontainers 数据库会复用 Spring 上下文；每个场景必须独立计数。
+        outboxEventRepository.delete(new QueryWrapper<>());
+    }
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
@@ -197,7 +205,7 @@ class OutboxMultiInstanceMysqlTest {
      * 失败落 FAILED（可重试），下一轮 claimBatch 重新抢占。
      */
     @Test
-    void failedEvent_retryableReclaimedInSubsequentClaim() {
+    void failedEvent_isClaimedAfterRetryBackoffExpires() {
         seedPending("retry-mysql");
         Duration lease = Duration.ofMinutes(2);
 
@@ -208,9 +216,15 @@ class OutboxMultiInstanceMysqlTest {
         OutboxEvent afterFail = outboxEventService.findByEventId("retry-mysql").orElseThrow();
         assertEquals(OutboxEventStatus.FAILED, afterFail.getStatus());
 
-        // FAILED+可重试应被下一轮 claimBatch 重新抢占（selectPendingEventsWithLock 含 FAILED 分支）
+        // FAILED 事件必须遵守指数退避，不能在失败后立即被下一轮 dispatcher 抢占。
+        assertTrue(outboxEventService.claimBatch(1, lease).isEmpty(),
+                "退避窗口内的 FAILED 事件不应被重新抢占");
+
+        // 模拟调度器在退避到期后运行，验证 selectPendingEventsWithLock 的 FAILED 分支。
+        afterFail.setNextRetryAt(LocalDateTime.now().minusSeconds(1));
+        outboxEventRepository.updateById(afterFail);
         List<OutboxEvent> second = outboxEventService.claimBatch(1, lease);
-        assertEquals(1, second.size(), "FAILED 可重试事件应被重新抢占");
+        assertEquals(1, second.size(), "退避到期的 FAILED 可重试事件应被重新抢占");
         assertEquals("retry-mysql", second.get(0).getEventId());
         assertEquals(OutboxEventStatus.PROCESSING,
                 outboxEventService.findByEventId("retry-mysql").orElseThrow().getStatus());
