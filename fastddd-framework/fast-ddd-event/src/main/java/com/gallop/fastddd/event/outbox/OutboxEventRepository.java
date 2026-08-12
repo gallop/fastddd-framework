@@ -69,7 +69,7 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
            "(status = 'PENDING') OR " +
            "(status = 'FAILED' AND retry_count < max_retry_count AND " +
            "(next_retry_at IS NULL OR next_retry_at <= #{maxRetryTime})) " +
-           "ORDER BY created_at ASC LIMIT #{limit} FOR UPDATE")
+           "ORDER BY created_at ASC LIMIT #{limit} FOR UPDATE SKIP LOCKED")
     List<OutboxEvent> selectPendingEventsWithLock(@Param("maxRetryTime") LocalDateTime maxRetryTime, @Param("limit") int limit);
     
     /**
@@ -179,9 +179,9 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
     /**
      * 批量抢占并设置租约（EVT-003）：置 PROCESSING + claimed_at + lease_expires_at。
      *
-     * <p>必须与 {@link #selectPendingEventsWithLock} 在<b>同一事务</b>内调用——FOR UPDATE 锁
-     * 跨越 SELECT→本 UPDATE 边界，COMMIT 后其他 dispatcher 的 SELECT 即见 PROCESSING，
-     * 杜绝多实例重复抢占（修复 ADR-003 §1 P0-3）。
+     * <p>必须与 {@link #selectPendingEventsWithLock} 在<b>同一事务</b>内调用——FOR UPDATE SKIP LOCKED
+     * 锁跨越 SELECT→本 UPDATE 边界，避免多个 dispatcher 等待同一批记录造成死锁；COMMIT 后
+     * 其他 dispatcher 即见 PROCESSING，杜绝多实例重复抢占（修复 ADR-003 §1 P0-3）。
      *
      * @param ids            表主键 id 列表
      * @param claimedAt      抢占时间
@@ -209,7 +209,7 @@ public interface OutboxEventRepository extends BaseMapper<OutboxEvent> {
      * @return 过期未 ack 的事件列表
      */
     @Select("SELECT * FROM outbox_events WHERE status = 'PROCESSING' " +
-           "AND lease_expires_at IS NOT NULL AND lease_expires_at &lt; #{now} " +
+           "AND lease_expires_at IS NOT NULL AND lease_expires_at < #{now} " +
            "ORDER BY lease_expires_at ASC LIMIT #{limit} FOR UPDATE")
     List<OutboxEvent> selectExpiredLeaseProcessing(@Param("now") LocalDateTime now,
                                                    @Param("limit") int limit);
