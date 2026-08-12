@@ -12,3 +12,7 @@
 | 完整提交映射 | `.git/filter-repo/commit-map`（本地迁移工作区保留） |
 
 若需追溯任一历史提交，请使用本地迁移工作区的 `commit-map` 将源提交哈希映射为本仓提交哈希；全零值表示该源提交没有本仓路径的内容。
+
+## 跨仓验证
+
+2026-08-12 从 GitLab 私有仓的空目录 clone 本分支后，以 JDK 21.0.3 执行 `./mvnw.cmd -B install -DskipTests`：18/18 模块成功。该安装产物供 Tooling 和 Studio 的跨仓构建解析。
