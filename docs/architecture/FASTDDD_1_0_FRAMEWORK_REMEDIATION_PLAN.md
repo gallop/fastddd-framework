@@ -2906,6 +2906,59 @@ framework 级质量插件（pmd/spotbugs/checkstyle/jacoco/sonar）**不在 stud
 - **根 reactor 仍聚合 `fastddd-studio`**（步骤 6 保留临时聚合）：单仓内保留 reactor 聚合便于一站式构建；studio 已不继承根（隔离证明其独立性）。聚合的移除随物理拆仓进行。
 - **SPLIT-005 主体完成**。**下一任务：按 §5 依赖序取下一项**（ID-008 或其它 M3/M4 已解锁任务）。
 
+### 16.32 ID-008：在研业务迁移与旧 ID 实现移除（生成通道强类型化 + 消费者迁移结论 + 例外登记）快照
+
+承接 §16.31（SPLIT-005 完成，reactor 566/0/0/10）。ID-008 是 ID 类型系统整改（ID-001~007）的收尾任务：核实每个有效消费者已脱离旧 ID 模型、移除残留旧契约、登记无法收编的例外。三次提交：Phase A `a6bc7fa`、Phase B `8efbbc2`、Phase C 本提交。
+
+**A. 取证（消费者关卡 + 残留旧 ID 债）**
+
+| 取证项 | 命令级证据 |
+|--------|------------|
+| 消费者关卡 | `docs/architecture/fastddd-consumers.yaml:12-19,84-92`：`has_ga_artifact: false`、无 PRODUCTION 消费者（DEVELOPMENT/TEST_UAT/UNKNOWN）、`decision: "GO"`——授权破坏性变更与旧契约删除 |
+| 旧 `BaseEntity`/`BasePO`/`SerializableTypeHandler`/`resolveId` | 取证全仓：旧契约**均已在 ID-002~006 移除**（`BaseEntity`→`DomainEntity<ID>` 门面、`BasePO<ID>` 泛型化、`SerializableTypeHandler` 文件不存在、`resolveId` 仅 javadoc 残留）。生产代码 `(Long) x.getId()` 强转**零残留** |
+| 3 个非 BasePO 独立实体 | `OutboxEvent`（`fast-ddd-event/.../outbox/OutboxEvent.java:32-33`）、`AuditLogEntity`（`fast-ddd-security-starter/.../audit/AuditLogEntity.java:23-24`）、`TableDesignVersion`（`fastddd-studio/.../entity/TableDesignVersion.java:27-28`）——均自带 `private Long id; @TableId(AUTO)`，**主键已是强类型 Long**（非旧弱类型债） |
+| **生成通道裸 `extends BasePO`（真实残留债）** | `grep "extends BasePO" --include=*.ftl`：主实体模板 `anemic/Entity.ftl`、`rich/po.ftl` 已在 ID-007 迁移到 `BasePO<Long>`；但 **6 个脚手架模板**仍发原始 `extends BasePO`（`project/security/{SysUser,SysRole,SysPermission,SysRolePermission,SysUserRole}.java.ftl` + `project/context/PO.ftl`）——生成产物 `getId()` 擦除为 `Serializable`，正是旧 ID 模型经生成通道回流 |
+| in-repo 消费者 | studio rich（`Order extends AggregateRoot<Long>`、`OrderPO extends BasePO<Long>`）、studio anemic（10 实体 `extends BasePO<Long>`）、examples（`User extends BasePO<Long>`）——**全部已迁移**，无强转 |
+
+**B. 设计决策（一处关键裁定）**
+
+| 议题 | 裁定 | 证据 |
+|------|------|------|
+| 3 个非 BasePO 实体收编 vs 例外 | **登记例外（不收编）** | 三者均**不可变日志/历史表**：BasePO 经 `AuditedPO` 带入 `@TableLogic deleted`（软删除）+ `createUser`/`updateUser`（操作人审计）对其不成立——OutboxEvent 经状态机流转不软删（且已有 `created_at`/`updated_at` 与 AuditedPO `create_time`/`update_time` 冲突）、AuditLogEntity 追加型审计留存、TableDesignVersion 版本快照历史。强制收编注入错误语义 + 重复列。三者主键已强类型 Long，**非旧 ID 模型**，属领域驱动合理例外。逐表删除版本裁定见 ID_TYPE_MIGRATION_CHECKLIST §5.3。 |
+| 生成通道裸 `extends BasePO` | **修复（必做）** | 这是真实旧 ID 模型回流路径：`grep` 实证 6 模板，违反验收第 3 条（1.0 生成通道不引入旧 ID 模型）。改为 `BasePO<Long>` + 契约守卫防回归。 |
+
+> 旧契约删除步骤 7（删除旧 BaseEntity/BasePO/SerializableTypeHandler/resolveId）在 ID-002~006 已完成；ID-008 确认零残留并记录，不重复执行。
+
+**C. 各 Phase 执行**
+
+| Phase | 交付 | 关键证据 |
+|-------|------|----------|
+| A — 生成通道强类型化（验收第 3 条） | 6 脚手架模板 `extends BasePO`→`BasePO<Long>`；新增 `TemplateIdTypeContractTest`（fastddd-templates）机械断言所有 `.ftl` 的 `extends BasePO` 必带类型参数 | 负向控制：SysUser 模板回退原始 BasePO → 测试红并精确定位 `SysUser.java.ftl:19`，restore 后绿 |
+| B — 消费者迁移结论 + 例外登记（步骤 5/8） | `ID_TYPE_MIGRATION_CHECKLIST.md` §2.2 更新裁定 + 新增 §5（消费者关卡引用、每消费者结论表、登记例外集逐表理由+删除版本、旧契约删除状态、残留风险）；活跃文档示例 raw `BasePO`→`BasePO<Long>`（FASTDDD_REFERENCE 含修正 SerializableTypeHandler 过时注释、USAGE_GUIDE、UPGRADE_GUIDE_1.1、CLAUDE.md×2、TEMPLATE_DEVELOPMENT_GUIDE、archetype PACKAGE_GUIDE） | `grep "extends BasePO" --include=*.md,*.ftl,*.java` 复核：残留裸用均为泛型 bound 图示 / 迁移 diff 的"修改前"态 / 测试 javadoc 历史说明，无活跃子类化示例 |
+| C — 全量门禁 + 本快照 | reactor 全 SUCCESS | 见 §E |
+
+**D. 验收映射（ID-008 §验收三条）**
+
+| 验收要求 | 证据 |
+|----------|------|
+| 每有效消费者有"已迁移/已批准兼容·延后"明确结论，无未登记消费者 | ID_TYPE_MIGRATION_CHECKLIST §5.2 结论表：studio rich/anemic、examples、archetype-generated=已迁移；TableDesignVersion=已批准例外；在研业务（TEST_UAT）=延后（UPG-011 承载）；external-unknown=不适用 |
+| 纳入 1.0 同步升级范围业务系统通过编译/测试/启动回归 | reactor `clean verify -Ptest` 全 SUCCESS（567/0/0/10）；studio-server 编译/测试/repackage 绿 |
+| 1.0 新公共 API 不引入旧 ID 模型；保留兼容层须隔离+标记废弃+声明删除版本 | 生成通道 6 模板已强类型化 + `TemplateIdTypeContractTest` 守卫；3 例外已登记（§5.3，非兼容层故不标 @Deprecated，主键已强类型）；旧契约全删除（§5.4） |
+
+**E. 测试与门禁**
+
+```
+./mvnw -B clean verify -Ptest  →  全 SUCCESS（reactor）
+→ Tests: 567 / 0 Failures / 0 Errors / 10 Skipped  （127 reports）
+  （SPLIT-005 §16.31 基线 566 + Phase A 新增 TemplateIdTypeContractTest×1，0 回归）
+```
+
+**F. 登记与遗留**
+
+- **在研业务系统（TEST_UAT）迁移由 UPG-011 承载**：本仓无其源码，ID-008 不直接迁移；登记 §5.2 延后，UPG-011 落地时按 ID_TYPE_MIGRATION_CHECKLIST §3 六点自检。
+- **`EntityMapper.java:43` 的 `P extends BasePO` 裸 bound**：框架内部泛型方法签名的原始类型 bound（非子类化、非生成代码、主键不弱化），改 `BasePO<?>` 须重新核实泛型约束，超出 ID-008（消费方迁移 + 旧契约移除）范围，登记待后续 PO 泛型 hygiene 任务。
+- **ID-008 主体完成**。M2 全部完成（ID-001~008）。**下一任务：按 §5 依赖序取下一项 M3 任务**（SEC-003 / WEB-002 / CACHE-002 / SEARCH-001 / GEN-001 均已解锁；GEN-002 仍依赖 WEB-002）。
+
 
 
 
