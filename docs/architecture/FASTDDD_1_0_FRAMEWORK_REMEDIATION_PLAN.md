@@ -3019,6 +3019,38 @@ consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
 - **`OpenApiConfiguration` 仍 `matchIfMissing=true`（openapi 默认开）**：WEB-002 仅收敛响应包装/Jackson；openapi 默认开不在本任务范围（openapi 是文档能力，非「改写既有 JSON」），保持现状。
 - **WEB-002 完成**。M3 进行中；**下一任务：按 §5 依赖序取下一项**（GEN-002 现已解锁——依赖 WEB-002 的 customizer / 包装语义；SEC-003 / CACHE-002 / SEARCH-001 / GEN-001 仍可选）。
 
+### 16.34 GEN-002 取证：CRUD/DTO/Command 生成契约现状（命令级证据）
+
+承接 §16.33（WEB-002 完成，reactor 578/0/0/10）。GEN-002 治理**代码生成器的默认产出契约**——禁止生成 deprecated API、默认只读或 DTO/Command 写、PO 不作外部写请求、权限/审计/校验扩展点、敏感示例无无权限写端点。取证暴露生成层两条路径与多处违约。
+
+**两条生成路径**（违约集中在路径 A）：
+
+| 路径 | 入口 | 控制器模板 | 基类 |
+|------|------|-----------|------|
+| A 按表生成（DB→code） | `CodeGeneratorService.generateAnemicModelCode` | `anemic/Controller.ftl` | `BaseController`（**deprecated**） |
+| B 项目脚手架（init project） | `InitProjectMojo` / `ProjectGeneratorService` | `project/context/Controller.ftl` | 无（手写 `@RestController`，仅 create+get，无 update/delete） |
+
+**六步验收取证表**：
+
+| 验收项 | 裁定 | 命令级证据 |
+|--------|------|-----------|
+| ① 禁止生成 deprecated BaseController | **违约** | `anemic/Controller.ftl:5,18` `import BaseController` / `extends BaseController<S,E,Long>`，经 `CodeGeneratorService:204` 接入。新基类 `BaseAdminCrudController`/`BaseReadOnlyController`（`fast-ddd-web/.../controller/`，since 1.1）已存在但**全仓 .ftl 零引用**（grep 0 命中） |
+| ② 默认只读 / DTO-Command 写 | **违约** | `anemic/Controller.ftl:20-25` 无方法、注释继承全 CRUD（POST/PUT/DELETE）。DTO/Request 模板 `anemic/CreateRequest.ftl`/`UpdateRequest.ftl`/`DTO.ftl` **存在但从未接入**（`generateAnemicModelCode` 仅调 5 模板 Entity/Mapper/Service/ServiceImpl/Controller）——是死模板 |
+| ③ PO 不作外部写请求 | **违约**（路径 A） | `anemic/Controller.ftl:18` 类型参数 `${table.entityName}` = Entity（`anemic/Entity.ftl:54` `extends BasePO<Long>`，无 PO/Entity 分离）；基类 `BaseAdminCrudController:60,103,126` `create/update(@RequestBody T entity)` 直接吃 PO。富模型路径用 `CommandController<CreateXxxCommand,Xxx>`（CQRS 开时）不违约 |
+| ④ 生成权限扩展点 | **违约** | 全 `fastddd-tooling` grep `PreAuthorize|@Secured|@RolesAllowed|hasRole` → 0 命中。生成控制器零类级/方法级鉴权注解、零 hook |
+| ⑤ 审计/校验/数据权限提示 | **部分** | 审计 YES（`AuditedPO`/`BasePO` 继承，模板列 basePOFields 跳过）；校验仅在死模板（`CreateRequest.ftl:43-45` `@NotNull`、`rich/Command.ftl:32-37`）——接入的 Entity/PO/Controller 零 validation 注解；数据权限 grep `@DataPermission|@DataScope` → 0 命中 |
+| ⑥ 敏感示例无无权限写端点 | **违约** | `fastddd-examples/.../UserController.java:23-25` `extends BaseController<UserService,User,Long>` 暴露 `/api/users` 全 CRUD；examples `pom.xml` 无 security 依赖；archetype `pom.xml:33-113` 不含 `fast-ddd-security-starter`；`project/context/Controller.ftl:31-37` `@PostMapping create()` 无鉴权。缓解：`init-data.sql.ftl` 已 SEC-001 加固（无默认 admin） |
+
+**死模板清单**（存在但未被任何 generator 调用）：`anemic/CreateRequest.ftl`、`anemic/UpdateRequest.ftl`、`anemic/DTO.ftl`、`rich/UpdateCommand.ftl`、`rich/DeleteCommand.ftl`、`rich/ValueObject.ftl`、`rich/Enum.ftl`。
+
+**裁定与阶段设计**（4 Phase，仿 WEB-002 节奏；违约集中在路径 A 的 anemic 默认产出）：
+
+- **Phase A（步骤 1/2/3/6 默认收敛，最高价值）**：`anemic/Controller.ftl` `extends BaseController` → `extends BaseReadOnlyController`（默认只读 GET）。一刀切：(a) 不再生成 deprecated BaseController（①）；(b) 默认只读（②）；(c) 默认无写端点→PO 自然不作写请求（③）；(d) 敏感示例/生成项目默认无写端点（⑥）。新增 `GenerationRequest.writeMode`（默认 `READ_ONLY`）控制是否生成写。
+- **Phase B（步骤 2/3 写路径 + ⑤校验）**：`writeMode=DTO` 时接入死模板 `CreateRequest.ftl`/`UpdateRequest.ftl` 作为写请求体（`@RequestBody CreateXxxRequest`，**非** PO），带 `@NotNull`/`@NotBlank` 校验（⑤）；生成写控制器方法类型参数为 Request DTO。
+- **Phase C（步骤 ④ 权限扩展点 + ⑤数据权限提示）**：生成类级 `@PreAuthorize` 占位扩展点（注释/hook 形式，不强制 security 依赖）；`@DataPermission` 数据权限提示注释。security 缺席时为可编译注释 hook。
+- **Phase D（门禁 + §16.34 收尾快照）**：生成产物真实编译门禁（仿 ID-007 §16.29 真实编译，非字符串断言）+ reactor 全量 + §16.34 补完。
+- **风险**：生成契约变更影响所有消费者默认产出；以「默认只读、写为 opt-in」为安全姿态（最小破坏），examples/archetype 同步收敛。
+
 
 
 
