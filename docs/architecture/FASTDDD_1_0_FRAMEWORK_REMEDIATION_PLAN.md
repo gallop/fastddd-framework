@@ -2651,4 +2651,39 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **Security @Import 冗余**：`FastDddSecurityAutoConfiguration` 已经其 starter 的 imports 文件自注册，Studio 的 `@Import` 为冗余；清理归入后续（非 SPLIT-004 范围）。
 - **下一任务**：SPLIT-004 步骤 8（ArchUnit 锁契约边界）、步骤 7（集成测试），随后 ID-007（模板/插件/Archetype 迁移）。
 
+### 16.27 SPLIT-004 步骤 8：ArchUnit 锁 Studio→Tooling 契约边界快照
+
+将 §16.25/§16.26 已达成的"Studio 不直接依赖 codegen 内部包"由现状事实升为构建期不变式。任何 Studio 源码回归 import `com.gallop.fastddd.codegen.**` 会在 `verify` 阶段失败、阻断合并，使"生成引擎内部可变而不影响 Studio 编译"（§16.24 acceptance (c)）获得机制级保证。
+
+**A. 取证**
+
+| 取证项 | 证据 |
+|---|---|
+| Studio main 已无 codegen import | `grep -rn "import com.gallop.fastddd.codegen" studio-server/src/main/java/` 退出码 1（零命中）——规则上线即通过，非空跑。 |
+| ArchUnit 既有用法 | `fast-ddd-common` 已含 `archunit-junit5:1.3.0` + `DddLayerRules`（`ClassFileImporter`+`noClasses()` 范式）；本测试对齐版本与范式。 |
+
+**B. 改动**
+
+| 改动 | 证据 |
+|---|---|
+| studio pom 增 archunit 测试依赖 | `archunit-junit5:1.3.0`（test scope，与 common 同版本）。 |
+| `StudioToolingBoundaryTest`（2 规则） | ①`studio.. → codegen..` 禁止（SPLIT-004 显式目标——codegen 为可替换实现细节，ADR-005 方向 Studio→Tooling→Framework）；②`studio.. → maven.plugin..` 禁止（插件为独立工具产物，不在 Studio 依赖面）。`ClassFileImporter().importPackages("com.gallop.fastddd.studio")` 覆盖全 Studio 主码。 |
+| 范围克制 | 不禁 `templates.**`：`MultiChannelProjectBuilder` 等仍直用 `templates.TemplateRenderer`（§16.25 登记的独立轴），强行入规会误杀；templates 解耦属后续，不在 SPLIT-004 codegen 边界内。 |
+
+**C. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 31/31 SUCCESS（BUILD SUCCESS）
+→ Tests: 551 / 0 Failures / 0 Errors / 10 Skipped（surefire XML 解析，123 报告；基线 546 + §16.26 的 3 + 本提交 2，0 回归）
+→ StudioToolingBoundaryTest: 2/2 PASS（codegen/maven.plugin 内部包零依赖）
+```
+
+**D. 登记与遗留（→ SPLIT-004 收尾 / ID-007）**
+
+- **SPLIT-004 剩余**：步骤 4（进度监听契约 `GenerationProgressListener` 替代对内部生成流程的直接访问——需取证 Studio 是否有此类直访）、步骤 7（多端构建/AI 设计/反代三条生成链路端到端集成测试）。
+- **templates.** 解耦**：`DesignCodegenService`/`MultiChannelProjectBuilder`/`ProjectGeneratorService` 直用 `templates.TemplateRenderer`/`TemplateContext`——独立轴，待后续任务（不在 codegen 边界规则内）。
+- **下一任务**：SPLIT-004 步骤 4/7 评估与收尾，随后 ID-007（模板/插件/Archetype 迁移，依赖 SPLIT-004 ✅ 主体）。
+
+
 
