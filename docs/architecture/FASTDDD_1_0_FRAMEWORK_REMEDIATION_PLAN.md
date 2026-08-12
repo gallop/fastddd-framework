@@ -3222,4 +3222,27 @@ Hikari 配置。整改后基础 `application.yml` 是唯一写入连接信息的
   才额外引入依赖，未扩张默认生成项目的依赖面。
 - GEN-001 完成。下一任务：DOC-001（参考手册、AI 契约与迁移指南）。
 
+### 16.38 DOC-001：参考手册、AI 契约、ID 迁移与发布门禁对齐
+
+**交付物**
+
+- 新增 `docs/FASTDDD_AI_CONTRACT.md`：以最小、可执行方式冻结贫血/充血模型选择、强类型 ID、
+  Web opt-in、生成 DTO 写接口、自动配置退让、搜索模式、安全默认值、数据源单一来源和每次修改的验证。
+- 新增 `docs/ID_MIGRATION_GUIDE.md`：给消费方提供 `BasePO<ID>` / `IService<T,ID>` / `IdCodec<ID>`
+  的迁移步骤、禁止项和验证命令；详细迁移清单仍以 `ID_TYPE_MIGRATION_CHECKLIST.md` 为证据源。
+- 更新 `RELEASE_CHECKLIST.md`：移除已过期的固定测试数，要求记录当前门禁结果；纳入生成器、独立
+  消费者、Studio 已知消费者，以及内部 RC / 公开 GA / Studio 商业发布的三套独立门禁。
+
+**验证与 review**
+
+```
+文档链接校验：FASTDDD_AI_CONTRACT.md / ID_MIGRATION_GUIDE.md /
+RELEASE_CHECKLIST.md 的相对 Markdown 链接均存在
+
+关键契约核验：BasePO<ID>、IService<T,ID>、IdCodec、search.backend=disabled、
+Hikari/Druid 与 release verify 命令均与本仓已实现契约一致
+```
+
+- 文档不再声称 SQL 搜索零配置、响应包装默认开启、固定发布测试数或把三个发布阶段混为一谈。
+- DOC-001 完成。下一任务：QA-001（分阶段独立消费者验收矩阵）。
 
