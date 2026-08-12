@@ -23,6 +23,8 @@
 
   <properties>
     <java.version>21</java.version>
+    <!-- Tooling 与 Framework 分仓独立发布；RC/GA 验证由 invoker 注入候选版本。 -->
+    <fastddd.tooling.version>1.0.0-jdk21-SNAPSHOT</fastddd.tooling.version>
     <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
   </properties>
 
@@ -43,6 +45,7 @@
     <dependency>
       <groupId>com.gallop.fastddd</groupId>
       <artifactId>fastddd-fastdoc-spring-boot-starter</artifactId>
+      <version>${fastddd.tooling.version}</version>
     </dependency>
     <!-- DataSource 装配：FastDocService 需要 DataSource bean；HikariCP 经 jdbc starter 提供 -->
     <dependency>

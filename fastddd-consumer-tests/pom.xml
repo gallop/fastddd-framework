@@ -42,6 +42,15 @@
           <projectsDirectory>src/it</projectsDirectory>
           <!-- 用默认本地仓库（~/.m2）：forked 构建从已 install 的 fast-ddd-* 制品解析，
                模拟真实外部消费者；不设 localRepositoryPath 以避免空仓库解析失败。 -->
+          <!--
+            RC/GA 候选必须把当前 revision 显式传入 forked Maven。
+            否则各最小消费者 POM 中的开发线默认值会继续解析 SNAPSHOT，导致“候选消费者验证”
+            实际验证了旧制品。Tooling 是独立产品，FastDoc 场景通过单独属性传递其候选版本。
+          -->
+          <properties>
+            <fastddd.version>${revision}</fastddd.version>
+            <fastddd.tooling.version>${revision}</fastddd.tooling.version>
+          </properties>
           <streamLogsOnFailures>true</streamLogsOnFailures>
           <writeJunitReport>true</writeJunitReport>
           <parallelThreads>1</parallelThreads>
