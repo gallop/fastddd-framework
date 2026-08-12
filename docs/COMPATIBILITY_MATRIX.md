@@ -73,6 +73,32 @@ CI 据此阻断未登记的不兼容组合，无需改动 reactor 结构。
 Studio 侧 `FastdddVersionDefaults.CURRENT` 字面量由 `FastdddVersionDefaultsContractTest` 机械耦合到矩阵
 `current-stable` 线——升级 Framework 版本线时改矩阵 + 该常量即感知漂移（`@Value` 默认须编译期常量，故保留字面量回落）。
 
+## Studio 构建隔离（SPLIT-005）
+
+> 让 Studio Server 具备**迁出 reactor 后独立构建**的能力（单仓内，为安全物理拆仓做准备）。
+
+Studio 此前深度耦合 FastDDD 根 pom（parent 继承根、依赖根属性、`application.yml` 的 `@...@` token 依赖根 profile）。SPLIT-005 把 studio 迁到与业务消费者同构的**自洽形态**：
+
+- **`fastddd-studio`（studio-parent）**：parent 改为 `spring-boot-starter-parent`（提供 Boot 插件管理 + `@..@` 资源过滤 + 编译器默认），经 `import fastddd-bom` 管 Framework/Tooling 依赖（version-less），自声明 `<revision>` 与根/BOM 锁步（ADR-005 §3.2：单体期值锁步、机制解耦——拆仓后可独立分号）。
+- **`fastddd-studio-server`**：继承 studio-parent（`relativePath ../pom.xml` 解析 `${revision}`），不再继承 FastDDD 根 pom。
+
+**版本独立化时序**（ADR-005 §3.2）：Studio「当前共享 `${revision}` 是单体期便利，拆仓后独立」。SPLIT-005 交付的是**构建血缘隔离**（切断根 parent 继承），这是独立发版能力的真前置；差异化 per-product revision 属拆仓后事项（承载机制已由本节上方兼容矩阵 `compatible-tuples` 提供）。
+
+**隔离验证命令**（gated，默认不触发，标准 `verify` 门禁零影响）：
+
+```bash
+# 1. 装入全部 fastddd 制品到本地仓库
+mvn install -DskipTests -B
+# 2. forked Maven 构建真 studio-server（非 host reactor，仅依赖已 install 制品）
+mvn verify -pl fastddd-consumer-tests -Pstudio-isolation -B
+```
+
+该 invoker 构建在隔离 forked 进程内克隆真实 `fastddd-studio` 树并构建 `fastddd-studio-server`——其 framework/tooling 依赖仅从本地仓库（已发布 RC 制品）解析，证明「删除根 reactor 聚合后仍能独立构建」。
+
+**构建期守卫**（随 `clean verify` 真实门禁，`VersionGovernanceContractTest`）：
+- `studioParentRevisionMatchesRoot_step3`：根 pom == BOM == studio-parent 三方 `<revision>` 一致。
+- `studioParentDoesNotInheritFastdddRoot_step1`：studio-parent `<parent>` 非 fastddd 根 + import fastddd-bom。
+
 ## 变更边界（语义化版本约定）
 
 为避免"把破坏性变更当作普通 minor 升级"，FastDDD 对各版本线变更边界作如下承诺：

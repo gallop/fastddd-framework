@@ -2841,6 +2841,71 @@ mvn -B clean verify -Ptest  →  31/31 SUCCESS（reactor）
 - **`COMPATIBILITY_MATRIX.md` 关键依赖矩阵 `mybatis-spring` 行（3.0.3）与 BOM 属性（3.0.4）存在既存文档漂移**：本任务范围外的既存问题（VER-001 矩阵 manifest 仅断言 5 个平台依赖 java/boot/ai/springdoc/knife4j），未在本任务核实 `dependency:tree` 实际解析值，留待后续依赖核对任务修正，不臆改。
 - **VER-001 主体完成**。**下一任务：SPLIT-005（Studio Server 依赖隔离与独立构建，依赖 SPLIT-004 ✅ + ID-007 ✅ + VER-001 ✅ —— 已全部解锁）。**
 
+### 16.31 SPLIT-005：Studio Server 依赖隔离与独立构建（studio-parent 自洽 + invoker 隔离实构建）快照
+
+承接 §16.30（VER-001 完成，reactor 564/0/0/10）。SPLIT-005 的核心目标：让 **Studio Server 具备迁出 reactor 后独立构建的能力**（单仓内，为安全物理拆仓与公开 Framework 仓库做准备）。VER-001 交付了版本治理地基（BOM 单一来源 + 兼容矩阵 + 版本一致性门禁），但 Studio 与 FastDDD 根 pom 的**构建血缘**仍未切断——parent 继承根、依赖根属性、`application.yml` 的 `@...@` token 经根 profile 过滤。四次提交：Phase A `86cae6c`、Phase B `8ffc7d5`、Phase C `47ad5de`、Phase D 本提交。
+
+**A. 取证（Studio 与根 pom 的深度耦合点）**
+
+| 耦合点 | 命令级证据 |
+|--------|------------|
+| parent 继承根 | `fastddd-studio/pom.xml:7-12`（改前）与 `fastddd-studio-server/pom.xml:7-12`（改前）均 `<parent>fastddd ${revision}</parent>` |
+| 依赖根属性 | studio-server 用 `${mapstruct.version}`、`${lombok-mapstruct-binding.version}`（值来自根 `pom.xml:36-37`） |
+| 依赖根 profile 资源过滤 token | studio `application.yml` 全是 `@database.url@`/`@redis.host@`/`@logging.level.root@`/`@enable.swagger@`/`@profile.active@`/`@revision@`/`@project.version@`（12 处），值来自根 dev/test/prod profile 属性 |
+| 依赖根 `<build><plugins>` | studio 经继承获得 compiler(lombok/mapstruct AP)、surefire、spring-boot-maven-plugin、flatten、enforcer、pmd/spotbugs/jacoco/checkstyle |
+| reactor 聚合 | 根 `<modules>` 列 `fastddd-studio` |
+
+**B. 设计决策（两处对步骤字面文本的有据裁定）**
+
+| 步骤字面文本 | 裁定 | 证据 |
+|--------------|------|------|
+| 步骤 3「Studio 使用独立 revision，不与 Framework 强制锁步」 | **机制解耦、值锁步** | studio-parent 自行声明 `<revision>`（不再经继承强制），但值与根/BOM 相等，由扩展的 `VersionGovernanceContractTest#studioParentRevisionMatchesRoot_step3` 三方机械断言。ADR-005 §3.2（`adr/ADR-005-product-boundary-dependency-direction.md:101`）：Studio「当前共享 `${revision}` 是单体期便利，**拆仓后独立**」。与 VER-001 同一裁定：单仓内不引入 per-product 差异化 revision（破坏 UPG-010/VER-001 刚稳定的 flatten 设置）；本任务交付**构建血缘隔离**（步骤 1/2/6）——独立发版能力的真前置，非版本分号。承载机制（矩阵 `compatible-tuples`）已由 VER-001 Phase B 提供。 |
+| 步骤 5「兼容矩阵 Studio→Tooling→Framework」 | **已完成，引用 VER-001 Phase B** | `fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml` + `compat/CompatibilityMatrix`；`compatible-tuples` 已含 `(studio,tooling,framework)` 锁步元组，`VersionGovernanceContractTest#currentReactorTupleIsRegisteredInMatrix_step6` 守护。本任务不改矩阵，仅校验 studio-parent 三方 revision 一致。 |
+
+**C. 各 Phase 执行**
+
+| Phase | 交付 | 关键证据 |
+|-------|------|----------|
+| A — studio-parent 自洽（步骤 1/2/6） | `fastddd-studio/pom.xml` 改为继承 `spring-boot-starter-parent 3.5.16`（提供 Boot 插件管理 + 默认 `@..@` 资源过滤 + 编译器默认），`dependencyManagement` 单条 `import fastddd-bom ${revision}`（framework/tooling 全套 version-less），自声明 `<revision>`/dev/test/prod 三 profile 全属性集；`fastddd-studio-server/pom.xml` 改继承 studio-parent（`relativePath ../pom.xml` 解析 `${revision}`） | 编译/启动实跑通过；资源过滤实证（`target/classes/application.yml` 无残留 `@...@`） |
+| B — 隔离血缘契约测试（步骤 1/6 守卫 + 步骤 3） | `VersionGovernanceContractTest`（tooling-api）新增 2 tests：`studioParentRevisionMatchesRoot_step3`（根==BOM==studio-parent 三方 revision 一致）、`studioParentDoesNotInheritFastdddRoot_step1`（studio-parent `<parent>` 非 fastddd 根 + import fastddd-bom） | 负向控制：studio-parent revision 漂移 → Maven 拒绝 pom 加载（BOM import 继承漂移值不可解析）；均 restore 干净 |
+| C — invoker 隔离构建真 studio-server（步骤 4 / 验收核心） | `fastddd-consumer-tests/pom.xml` 增 `-Pstudio-isolation` profile + 独立属性 `studio-isolation.skip`（与 `invoker.skip` 解耦），maven-invoker-plugin execution `studio-isolation-build`：`projectsDirectory` 指向真实 `fastddd-studio`，forked Maven 克隆整树构建内层 `fastddd-studio-server` | forked 构建真 studio-server 成功，64 studio tests green，依赖仅从已 install 制品解析（证明删除根 reactor 聚合后仍能独立构建） |
+| D — 文档 + 收尾 | `docs/COMPATIBILITY_MATRIX.md` 增「Studio 构建隔离」小节（studio-parent 自洽形态 + `-Pstudio-isolation` 验证命令 + ADR-005 §3.2 步骤 3 裁定）；本快照 | — |
+
+**D. 显式范围裁定（framework 级质量门禁）**
+
+framework 级质量插件（pmd/spotbugs/checkstyle/jacoco/sonar）**不在 studio-parent 复制**——studio 是应用层而非框架模块。Phase A 执行前探测：根继承态下对 studio-server `verify` 跑 pmd/spotbugs/checkstyle 实测**从不触发**（skip/无目标）——故切断根继承对 studio 的质量插件覆盖**零变化**（framework 模块不受影响）。studio-parent 仍保留 enforcer（JDK21/Maven 版本硬门禁）+ jacoco（覆盖率，与根 reactor 行为对齐）。
+
+> 关键 enforcer 裁定：studio-parent **不启用 `requirePluginVersions`**——spring-boot-starter-parent 的默认生命周期绑定（maven-site-plugin 等）不满足该规则（root 因 pluginManagement 钉全部生命周期插件版本而满足）；studio 为应用层，保留 JDK/Maven 版本硬门禁（程序级 JDK21 强制）即可，插件版本 hygiene 属 framework 层关注。范围决策记录于 studio-parent enforcer 注释。
+
+**E. 修复记录（执行期暴露的三处问题）**
+
+1. **Non-resolvable parent POM**（`fastddd-studio:pom:${revision} absent`）：studio-server 初版用空 `<relativePath/>` + parent version `${revision}`，Maven 无法在未加载 parent 前解析属性 → 循环不可解析。改 `<relativePath>../pom.xml</relativePath>`（从磁盘读 parent pom 解析 `<revision>`）。隔离证明的是 framework/tooling**依赖**从已发布制品解析（见 Phase C invoker），studio 自身 parent pom 属 studio 源码、始终从源码构建。
+2. **enforcer `requirePluginVersions` 失败**：spring-boot-starter-parent 默认生命周期绑定不满足该规则。按上述裁定 dropping，保留 JDK/Maven 版本门禁。
+3. **invoker 空构建**（0 projects built 假成功）：maven-invoker-plugin 3.9.0 不认 `<skip>` 参数（正确为 `skipInvocation`）+ 全局 `invoker.skip=true` 同时跳过两条 execution。新增独立属性 `studio-isolation.skip`，`<skipInvocation>${studio-isolation.skip}</skipInvocation>`；验证 studio-isolation-build 触发、consumer-integration-test 仍 skip。
+
+**F. 测试与门禁**
+
+```
+./mvnw -B clean verify -Ptest  →  全 SUCCESS（reactor）
+→ Tests: 566 / 0 Failures / 0 Errors / 10 Skipped  （126 reports）
+  （VER-001 §16.30 基线 564 + Phase B 新增 2：VersionGovernanceContractTest×2，0 回归）
+```
+
+**G. 验收映射（SPLIT-005 §5 验收四条）**
+
+| 验收要求 | 证据 |
+|----------|------|
+| Studio Server 可隔离独立构建启动 | Phase C `-Pstudio-isolation`：forked Maven 构建真 `fastddd-studio-server` 成功，依赖仅从已 install 制品解析；studio-server 编译/测试/repackage 全绿 |
+| 不依赖根 POM 属性 | Phase A studio-parent 自声明 `<revision>` + 全 profile 属性集（database/redis/logging/enable.*）；`application.yml` `@...@` token 经 spring-boot-starter-parent 默认过滤解析（无残留） |
+| 兼容矩阵 Studio→Tooling→Framework | VER-001 Phase B 已交付（引用 §16.30）；Phase B `studioParentRevisionMatchesRoot_step3` 守护三方 revision 锁步 |
+| 删根聚合后仍能经已发布 RC 制品构建 | Phase C invoker：forked 构建仅依赖本地仓库已 install 制品（前置 `mvn install`），证明 reactor 聚合非必需 |
+
+**H. 登记与遗留（→ SPLIT-006 / 拆仓后）**
+
+- **步骤 3（Studio 独立 revision 值分号）**：ADR-005 §3.2 明确为拆仓后事项。SPLIT-005 交付的是**构建血缘隔离**（切断根 parent 继承 + 隔离实构建证明），这是独立发版能力的真前置；差异化 per-product revision 属物理拆仓后处理（承载机制 `compatible-tuples` 已就绪）。登记 SPLIT-006+ / 拆仓后。
+- **根 reactor 仍聚合 `fastddd-studio`**（步骤 6 保留临时聚合）：单仓内保留 reactor 聚合便于一站式构建；studio 已不继承根（隔离证明其独立性）。聚合的移除随物理拆仓进行。
+- **SPLIT-005 主体完成**。**下一任务：按 §5 依赖序取下一项**（ID-008 或其它 M3/M4 已解锁任务）。
+
 
 
 
