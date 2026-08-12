@@ -2612,3 +2612,43 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **`writeDesignCodeToDir` 死参**：`genEntity/genMapper/...` 形参仅喂已证死的 `GeneratorConfig.generate*` 字段，方法签名误导（预存技术债，本任务不扩范围）。
 - **下一任务**：SPLIT-004 步骤 7（CodeGenMojo 切契约 + null-TPS 修复）、步骤 8（`@Import` 拆除 + ArchUnit），随后 ID-007（模板/Archetype 迁移）。
 
+### 16.26 SPLIT-004 步骤 5/6：codegen 自注册 + 拆 Studio 显式 @Import 快照
+
+承接 §16.25：Studio 生成调用已切 `ProjectGenerator` 契约，但 `FastDddStudioApplication` 仍显式 `@Import(CodeGeneratorAutoConfiguration.class)` 才能拿到契约 bean——根因是 codegen 用 Spring Boot 2 的 `META-INF/spring.factories`（`EnableAutoConfiguration` 键）登记自动配置，**Spring Boot 3.0+ 已停止从该键加载**，故 Studio 必须显式导入。本提交将 codegen 迁至 Boot 3 标准 `AutoConfiguration.imports` 自注册（全仓其余 14 个模块的统一做法），Studio 据此移除显式 @Import。
+
+**A. 取证**
+
+| 取证项 | 证据 |
+|---|---|
+| codegen 登记机制落后 | `fastddd-code-generator/src/main/resources/META-INF/spring.factories` 内容 `EnableAutoConfiguration=com.gallop.fastddd.codegen.CodeGeneratorAutoConfiguration`——Boot3 不读此键。 |
+| 全仓统一做法 | `find ... -name AutoConfiguration.imports`：14 个框架/tooling 模块均用 Boot3 imports 文件；codegen 是唯一例外。 |
+| 契约 bean 发布路径 | `CodeGeneratorAutoConfiguration` = `@Configuration @ComponentScan("com.gallop.fastddd.codegen")` → 扫描发布 `ToolingProjectGenerator`/`CodegenDatabaseIntrospectorFactory`（+ `CodeGeneratorService` 等）。 |
+| 无现存上下文测试 | `grep @SpringBootTest` 全仓 studio/codegen：零命中——@Import 从未被测试覆盖，仅靠手动运行生效；迁移须补测试护栏。 |
+
+**B. 改动**
+
+| 改动 | 证据 |
+|---|---|
+| 新增 Boot3 imports 文件 | `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`（一行：`CodeGeneratorAutoConfiguration`）。 |
+| 删除 dead `spring.factories` | `git rm`（Boot3 已不读，删除消除双源歧义）。 |
+| 拆 Studio 显式 @Import | `FastDddStudioApplication` 移除 `CodeGeneratorAutoConfiguration` 的 `@Import` 与 import；codegen 经类路径自动装配。**保留** Security 的 `@Import`（其 starter 同样已自注册，但清理属独立范围，不捆入 SPLIT-004 codegen 解耦）。 |
+| 自注册 + bean 发布护栏 | `CodegenAutoConfigurationRegistrationTest`（3 测试）：①类路径读 imports 文件存在且登记本配置（防文件名/内容拼写错误静默失效）；②`ApplicationContextRunner` 加载配置后 `ProjectGenerator`/`DatabaseIntrospectorFactory` 单例发布；③发布的 bean 即官方适配实现。 |
+
+**C. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 31/31 SUCCESS（BUILD SUCCESS）
+→ Tests: 549 / 0 Failures / 0 Errors / 10 Skipped（surefire XML 解析，122 报告；基线 546 + 本提交 3，0 回归）
+→ CodegenAutoConfigurationRegistrationTest: 3/3 PASS（imports 文件登记 + ProjectGenerator/DatabaseIntrospectorFactory 单例发布 + 适配实现装配）
+```
+
+**D. 登记与遗留（→ SPLIT-004 后续）**
+
+- **步骤 8（ArchUnit 规则）**：Studio 源码已无 codegen `@Import`、无 codegen `import`（§16.25 实证两迁移文件零 codegen import；本提交再无新增）。下一步补 ArchUnit 规则锁 `studio → tooling.api`、禁 `studio → com.gallop.fastddd.codegen.**`，将"生成器内部可变不影响 Studio"由现状事实升为构建期不变式。
+- **步骤 7（集成测试）**：多端构建/AI 设计/反代三条生成链路的端到端集成测试。
+- **m2 旧 codegen jar 残留**：本地 m2 中历史 `install` 的旧 codegen jar 仍含 `spring.factories`；下次 `clean install` 自动覆盖。reactor 内 `clean verify` 用各模块 `target/classes`（已无 spring.factories），不受影响。
+- **Security @Import 冗余**：`FastDddSecurityAutoConfiguration` 已经其 starter 的 imports 文件自注册，Studio 的 `@Import` 为冗余；清理归入后续（非 SPLIT-004 范围）。
+- **下一任务**：SPLIT-004 步骤 8（ArchUnit 锁契约边界）、步骤 7（集成测试），随后 ID-007（模板/插件/Archetype 迁移）。
+
+
