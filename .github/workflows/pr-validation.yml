@@ -42,7 +42,15 @@ jobs:
       run: |
         ./mvnw validate -B
         ./mvnw dependency:analyze -B
-    
+
+    # VER-001 步骤 6 —— 版本一致性扫描（声明式；无 CI runner 时本地强制）。
+    # 守护：reactor 内模块 pom 的 <version>/<parent><version> 必须经 ${revision}，
+    # 不得硬编码 1.0.0-jdk21-SNAPSHOT（UPG-010 + VER-001 不变量）。
+    # <revision> 属性声明属合法唯一来源（VersionGovernanceContractTest 同步守护两处一致）。
+    - name: Verify version consistency (VER-001)
+      run: |
+        python scripts/verify-version-consistency.py
+
     - name: Compile and run tests
       run: |
         ./mvnw clean compile -B
