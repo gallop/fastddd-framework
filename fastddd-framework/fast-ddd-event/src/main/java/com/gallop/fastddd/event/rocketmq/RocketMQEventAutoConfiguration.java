@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 
 /**
  * RocketMQ 事件自动配置（EVT-003 重设计）。
@@ -28,6 +29,8 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @ConditionalOnClass(RocketMQTemplate.class)
 @ConditionalOnProperty(name = "rocketmq.enabled", havingValue = "true", matchIfMissing = false)
+// RocketMQ Starter 2.2.x 仅声明 spring.factories；Boot 3 不会自动发现，需显式桥接。
+@Import(org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration.class)
 public class RocketMQEventAutoConfiguration {
 
     /**
