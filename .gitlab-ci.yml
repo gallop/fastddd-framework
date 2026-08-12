@@ -20,6 +20,7 @@ cache:
 validate:
   stage: validate
   script:
+    - powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-framework-bom.ps1
     - ./mvnw $MAVEN_CLI_OPTS validate
 
 verify:

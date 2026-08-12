@@ -135,53 +135,6 @@
                 <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
                 <version>${revision}</version>
             </dependency>
-            <!-- Tooling 稳定契约层（SPLIT-003/004）；VER-001 补列——此前根 pom 已列、BOM 漏列致消费者契约缺漏 -->
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-tooling-api</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-templates</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-code-generator</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-doc-generator</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-fastdoc-core</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-fastdoc-spring-boot-starter</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-maven-plugin</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-doc-maven-plugin</artifactId>
-                <version>${revision}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.gallop.fastddd</groupId>
-                <artifactId>fastddd-project-archetype</artifactId>
-                <version>${revision}</version>
-            </dependency>
-
             <!-- ============ 第三方受管依赖（与根 pom dependencyManagement 对齐） ============ -->
             <!-- Database -->
             <dependency>
