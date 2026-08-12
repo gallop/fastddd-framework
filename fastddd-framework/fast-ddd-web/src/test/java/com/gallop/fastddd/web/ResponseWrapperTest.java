@@ -2,6 +2,7 @@ package com.gallop.fastddd.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gallop.fastddd.common.i18n.Messages;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
@@ -61,7 +62,7 @@ public class ResponseWrapperTest {
         
         // 断言
         assert jsonNode.get("code").asInt() == 200;
-        assert "操作成功".equals(jsonNode.get("message").asText());
+        assert Messages.get("common.success").equals(jsonNode.get("message").asText());
         assert "Hello String!".equals(jsonNode.get("data").asText());
         assert jsonNode.get("success").asBoolean();
         
@@ -93,7 +94,7 @@ public class ResponseWrapperTest {
         
         // 断言 - 应该是Result结构，不是ApiResponse结构
         assert jsonNode.get("code").asInt() == 200;
-        assert "操作成功".equals(jsonNode.get("message").asText());
+        assert Messages.get("common.success").equals(jsonNode.get("message").asText());
         assert "Hello FastDDD!".equals(jsonNode.get("data").asText());
         assert jsonNode.get("success").asBoolean();
         

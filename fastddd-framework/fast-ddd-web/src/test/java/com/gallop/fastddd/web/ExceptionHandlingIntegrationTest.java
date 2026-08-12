@@ -1,6 +1,7 @@
 package com.gallop.fastddd.web;
 
 import com.gallop.fastddd.web.response.ApiResponse;
+import com.gallop.fastddd.common.i18n.Messages;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,7 +54,7 @@ public class ExceptionHandlingIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(500);
-        assertThat(response.getBody().getMessage()).contains("系统运行时异常");
+        assertThat(response.getBody().getMessage()).contains(Messages.get("web.error.runtime"));
         assertThat(response.getBody().getData()).isNull();
         assertThat(response.getBody().getTimestamp()).isNotNull();
     }
@@ -67,7 +68,8 @@ public class ExceptionHandlingIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(400);
-        assertThat(response.getBody().getMessage()).contains("参数 'id' 类型不匹配");
+        assertThat(response.getBody().getMessage()).contains(
+                Messages.get("web.error.param-type-mismatch", "id", "Integer"));
         assertThat(response.getBody().getData()).isNull();
         assertThat(response.getBody().getTimestamp()).isNotNull();
     }
@@ -88,7 +90,8 @@ public class ExceptionHandlingIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(400);
-        assertThat(response.getBody().getMessage()).contains("参数校验失败");
+        assertThat(response.getBody().getMessage()).contains(
+                Messages.get("web.error.param-validation", "名称不能为空; 年龄不能为空"));
         assertThat(response.getBody().getData()).isNull();
         assertThat(response.getBody().getTimestamp()).isNotNull();
     }

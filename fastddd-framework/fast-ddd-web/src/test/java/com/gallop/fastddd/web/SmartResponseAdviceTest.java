@@ -2,6 +2,7 @@ package com.gallop.fastddd.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gallop.fastddd.common.result.Result;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ public class SmartResponseAdviceTest {
         ApiResponse<?> apiResponse = objectMapper.readValue(responseBody, ApiResponse.class);
         assertNotNull(apiResponse);
         assertEquals(200, apiResponse.getCode());
-        assertEquals("操作成功", apiResponse.getMessage());
+        assertEquals(Messages.get("common.success"), apiResponse.getMessage());
         assertEquals("Hello String!", apiResponse.getData());
         assertNotNull(apiResponse.getTimestamp());
         
@@ -86,7 +87,7 @@ public class SmartResponseAdviceTest {
         ApiResponse<?> apiResponse = objectMapper.readValue(responseBody, ApiResponse.class);
         assertNotNull(apiResponse);
         assertEquals(200, apiResponse.getCode());
-        assertEquals("操作成功", apiResponse.getMessage());
+        assertEquals(Messages.get("common.success"), apiResponse.getMessage());
         assertEquals("已包装的ApiResponse", apiResponse.getData());
         assertNotNull(apiResponse.getTimestamp());
         

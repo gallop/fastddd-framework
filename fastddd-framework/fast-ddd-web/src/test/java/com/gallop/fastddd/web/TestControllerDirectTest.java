@@ -1,6 +1,7 @@
 package com.gallop.fastddd.web;
 
 import com.gallop.fastddd.common.result.Result;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.controller.TestController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +33,7 @@ class TestControllerDirectTest {
         
         assertNotNull(result);
         assertEquals(200, result.getCode());
-        assertEquals("操作成功", result.getMessage());
+        assertEquals(Messages.get("common.success"), result.getMessage());
         assertEquals("Hello FastDDD!", result.getData());
         assertTrue(result.getSuccess());
     }

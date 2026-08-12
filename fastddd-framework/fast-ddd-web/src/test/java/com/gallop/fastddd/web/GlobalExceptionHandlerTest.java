@@ -2,6 +2,7 @@ package com.gallop.fastddd.web;
 
 import com.gallop.fastddd.common.exception.BusinessException;
 import com.gallop.fastddd.common.exception.SystemException;
+import com.gallop.fastddd.common.i18n.Messages;
 import com.gallop.fastddd.web.response.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,7 +78,7 @@ class GlobalExceptionHandlerTest {
                 .andDo(print())
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code", is(500)))
-                .andExpect(jsonPath("$.message", containsString("系统运行时异常")))
+                .andExpect(jsonPath("$.message", containsString(Messages.get("web.error.runtime"))))
                 .andExpect(jsonPath("$.data", nullValue()))
                 .andExpect(jsonPath("$.timestamp", notNullValue()));
     }
@@ -88,7 +89,8 @@ class GlobalExceptionHandlerTest {
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code", is(400)))
-                .andExpect(jsonPath("$.message", containsString("参数 'id' 类型不匹配")))
+                .andExpect(jsonPath("$.message", containsString(
+                        Messages.get("web.error.param-type-mismatch", "id", "Integer"))))
                 .andExpect(jsonPath("$.data", nullValue()))
                 .andExpect(jsonPath("$.timestamp", notNullValue()));
     }
@@ -99,7 +101,8 @@ class GlobalExceptionHandlerTest {
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code", is(400)))
-                .andExpect(jsonPath("$.message", containsString("Command 验证失败")))
+                .andExpect(jsonPath("$.message", containsString(
+                        Messages.get("web.error.command-validation", ""))))
                 .andExpect(jsonPath("$.message", containsString("orderNo")))
                 .andExpect(jsonPath("$.message", containsString("amount")))
                 .andExpect(jsonPath("$.data", notNullValue()))
