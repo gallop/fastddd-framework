@@ -2732,6 +2732,63 @@ SPLIT-004 主体（Studio 改为 Tooling API 消费者）至此交付。本快�
 - **Security @Import 冗余**：`FastDddSecurityAutoConfiguration` 已经其 starter 自注册，Studio 的 `@Import` 冗余——清理归入后续。
 - **SPLIT-004 主体完成**：§1~§3、§5、§6、§8 全部交付且构建期锁定；§4 裁定 N/A（证据化）；§7 补生成路径集成测试，剩余两条专项测试登记。**下一任务：ID-007（模板/插件/Archetype 迁移，依赖 SPLIT-004 ✅）。**
 
+### 16.29 ID-007：模板、插件、Archetype 与 Studio 迁移（生成产物真实可编译 + idStrategy 端到端生效）快照
+
+承接 §16.28（SPLIT-004 主体完成）。ID-007 的核心缺陷：ID 泛型改造（ID-003~005）后，**生成模板的签名/包名/契约全面落后**，但 reactor 长期"绿而生成物一编即坏"——没有任何测试编译生成代码（仅字符串断言），故缺陷被掩盖。本任务用**真实编译门禁**堵住全链路，并让 idStrategy 从"渲染期全程死亡"变为端到端生效。三次提交：Phase A `d84064f`（贫血可编译）、Phase B `053a65d`（充血可编译）、Phase C `753d25c`（idStrategy 端到端 + null-TPS 修复）。
+
+**A. 取证（生成物从未被编译）**
+
+| 取证项 | 命令/位置 | 结论 |
+|---|---|---|
+| 贫血模板签名落后 | `anemic/Entity.ftl` `extends BasePO`（非 `BasePO<Long>`）、`Service.ftl` `IService<X>`（非 2 参） | 生成代码对 ID 泛型改造后的框架基类不编译 |
+| 充血模板全链路坏 | `rich/po.ftl` `BasePO`、`entityMapper.ftl` 导入 `crud.mapper.EntityMapper`（实为 `crud.entity`）、`entityRepository.ftl` 导入 `crud.repository.EntityRepository`（实为 `crud.entity`）、`CommandHandler/queryHandler/CommandController/queryController` 导入不存在的 `application.controller/handler.*`、`entityMapper.ftl` 用非法枚举 `NullValueCheckStrategy.RETURN_DEFAULT`、`entityRepositoryImpl.ftl` 仅实现 4/14 个 `EntityRepository` 方法 | 充血生成产物一编即坏 |
+| 引擎缺生成件 | `CodeGeneratorService.generateRichModelCode` 未生成 `${entityName}CreatedEvent`（聚合根 `create()` 引用）、未生成 `${entityName}BaseMapper`（RepositoryImpl 注入）、路径段重复 `/application/` | 编译缺类 |
+| idStrategy 渲染期死亡 | `application.yml.ftl:49` `${r"${mybatis-plus.id-type:assign_id}"}` 为 FreeMarker 原始串字面量，恒输出 `assign_id`；`TemplateContext` 无 `idStrategy` 字段、`toTemplateVariables()` 不暴露 | 所选 idStrategy 被丢弃，YAML 写死 assign_id |
+| CodeGenMojo NPE | `CodeGenMojo:215` `new CodeGeneratorService(metadata, null, dbConfig)` 第二参 null；触达 `templateProcessorService.processTemplate` 即 NPE | §16.24 G 登记、本次修复 |
+
+**B. 设计决策（task #94）**
+
+- **ID Java 类型恒为 Long**（四策略皆然）；**不字段隐藏**（具体 PO/聚合根 `extends BasePO<Long>`，id 继承自基类，不重声明、不生成 `@TableId`）。对应验收步骤 6"禁止父类字段隐藏和 Serializable ID"。
+- **idStrategy 反映在项目级全局配置**（application.yml `mybatis-plus.global-config.db-config.id-type` 默认值随策略渲染），**不**每实体生成 `@TableId`——与 BasePO 设计、全局 `id-type` 配置一致。
+- **modelType × idStrategy 正交**：四种策略对两种模型均合法，不做组合互斥，仅做取值校验。
+
+**C. 执行（按阶段）**
+
+| 阶段 | 提交 | 关键改动 |
+|---|---|---|
+| Phase A 贫血可编译 | `d84064f` | `anemic/Entity.ftl` `BasePO<Long>`、`Service.ftl` `IService<X,Long>`、`ServiceImpl.ftl` `BaseServiceImpl<M,X,Long>`；`GeneratedAnemicCodeCompileTest`（AUTO/ASSIGN_ID 两用例）经真实 `JavaCompiler` 针对 reactor 测试类路径编译生成产物、断言 0 错误；codegen pom 补 `fast-ddd-web` test scope。 |
+| Phase B 充血可编译 | `053a65d` | 11 处模板修复（`po.ftl` 包名+`BasePO<Long>`、`DomainEvent.ftl` Long 构造、`query.ftl` 去 `getIdentifier @Override`、四 handler/controller 导入包纠正、`imports.ftl` 宏、`entityMapper/entityRepository.ftl` 包名 `crud.entity`、`entityMapper.ftl` 去非法枚举、`entityRepositoryImpl.ftl` 补全 14 法 `EntityRepository` 契约）；引擎补 `CreatedEvent`/`BaseMapper` 生成 + 路径修正；`GeneratedRichCodeCompileTest` 两用例；**关键：显式 `-processorpath` 让 Lombok SPI 被发现**（ToolProvider 系统 compiler in-process 不自动扫描测试类路径 SPI，缺则 `@Data/@Slf4j` 不生成成员）；codegen pom 补 `fast-ddd-application` test scope（web 标 optional 不传递）。 |
+| Phase C idStrategy 端到端 + null-TPS | `753d25c` | **C1**：`TemplateEngineConfig` 增非 Spring 构造器 `(String templatePath)`，`CodeGenMojo` 手动装配真实 TPS 修复 null-TPS NPE；新增 `codegen.idStrategy` @Parameter + `IdStrategy.isValid` 校验。**C2**：`TemplateContext` 增 `idStrategy` 字段+默认 ASSIGN_ID+暴露；`application.yml.ftl`/`sub-app-application.yml.ftl` id-type 随 idStrategy 渲染；入口贯通 InitProjectMojo + Studio（`ProjectRequest`/`UnifiedProjectService`/`ProjectGeneratorService`）；`UnifiedProjectRequest` 默认 AUTO→ASSIGN_ID 统一全入口。**C3**：`DesignCodegenService.buildGenerationRequest` 补 `IdStrategy.isValid` 校验（与 `UnifiedProjectService` 对齐）。 |
+
+**D. 验收（对照 §8 ID-007 步骤）**
+
+| 验收项 | 结论 | 证据 |
+|---|---|---|
+| 步骤 2 贫血 PO 生成 id 字段 | ✅ | `BasePO<Long>` 继承 id（不重声明——步骤 6 禁字段隐藏）；`GeneratedAnemicCodeCompileTest` 真实编译通过 |
+| 步骤 3 充血生成领域 ID/PO ID/Mapper 转换 | ✅ | `GeneratedRichCodeCompileTest` 真实编译通过（AggregateRoot id + `BasePO<Long>` + EntityMapper） |
+| 步骤 4 Controller/Service 的 ID 泛型 | ✅ | 贫血 `<X,Long>` / 充血 `CommandController<C,R>` 编译通过；Long 全程，兼容 IdCodec |
+| 步骤 5 DDL/TableId 策略一致 | ✅ | `ProjectConfigContractTest.singleProjectApplicationYml_idStrategyDrivesIdType`：ASSIGN_ID→assign_id / AUTO→auto（且不含 assign_id）/ INPUT→input / NONE→none / 缺省→assign_id |
+| 步骤 6 禁字段隐藏/Serializable ID | ✅ | 编译门禁：id 继承、类型 Long（非 Serializable），无重声明 |
+| 步骤 7 Maven Plugin/多端链路 | ✅ | `CodeGenMojo` null-TPS 修复 + idStrategy 参数；InitProjectMojo idStrategy 参数；多端 `sub-app-application.yml.ftl` 随策略渲染 |
+| 步骤 8 四种组合真实生成+编译 | ✅ | ANEMIC×{AUTO,ASSIGN_ID} + RICH×{AUTO,ASSIGN_ID} = 4 组合经 JavaCompiler 真实编译、0 错误 |
+| 验收"无 ID 强转/重复字段" | ✅ | 编译门禁通过即证（Long 类型化、id 单一来源基类） |
+| 验收"Java/DDL/OpenAPI 与策略一致" | ✅（Java+配置级） | Java 编译通过；id-type 随策略（见步骤 5 证据）；OpenAPI 经 IdCodec Long 序列化 |
+
+```
+mvn -B clean verify -Ptest  →  31/31 SUCCESS（reactor）
+→ Tests: 558 / 0 Failures / 0 Errors / 10 Skipped
+  （surefire XML 解析，126 报告；基线 553 + Phase A +2 + Phase B +2 + Phase C +1，0 回归）
+```
+
+**E. 登记与遗留（→ ID-008 / 后续）**
+
+- **CodeGenMojo 生成路径未切 `ProjectGenerator` 契约**：本次仅修复 null-TPS（手动装配 TPS）+ 加 idStrategy 参数，仍走遗留 `CodeGeneratorService.generateCode(String,...)` 重载（§16.24 G 登记的"切契约"未做）。该重载内部已能正确渲染（TPS 不再 null），但与 SPLIT-004 的"Studio 走契约、插件走遗留"双轨并存；切契约属独立重构，归入后续。
+- **idStrategy 对每实体模板仍无渲染作用**：设计决策为不在每实体生成 `@TableId`，故 `anemic/Entity.ftl:7` `<#assign idStrategy=idStrategy!"AUTO">` 仍为死赋值（保留以备未来局部覆盖钩子）。idStrategy 仅在项目级 application.yml 生效——符合设计。
+- **运行时全链路冒烟**：编译门禁为编译级保证；Studio/插件生成→真实启动→CRUD 的运行时端到端冒烟待发布前手动确认（与 SPLIT-004 §16.28 同口径）。
+- **archetype 不涉 idStrategy**：`fastddd-project-archetype` 无 id-type/idStrategy 配置（固定骨架），本任务无需改动。
+- **ID-007 主体完成**。**下一任务：ID-008（在研业务迁移与旧 ID 实现移除，依赖 ID-007 ✅）；并行可推进 SPLIT-005（Studio Server 依赖隔离，依赖 SPLIT-004 ✅ + ID-007 ✅ + VER-001）。**
+
+
 
 
 
