@@ -2959,6 +2959,66 @@ framework 级质量插件（pmd/spotbugs/checkstyle/jacoco/sonar）**不在 stud
 - **`EntityMapper.java:43` 的 `P extends BasePO` 裸 bound**：框架内部泛型方法签名的原始类型 bound（非子类化、非生成代码、主键不弱化），改 `BasePO<?>` 须重新核实泛型约束，超出 ID-008（消费方迁移 + 旧契约移除）范围，登记待后续 PO 泛型 hygiene 任务。
 - **ID-008 主体完成**。M2 全部完成（ID-001~008）。**下一任务：按 §5 依赖序取下一项 M3 任务**（SEC-003 / WEB-002 / CACHE-002 / SEARCH-001 / GEN-001 均已解锁；GEN-002 仍依赖 WEB-002）。
 
+### 16.33 WEB-002：响应包装与 Jackson 扩展双默认关 + opt-in + OpenAPI 契约一致快照
+
+承接 §16.32（ID-008 完成，reactor 567/0/0/10）。WEB-002 收敛 web 层第二条耦合：**响应信封包装与 Jackson 扩展在「仅引入 fast-ddd-web」时即自动生效**，改写消费者既有 JSON 契约——Long→String、`{code,message,data,timestamp}` 信封、`LocalDateTime` 重格式化全量施加，违反「框架不应在消费者仅 import 时改写其 JSON」。同时 springdoc（读方法签名）看不见 `ResponseBodyAdvice`，包装开启时文档与运行时分歧。四次提交：Phase A `0407a15`（双默认关 + 框架消费者 opt-in）、Phase B `a388818`（消费者响应契约测试）、Phase C `fdecf5d`（OpenAPI customizer + 共享谓词）、Phase D 本提交（文档 + 全量门禁 + 快照）。
+
+**A. 取证（task #111，命令级证据，6 个自动面）**
+
+| 自动面 | 证据 | 问题 |
+|--------|------|------|
+| 响应包装 AUTO-ON | `SmartResponseAdvice`（`@ControllerAdvice @Order(LOWEST)`）经 3 条路径汇入同一无门控 config：`FastDddWebAutoConfiguration @Import + @ComponentScan("com.gallop.fastddd.web")` + `WebResponseConfig→@EnableApiResponseWrapper→注解 @Import` | 仅 import web 即把所有控制器返回值包成 `{code,message,data,timestamp}` |
+| 死开关 | `fastddd.web.response-wrapper.enabled` 仅测试代码引用，生产零 `@ConditionalOnProperty` 消费 | 属性是装饰，非真开关 |
+| Jackson 扩展 AUTO-ON | `FastDddJacksonAutoConfiguration @ConditionalOnProperty("fastddd.jackson.enabled", matchIfMissing=true)` → 默认开 | 仅 import web 即改写 Long/日期/枚举既有 JSON |
+| 无 ObjectMapper 退让 | 全仓 `grep ConditionalOnMissingBean.*ObjectMapper` 零命中 | 业务自定义 Jackson 被框架覆盖 |
+| OpenAPI 与运行时不一致 | springdoc 读签名、看不见 `ResponseBodyAdvice`；包装启用时运行时=信封、OpenAPI=原始类型 | 验收第 2 条「开启后响应与 OpenAPI 契约一致」不满足 |
+| studio/examples 全靠自动 | `grep EnableApiResponseWrapper` 在 studio/examples 零命中 | 默认关后须显式 opt-in 还原 |
+
+**B. 裁定与设计**
+
+- **属性是唯一 opt-in**（避免双模式 registrar 条件竞态）：门控施加在 `SmartResponseAdvice` 与 `FastDddJacksonAutoConfiguration` 的**类级别** `@ConditionalOnProperty(..., matchIfMissing=false)`——所有组件扫描均求值类级别条件，一处门控即关闭全部注册路径。
+- **`@EnableApiResponseWrapper` 降级**：`@Deprecated(since="1.0.0-jdk21")` 纯源兼容标记（无 `@Import`）；删除冗余载体 `ApiResponseWrapperConfiguration`、`WebResponseConfig`。
+- **Jackson 退让诚实实现**：customizer 为 `Jackson2ObjectMapperBuilderCustomizer`（增强 builder、不替换 `ObjectMapper` bean），与业务 `@Bean ObjectMapper` 不冲突（后者触发 Spring Boot `@ConditionalOnMissingBean` back-off）；**不**用 `@ConditionalOnMissingBean(Jackson2ObjectMapperBuilderCustomizer.class)`（Spring Boot 内部会注册同类 bean，误杀风险）。退让契约测试：业务 customizer 关 Long→string + 框架 enabled=true → 业务胜。
+- **`WebMvcConfig` 保留不动**：其 `extendMessageConverters` 仅限定 JSON 媒体 + SSE 安全（排除 TEXT_PLAIN），不改 JSON *内容/形态*——不属于「改写既有 JSON」。
+- **OpenAPI customizer 复用共享谓词**：从 `SmartResponseAdvice.supports()` 抽取 `ResponseWrapPredicate.shouldWrap()`，customizer 与 advice 同源判定，防契约漂移。
+
+**C. 各 Phase 执行与命令级证据**
+
+| Phase | 提交 | 内容 | 命令级证据 |
+|-------|------|------|-----------|
+| A 双默认关 + opt-in | `0407a15` | `SmartResponseAdvice`/`FastDddJacksonAutoConfiguration` 类级 `matchIfMissing=false`；删 `ApiResponseWrapperConfiguration`/`WebResponseConfig`；`EnableApiResponseWrapper` 降级；studio/examples/archetype + web 测试 yml 显式 opt-in；`FastDddWebAutoConfigurationTest` + `JacksonYieldContractTest`（`withBean` 而非嵌套 @Configuration，根因修复） | fast-ddd-web 71 tests / 0/0/0 |
+| B 消费者契约测试 | `a388818` | 新增 `web-response-default-off`（无 opt-in → MockMvc 断言原始 JSON：id 数值、无信封、time 非框架格式）+ `web-response-wrapper`（opt-in → 信封 + Long 字符串 + 日期格式） | `mvn verify -pl fastddd-consumer-tests -Pconsumer-tests` 4/4 通过；`web-response-wrapper` 单跑 Tests run:1 / 0/0 |
+| C OpenAPI customizer | `fdecf5d` | `ResponseWrapPredicate`（共享谓词）+ `ApiResponseOpenApiCustomizer`（OperationCustomizer，包装 POJO 端点 2xx schema 为信封，同门控）；`SmartResponseAdvice.supports()` 委托谓词 | fast-ddd-web 78 tests（71+7）；`ApiResponseOpenApiCustomizerTest` 5/0/0（单应包装/不二次包装/无 responses 容错/门控 ×2）；`ApiResponseOpenApiCustomizerSpringdocTest` 2/0/0（springdoc 端到端） |
+| D 文档 + 门禁 + 快照 | 本提交 | CODING_STANDARDS + FASTDDD_REFERENCE opt-in 语义；reactor + 消费者双门禁；本快照 | 见下 |
+
+**D. 关键实现细节（防回退知识）**
+
+- **测试类污染根因（Phase A）**：`JacksonYieldContractTest` 嵌套 `static @Configuration BusinessJacksonConfig` 带 `@Bean ObjectMapper`，经组件扫描泄漏进共享 `@SpringBootTest` 上下文（Spring `ClassPathScanningCandidateComponentProvider` 视静态嵌套类为 `isIndependent()=true`）→ Spring Boot `@ConditionalOnMissingBean` back-off → customizer 永不被收集。修复：改用 `ApplicationContextRunner.withBean(...)`，**不**用嵌套 @Configuration。此根因曾误导出错误的「matchIfMissing=false 破坏 customizer 收集」中间结论，已纠正——干净类级 `matchIfMissing=false` 才是正确设计。
+- **springdoc 端点被包装（Phase C 观察）**：响应包装 opt-in 时，`/v3/api-docs` 端点本身返回 `byte[]`（`isNeedWrapping` 视数组为应包装）→ 被 `SmartResponseAdvice` 包成信封（`data` = OpenAPI JSON 的 base64），破坏 Swagger UI。这是「包装 opt-in」对 springdoc 自身端点的副作用，登记为遗留观察项（消费者可通过对 springdoc 路径单独豁免或返回 `ResponseEntity` 规避），不阻塞 WEB-002 的「业务端点契约一致」验收。
+
+**E. 验收映射**
+
+| 验收 | 证据 |
+|------|------|
+| ① 默认关：仅 import web 不改写既有 JSON | `web-response-default-off` MockMvc 断言 id 数值、无 `code`/`data` 信封、time 非框架格式；`FastDddWebAutoConfigurationTest#shouldNotRegisterWrapperOrJacksonByDefault` |
+| ② opt-in 开：响应与 OpenAPI 契约一致 | `web-response-wrapper` 断言信封 + Long 字符串 + 日期格式（运行时）；`ApiResponseOpenApiCustomizerTest`/`SpringdocTest` 断言 POJO 端点 schema 被信封包裹、`ResponseEntity` 端点不二次包装（文档） |
+
+**F. 门禁**
+
+```
+reactor: ./mvnw -B clean verify -Ptest → 578 tests / 0 Failures / 0 Errors / 10 Skipped（131 reports）
+  （ID-008 §16.32 基线 567 + Phase A fast-ddd-web opt-in 断言/契约测试 + Phase C customizer 7，0 回归）
+consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
+  （web-minimal / web-response-default-off / web-response-wrapper / web-without-application）
+```
+
+**G. 登记与遗留**
+
+- **springdoc `/v3/api-docs` 端点被包装**：见 D，包装 opt-in 时 springdoc 自身端点 byte[] 被包成信封。消费者规避方式（路径豁免 / `ResponseEntity` 返回）或框架级 springdoc 端点排除，归入后续 web 体验任务，不属 WEB-002 范围。
+- **`FastDddJacksonAutoConfiguration` 冗长 `=== ... ===` 日志**：HEAD 基线遗留（init/customizer 两处多行 log），out-of-scope 未清理；后续可降级为单行 debug。
+- **`OpenApiConfiguration` 仍 `matchIfMissing=true`（openapi 默认开）**：WEB-002 仅收敛响应包装/Jackson；openapi 默认开不在本任务范围（openapi 是文档能力，非「改写既有 JSON」），保持现状。
+- **WEB-002 完成**。M3 进行中；**下一任务：按 §5 依赖序取下一项**（GEN-002 现已解锁——依赖 WEB-002 的 customizer / 包装语义；SEC-003 / CACHE-002 / SEARCH-001 / GEN-001 仍可选）。
+
 
 
 

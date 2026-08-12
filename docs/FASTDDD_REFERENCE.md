@@ -332,7 +332,27 @@ public class SysBillingRuleController extends BaseAdminCrudController<SysBilling
 
 业务项目**无需任何额外配置**，ID 转换由 `AbstractBaseController.resolveId()` 自动完成。覆写端点时参数改为 `String idStr` 并调用 `resolveId(idStr)` 即可。
 
-启用自动包装: 在 `Application` 类上加 `@EnableApiResponseWrapper`
+启用自动包装: **WEB-002 起为 opt-in（默认关）**。响应包装与 Jackson 扩展（Long→String / 日期格式 /
+枚举→name）均在类级别 `@ConditionalOnProperty(..., matchIfMissing = false)` 门控，**属性是唯一开关**：
+
+```yaml
+fastddd:
+  web:
+    response-wrapper:
+      enabled: true   # 开启 ApiResponse 信封包装（默认关）
+  jackson:
+    enabled: true     # 开启 Long/日期/枚举 Jackson 扩展（默认关）
+```
+
+- **默认关**：仅引入 `fast-ddd-web` 不改写消费者既有 JSON 契约（Long 数值、无信封、日期为 Spring Boot
+  默认表示）。
+- **框架聚合消费者**（studio / examples / archetype 生成项目）在各自 `application.yml` 显式 opt-in
+  还原信封能力。
+- `@EnableApiResponseWrapper` 已 **`@Deprecated(since="1.0.0-jdk21")`**，降级为源兼容标记，不再具备
+  opt-in 语义；新项目统一用属性开关。
+- **OpenAPI 契约一致**：`fastddd.web.response-wrapper.enabled=true` 时，`ApiResponseOpenApiCustomizer`
+  把 POJO 端点的 2xx 响应 schema 包成信封，与运行时 `SmartResponseAdvice` 同源判定（`ResponseWrapPredicate`），
+  避免 springdoc 文档（读签名）与运行时（信封）分歧。
 
 ### 5. CQRS 充血模型 (fast-ddd-application)
 
@@ -401,9 +421,11 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 ```java
 @SpringBootApplication(scanBasePackages = "com.example.app")
 @MapperScan("com.example.app")    // 必须加！BaseRepository 底层是 BaseMapper，不会自动扫描
-@EnableApiResponseWrapper
 public class Application { ... }
 ```
+
+> 响应包装启用方式见上节「统一响应格式」——经 `fastddd.web.response-wrapper.enabled=true` opt-in，
+> 不再使用 `@EnableApiResponseWrapper`（已 `@Deprecated`，源兼容无语义）。
 
 #### 3. YAML 配置
 
@@ -1317,7 +1339,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | `JsonUtils` | JSON 序列化/反序列化 |
 | `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
 | `Result<T>` | 通用结果包装（**已废弃**，请使用 `ApiResponse<T>`） |
-| `ApiResponse<T>` | 统一响应包装（推荐），位于 `com.gallop.fastddd.web.response`，配合 `@EnableApiResponseWrapper` 自动包装 Controller 返回值 |
+| `ApiResponse<T>` | 统一响应包装（推荐），位于 `com.gallop.fastddd.web.response`，经 `fastddd.web.response-wrapper.enabled=true` opt-in 由 `SmartResponseAdvice` 自动包装 Controller 返回值 |
 | `PageResult<T>` | 分页结果包装 |
 | `SearchService` | 全文搜索 SPI (SQL/Meilisearch 双后端) |
 | `SearchQuery` | 搜索查询构建器 (关键词+字段+过滤+排序+分页) |

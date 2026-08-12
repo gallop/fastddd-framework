@@ -138,35 +138,34 @@ mybatis-plus:
 - **格式**: `kebab-case`
 - **规则**: 全小写，使用连字符分隔单词
 
-**示例**:
+**示例**（消费者显式 opt-in 后，框架聚合 starter 默认已开）:
 ```yaml
 spring:
   application:
     name: fastddd-demo
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    
+
 fastddd:
   web:
     response-wrapper:
-      enabled: true
-      exclude-paths:
-        - /actuator/**
-        - /swagger-ui/**
+      enabled: true   # opt-in：默认关，显式开启才把控制器返回值包成 ApiResponse 信封
+    jackson:
+      enabled: true   # opt-in：默认关，显式开启才施加 Long→String / 日期格式 / 枚举→name 扩展
 ```
+
+> WEB-002：响应包装与 Jackson 扩展均为 **opt-in（默认关）**。仅引入 `fast-ddd-web` 不会改写消费者
+> 既有的 JSON 契约——Long 保持数值、无 `code/data` 信封、`LocalDateTime` 为 Spring Boot 默认表示。
+> 框架聚合消费者（studio / examples / archetype 生成项目）在各自的 `application.yml` 显式 opt-in
+> 还原信封能力。门控施加在 `SmartResponseAdvice` 与 `FastDddJacksonAutoConfiguration` 的类级别
+> `@ConditionalOnProperty(..., matchIfMissing = false)`，属性是唯一开关（`@EnableApiResponseWrapper`
+> 已降级为 `@Deprecated` 源兼容标记，不再具备 opt-in 语义）。
 
 ### 3.2 自定义配置属性
 
-**Java 配置类**:
-```java
-@ConfigurationProperties(prefix = "fastddd.web.response-wrapper")
-public class ResponseWrapperProperties {
-    private boolean enabled = true;
-    private List<String> excludePaths = new ArrayList<>();
-    
-    // getters and setters
-}
-```
+响应包装/Jackson 扩展不提供独立的排除路径配置；不希望被包装的端点直接返回
+`ResponseEntity<ApiResponse<T>>`、`Result`、`void` 或 Reactive 类型（`Flux`/`Mono`），
+`SmartResponseAdvice` 与 OpenAPI customizer 经共享谓词 `ResponseWrapPredicate` 同源识别并跳过。
 
 ## 4. 基础设施命名规范
 
