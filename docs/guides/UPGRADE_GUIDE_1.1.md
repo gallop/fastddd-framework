@@ -50,7 +50,7 @@
  @Data
  @EqualsAndHashCode(callSuper = true)
  @TableName("t_order")
- public class OrderPO extends BasePO {
+ public class OrderPO extends BasePO<Long> {
      private String orderNo;
      private BigDecimal amount;
  }

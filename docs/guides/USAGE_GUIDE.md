@@ -225,7 +225,7 @@ public abstract class AggregateRoot<ID> extends BaseEntity<ID> {
 // 基础持久化对象 (数据层)
 @Data
 @TableName("user_info")
-public class UserPO extends BasePO {
+public class UserPO extends BasePO<Long> {
     private String username;
     private String email;
     private String phone;

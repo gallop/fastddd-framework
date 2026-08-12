@@ -69,7 +69,7 @@ FastDDD 提供两套独立的基类体系，字段命名已统一：
 @TableName("t_order")
 @Getter @Setter
 @EqualsAndHashCode(callSuper = true)
-public class Order extends BasePO {
+public class Order extends BasePO<Long> {
 
     private String orderNo;
     private Integer status;
@@ -121,8 +121,8 @@ public class Order extends AggregateRoot<Long> {
 @TableName("t_order")
 @Getter @Setter
 @EqualsAndHashCode(callSuper = true)
-public class OrderPO extends BasePO {
-    // id 已由 BasePO 内置，无需声明
+public class OrderPO extends BasePO<Long> {
+    // id 已由 BasePO<Long> 内置（强类型 Long，ID-003/004），无需声明
     private String orderNo;
     private Integer status;
 }
@@ -456,9 +456,9 @@ fastddd:
 @Setter
 @EqualsAndHashCode(callSuper = true)
 @TableName("t_user")
-public class User extends BasePO {
-    // 不要重新声明 id 字段！BasePO 已有 protected Serializable id
-    // 框架通过 SerializableTypeHandler 自动处理 Long ↔ Serializable 转换
+public class User extends BasePO<Long> {
+    // 不要重新声明 id 字段！BasePO<Long> 已有强类型 Long id（ID-003/004）
+    // 主键策略由全局 mybatis-plus.global-config.db-config.id-type 决定（默认 assign_id）
 
     private String username;
     private String passwordHash;
