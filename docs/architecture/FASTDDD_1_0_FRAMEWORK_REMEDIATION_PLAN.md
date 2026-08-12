@@ -3051,11 +3051,59 @@ consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
 - **Phase D（门禁 + §16.34 收尾快照）**：生成产物真实编译门禁（仿 ID-007 §16.29 真实编译，非字符串断言）+ reactor 全量 + §16.34 补完。
 - **风险**：生成契约变更影响所有消费者默认产出；以「默认只读、写为 opt-in」为安全姿态（最小破坏），examples/archetype 同步收敛。
 
-**执行进度**
+#### 执行快照（§16.34 — GEN-002 全 Phase 完成）
 
-- **Phase A ✅（commit `82e6dca`）**：`anemic/Controller.ftl` 切 `BaseReadOnlyController`；examples `UserController` 同步；`TemplateRendererTest`/`GeneratedAnemicCodeCompileTest` 断言同步。命令证据：`GeneratedAnemicCodeCompileTest` 2/0/0（AUTO+ASSIGN_ID 真实编译）、`TemplateRendererTest` 10/0/0、`fastddd-examples` compile SUCCESS。验收 ①②③⑥ 默认面收敛。
-- **Phase B（待执行，入口已勘定）**：`writeMode` 须经 **4 层**串接——(1) `GenerationRequest.writeMode` + 新 `WriteMode{READ_ONLY,DTO}` 枚举（默认 READ_ONLY）；(2) `ToolingProjectGenerator.toGeneratorConfig` 设 `GeneratorConfig.writeMode`；(3) `CodeGeneratorService.generateCodeFromTemplates` 把 `writeMode` 入 `variables`，`generateAnemicModelCode` 于 `writeMode==DTO` 时追加生成 `CreateRequest.ftl`/`UpdateRequest.ftl`（死模板激活，含 `@NotNull` 校验=⑤）；(4) `anemic/Controller.ftl` 加 `<#if writeMode=="DTO">` 写方法分支：`@PostMapping create(@Valid @RequestBody CreateXxxRequest)` 经 `org.springframework.beans.BeanUtils.copyProperties(req,entity)` 映射→`service.save(entity)`（`IService.save/updateById` 已确认）、`@PutMapping/{id} update(...)`。新增 `dtoPackage` 变量。测试：`GeneratedAnemicCodeCompileTest` 加 DTO-write 变体（真实编译，含 CreateRequest/UpdateRequest/Controller 写方法）+ `TemplateRendererTest` DTO-write 断言。
-- **Phase C/D（待执行）**：见上裁定。
+**Phase A ✅（commit `82e6dca`）— 默认只读收敛（①②③⑥）**
+
+- `anemic/Controller.ftl` `import BaseController` → `BaseReadOnlyController`；javadoc 更新
+- `fastddd-examples/.../UserController.java` 同步切 `BaseReadOnlyController`
+- `TemplateRendererTest:137` 断言更新（`BaseReadOnlyController<UserService,User,Long>`）
+- `GeneratedAnemicCodeCompileTest:35` 注释更新
+- 证据：`GeneratedAnemicCodeCompileTest` 2/0/0（AUTO+ASSIGN_ID 真实编译）、`TemplateRendererTest` 10/0/0、`fastddd-examples` compile SUCCESS
+
+**Phase B ✅（commit `c8b1682`）— writeMode=DTO 写路径（④⑤）**
+
+- `tooling-api`：新增 `WriteMode{READ_ONLY,DTO}` 枚举（默认 READ_ONLY，fromCode/codesAreStable）；`GenerationRequest.writeMode` 字段 + getter/builder；`ToolingApiContractTest` 表面清单 11→12 + `WriteModeContract` 子测试
+- `GeneratorConfig.writeMode` 字段（默认 "READ_ONLY"，String 桥接）；`ToolingProjectGenerator.toGeneratorConfig` 映射
+- `CodeGeneratorService`：`createGeneratorModel` 入 customProperties `writeMode`；`generateCodeFromTemplates` 设 `dtoPackage` 变量；`generateAnemicModelCode` 于 `writeMode==DTO` 时激活死模板 `CreateRequest.ftl`/`UpdateRequest.ftl`（含 `@NotNull` 校验=⑤）
+- `anemic/Controller.ftl` `<#if writeMode=="DTO">` 写方法分支：`@PostMapping create(@Valid @RequestBody CreateXxxRequest)` → `BeanUtils.copyProperties` → `service.save(entity)`；`@PutMapping /{id} update(...)` → `entity.setId(parseId(id))` → `service.updateById`；`@DeleteMapping /{id}` → `service.removeById(parseId(id))`
+- 测试：`GeneratedAnemicCodeCompileTest.anemicDtoWriteGeneratesCompilingCode`（真实编译 DTO+Controller 写方法，Jakarta `@Valid` + `BeanUtils`）→ 3/0/0；`TemplateRendererTest.testRenderControllerTemplateDtoWrite`（断言 POST/PUT/DELETE/`@Valid`/`@RequestBody`/`BeanUtils`/`service` 调用）
+- 验收 ④「写请求体为 DTO（非 PO）」— `CreateXxxRequest`/`UpdateXxxRequest` 均为 DTO；验收 ⑤「校验扩展点」— DTO 模板含 `@NotNull` + 行级 `@NotBlank` 逻辑
+
+**Phase C ✅（commit `d0fa7c9`）— 权限扩展点注释（④ 权限 hook）**
+
+- `anemic/Controller.ftl`：
+  - 类声明上方 `// @@PreAuthorize("hasRole('ADMIN')")`（GEN-002-EXTPT 钩子，取消注释 + import Spring Security 即启）
+  - DTO 写分支每方法独立鉴权钩子：`hasAuthority('xxx:create')` / `:update` / `:delete`
+  - `// @@DataPermission(dimension = tableName, keyField = "id")` 声明式数据权限接入提示
+  - javadoc 新增 `<h3>GEN-002 权限扩展点（Phase C）</h3>` 完整接入指引
+  - **所有钩子均为注释**——不含实际注解或 security 依赖
+- `TemplateRendererTest`：断言类级 `@PreAuthorize` 注释 + 方法级鉴权注释 + `@DataPermission` 注释 + `GEN-002-EXTPT` 标记
+
+**Phase D — 全量门禁 + 收尾（本快照）📌**
+
+- 反应堆全量：**582 tests / 0 failures / 0 errors / 10 skipped**，31/31 modules SUCCESS
+- 消费者 invoker 门禁：**4/4 passed**（web-minimal、web-response-default-off、web-response-wrapper、web-without-application）全绿
+- 基线对比：578（WEB-002 Phase D）→ 582（+4：2 个 WriteModeContract + 1 个 DTO-write 真实编译 + 1 个 DTO-write 渲染器断言）——Phase C 注释变更不计入计数
+- Studio 编译全量 `clean verify -Ptest` 31/31 绿，studio server 测试无回归
+
+**验收六步覆盖裁定**
+
+| 验收项 | 状态 | 裁决与证据 |
+|--------|------|-----------|
+| ① 禁止生成 deprecated BaseController | ✅ 修复 | Phase A：`Controller.ftl` `BaseController`→`BaseReadOnlyController`；grep `BaseController` in `target/classes/templates/anemic/Controller.ftl` → 0 命中；2 条 `GeneratedAnemicCodeCompileTest` 真实编译通过 |
+| ② 默认只读 | ✅ 修复 | Phase A：默认 READ_ONLY；Phase B：`writeMode=DTO` opt-in 写端点。`TemplateRendererTest` 断言只读模板不含写代码、DTO 变体含写方法 |
+| ③ PO 不作外部写请求 | ✅ 修复 | Phase B：`@RequestBody CreateXxxRequest`/`UpdateXxxRequest`（DTO），非 PO；`BeanUtils.copyProperties` 映射后调 `service.save/updateById`。编译期类型安全 |
+| ④ 生成权限扩展点 | ✅ 修复 | Phase C：类级/方法级 `@PreAuthorize` 注释钩子（取消注释 + Spring Security import 即生效）。全为注释，不引入 security 依赖 |
+| ⑤ 审计/校验/数据权限提示 | ✅ 修复 | 校验：Phase B 激活的死模板 `CreateRequest.ftl` 含 `@NotNull`（`!column.nullable` 时）；数据权限：Phase C `@DataPermission` 注释钩子 |
+| ⑥ 敏感示例无无权限写端点 | ✅ 修复 | Phase A：`fastddd-examples/.../UserController.java` `BaseController`→`BaseReadOnlyController`——仅暴露 GET 端点；examples `pom.xml` 无 security 依赖（符合框架层剥离原则）。生成的 Controller 默认只读 |
+
+**遗留**
+
+- `anemic/DTO.ftl` 仍为死模板——GEN-002 未激活（当前 DTO=CreateRequest+UpdateRequest，不需要独立 DTO 输出）
+- `rich/UpdateCommand.ftl`、`rich/DeleteCommand.ftl`、`rich/ValueObject.ftl`、`rich/Enum.ftl` 仍为死模板——富模型路径未纳入本次整改，留 M4/M5
+- `@DataPermission` 注解需业务侧自行定义——框架不捆绑特定权限方案，注释钩子已提供接入指引
+- `BaseReadOnlyController` 查询端点鉴权需覆盖父类方法——已通过 GEN-002-EXTPT 注释提示
 
 
 
