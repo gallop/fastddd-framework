@@ -6,6 +6,7 @@ import com.gallop.fastddd.security.jwt.JwtAuthenticationFilter;
 import com.gallop.fastddd.security.jwt.JwtProperties;
 import com.gallop.fastddd.security.jwt.JwtTokenProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.cors.CorsConfiguration;
@@ -46,27 +49,31 @@ public class SecurityAutoConfiguration {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final CorsProperties corsProperties;
     private final SecurityHttpProperties httpProperties;
+    private final Environment env;
 
     public SecurityAutoConfiguration(JwtTokenProvider jwtTokenProvider,
                                    JwtProperties jwtProperties,
                                    JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                                    JwtAccessDeniedHandler jwtAccessDeniedHandler,
                                    CorsProperties corsProperties,
-                                   SecurityHttpProperties httpProperties) {
+                                   SecurityHttpProperties httpProperties,
+                                   Environment env) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtProperties = jwtProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtAccessDeniedHandler = jwtAccessDeniedHandler;
         this.corsProperties = corsProperties;
         this.httpProperties = httpProperties;
+        this.env = env;
         log.info("SecurityAutoConfiguration initialized with CORS properties: enabled={}, allowedOrigins={}",
                 corsProperties.isEnabled(), corsProperties.getAllowedOrigins());
     }
 
     /**
-     * 密码编码器
+     * 密码编码器（SEC-003 退让：业务已有 PasswordEncoder 时不覆盖）。
      */
     @Bean
+    @ConditionalOnMissingBean(PasswordEncoder.class)
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
@@ -90,19 +97,21 @@ public class SecurityAutoConfiguration {
     }
 
     /**
-     * 安全过滤器链配置
+     * 安全过滤器链配置（SEC-003 退让：业务已有 SecurityFilterChain 时不覆盖）。
      */
     @Bean
+    @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             // 禁用CSRF
             .csrf(csrf -> csrf.disable())
 
-            // 配置CORS（开发环境可禁用）
+            // 配置CORS（SEC-003：使用 Spring Environment 读 profile，避免 System.getProperty hack）
             .cors(cors -> {
-                if (corsProperties.shouldDisableCors()) {
-                    log.info("Disabling CORS filter in development mode");
-                    cors.disable();  // 完全禁用CORS检查
+                boolean isDev = env.acceptsProfiles(Profiles.of("dev", "development"));
+                if (isDev && corsProperties.isDevDisableCors()) {
+                    log.info("Disabling CORS filter in development mode (via Environment)");
+                    cors.disable();
                 } else {
                     cors.configurationSource(corsConfigurationSource());
                 }

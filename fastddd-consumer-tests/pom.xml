@@ -24,7 +24,7 @@
     <invoker.skip>true</invoker.skip>
     <!-- 默认只跑已 gated 的 web 场景；-Dinvoker.test=* 跑全部（含 5 个 scaffold）。
          invoker.test 用 glob；逗号分隔等价枚举。 -->
-    <invoker.test>web-*</invoker.test>
+    <invoker.test>web-*,security-*</invoker.test>
     <!-- SPLIT-005：studio 隔离实构建默认跳过（-Pstudio-isolation 启用）。经独立属性控制，
          与 invoker.skip 解耦，避免 -Pstudio-isolation 误触发 consumer-integration-test。 -->
     <studio-isolation.skip>true</studio-isolation.skip>

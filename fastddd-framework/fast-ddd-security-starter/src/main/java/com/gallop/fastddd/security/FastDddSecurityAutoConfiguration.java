@@ -46,7 +46,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -231,11 +230,19 @@ public class FastDddSecurityAutoConfiguration {
         return new NoopVerificationCodeSender(VerificationCodeType.EMAIL);
     }
 
+    /**
+     * SEC-003：CRUD CurrentUserProvider 桥接配置。
+     *
+     * <p>仅当业务未定义自己的 {@code CurrentUserProvider} 时才注册
+     * {@link SecurityCurrentUserProvider}（从 SecurityContext 提取当前用户）。
+     * 业务自定义实现优先——按接口类型退让，避免两个 Provider 并存导致
+     * {@code FastDddCrudAutoConfiguration} 注入歧义。</p>
+     */
     @Configuration
     @ConditionalOnClass(name = "com.gallop.fastddd.crud.provider.CurrentUserProvider")
     static class CrudBridgeConfiguration {
         @Bean
-        @Primary
+        @ConditionalOnMissingBean(type = "com.gallop.fastddd.crud.provider.CurrentUserProvider")
         public SecurityCurrentUserProvider securityCurrentUserProvider() {
             return new SecurityCurrentUserProvider();
         }

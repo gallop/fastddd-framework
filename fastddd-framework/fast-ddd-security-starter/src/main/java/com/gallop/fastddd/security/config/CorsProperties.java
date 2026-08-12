@@ -212,27 +212,39 @@ public class CorsProperties {
     }
 
     /**
-     * 判断是否为生产环境
+     * 判断是否为生产环境。
+     *
+     * @deprecated SEC-003：本方法使用 {@code System.getProperty("spring.profiles.active")}，
+     * 无法感知 Spring Environment 全部 profile 源（YAML/env/command-line）。
+     * 生产语义的 profile 判断应由 {@link com.gallop.fastddd.security.config.SecurityAutoConfiguration#filterChain}
+     * 通过 {@code Environment.acceptsProfiles(Profiles.of("prod"))} 执行。
+     * 本方法保留仅用于 {@link #validateAndLog()} 启动日志（非运行时安全路径）。
      */
+    @Deprecated
     private boolean isProductionProfile() {
         String profile = System.getProperty("spring.profiles.active");
         return profile != null && profile.contains("prod");
     }
 
     /**
-     * 判断是否为开发环境
+     * 判断是否为开发环境。
+     *
+     * @deprecated SEC-003：同 {@link #isProductionProfile()}，应使用 Spring {@code Environment} API。
      */
+    @Deprecated
     public boolean isDevelopmentProfile() {
         String profile = System.getProperty("spring.profiles.active");
         return profile != null && (profile.contains("dev") || profile.contains("development"));
     }
 
     /**
-     * 判断是否应该禁用CORS
-     * <p>
-     * 开发环境且devDisableCors=true时禁用
-     * 生产环境强制启用CORS保护
+     * 判断是否应该禁用 CORS。
+     *
+     * @deprecated SEC-003：调用方已迁移至
+     * {@link com.gallop.fastddd.security.config.SecurityAutoConfiguration#filterChain}
+     * 中基于 {@code env.acceptsProfiles()} 的判断。
      */
+    @Deprecated
     public boolean shouldDisableCors() {
         return devDisableCors && isDevelopmentProfile();
     }
