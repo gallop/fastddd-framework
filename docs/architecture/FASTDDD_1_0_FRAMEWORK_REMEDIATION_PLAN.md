@@ -3246,3 +3246,20 @@ Hikari/Druid 与 release verify 命令均与本仓已实现契约一致
 - 文档不再声称 SQL 搜索零配置、响应包装默认开启、固定发布测试数或把三个发布阶段混为一谈。
 - DOC-001 完成。下一任务：QA-001（分阶段独立消费者验收矩阵）。
 
+### 16.39 QA-001：内部 RC 独立消费者矩阵收敛
+
+**设计与实现**
+
+- 新增 `docs/QA_001_CONSUMER_MATRIX.md`，将每个场景、验收重点、自动化入口、当前候选证据和阶段门禁固定为可重放矩阵。
+- `fastddd-consumer-tests` 的 `-Pconsumer-tests` 默认选择器扩展为 `web-*`、`security-*`、`cache-*`、`search-*`、`event-*`、`monitor-*` 和 `fastdoc-*`，使内部 RC 的 12 个最小消费者场景一次运行而非依赖人工补跑。
+- Studio 隔离/真实跨仓两项明确归属 SPLIT-006/007，保持未执行状态，不以当前单仓结果替代公开 GA 证据。
+
+**验证与 review**
+
+- 已在 JDK 21 下复跑默认 Web/Security/Cache/Search 9 个消费者，全部通过。
+- 已在 JDK 21 下运行 `-Dinvoker.test=event-*,monitor-*,fastdoc-*`，3 个消费者全部通过。
+- 审查确认默认选择器现在覆盖 12 个内部 RC 消费者目录；未把公开 GA 场景并入默认集合或写为已通过。
+
+**结论**
+
+- QA-001 内部 RC 消费者矩阵完成。下一任务：QA-002（全量回归、安全与依赖门禁）。

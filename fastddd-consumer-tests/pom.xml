@@ -22,9 +22,9 @@
          （日志：invoker:run ... Skipping invocation per configuration；本模块 0 surefire 单测），
          标准门禁不受影响。CI 用 -Pconsumer-tests 显式启用（前置 mvn install -DskipTests）。 -->
     <invoker.skip>true</invoker.skip>
-    <!-- 默认只跑已 gated 的 web/security/cache/search 场景；-Dinvoker.test=* 跑全部（含 3 个 scaffold）。
+    <!-- 默认覆盖所有内部 RC 消费者场景；跨仓 Studio 场景由 studio-isolation 独立 profile 执行。
          invoker.test 用 glob；逗号分隔等价枚举。 -->
-    <invoker.test>web-*,security-*,cache-*,search-*</invoker.test>
+    <invoker.test>web-*,security-*,cache-*,search-*,event-*,monitor-*,fastdoc-*</invoker.test>
     <!-- SPLIT-005：studio 隔离实构建默认跳过（-Pstudio-isolation 启用）。经独立属性控制，
          与 invoker.skip 解耦，避免 -Pstudio-isolation 误触发 consumer-integration-test。 -->
     <studio-isolation.skip>true</studio-isolation.skip>
