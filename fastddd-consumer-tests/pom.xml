@@ -25,6 +25,9 @@
     <!-- 默认只跑已 gated 的 web 场景；-Dinvoker.test=* 跑全部（含 5 个 scaffold）。
          invoker.test 用 glob；逗号分隔等价枚举。 -->
     <invoker.test>web-*</invoker.test>
+    <!-- SPLIT-005：studio 隔离实构建默认跳过（-Pstudio-isolation 启用）。经独立属性控制，
+         与 invoker.skip 解耦，避免 -Pstudio-isolation 误触发 consumer-integration-test。 -->
+    <studio-isolation.skip>true</studio-isolation.skip>
   </properties>
 
   <build>
@@ -66,6 +69,56 @@
       <properties>
         <invoker.skip>false</invoker.skip>
       </properties>
+    </profile>
+
+    <!--
+      SPLIT-005 步骤 4 隔离实构建（验收：Studio Server 可在隔离本地仓库独立构建）。
+      复用本模块 maven-invoker-plugin 范式（FRM-002），但 projectsDirectory 指向真实 fastddd-studio：
+      invoker 克隆整树到 target/its-studio，在【非 host reactor】的 forked Maven 内构建内层
+      fastddd-studio-server——其 framework/tooling「依赖」与 fastddd-studio parent 仅从本地仓库
+      （已 install 制品）解析，证明删除根 reactor 聚合后仍能经已发布 RC 制品构建。
+
+      运行：mvn install -DskipTests -B && mvn verify -pl fastddd-consumer-tests -Pstudio-isolation -B
+      默认 studio-isolation.skip=true，标准 verify 不触发（reactor 门禁零影响）。
+    -->
+    <profile>
+      <id>studio-isolation</id>
+      <properties>
+        <studio-isolation.skip>false</studio-isolation.skip>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-invoker-plugin</artifactId>
+            <version>${maven-invoker-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>studio-isolation-build</id>
+                <phase>integration-test</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <skipInvocation>${studio-isolation.skip}</skipInvocation>
+                  <!-- 真实 fastddd-studio 树（聚合器 + studio-server 源码）；invoker 克隆整树 -->
+                  <projectsDirectory>${project.basedir}/../fastddd-studio</projectsDirectory>
+                  <cloneProjectsTo>${project.build.directory}/its-studio</cloneProjectsTo>
+                  <!-- 仅构建内层 studio-server 模块（parent 经 ../pom.xml 在克隆内解析） -->
+                  <invokerTest>fastddd-studio-server</invokerTest>
+                  <goals>verify</goals>
+                  <profiles>
+                    <profile>test</profile>
+                  </profiles>
+                  <streamLogsOnFailures>true</streamLogsOnFailures>
+                  <writeJunitReport>true</writeJunitReport>
+                  <parallelThreads>1</parallelThreads>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 </project>
