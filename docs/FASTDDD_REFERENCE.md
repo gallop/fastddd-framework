@@ -962,7 +962,8 @@ fastddd:
 
 ## 搜索模块 (fast-ddd-search)
 
-轻量级全文搜索，SQL 默认零配置，Meilisearch 可选切换，业务代码不变。
+轻量级全文搜索，SQL、Meilisearch 和 disabled 三种显式模式；启用 SQL 时必须具备
+MyBatis-Plus `BaseMapper`，Meilisearch 模式必须显式提供 SDK，业务代码不变。
 
 ### 依赖引入
 
@@ -1033,9 +1034,10 @@ fastddd:
 
 | 场景 | 条件 | 行为 |
 |------|------|------|
-| SQL LIKE | `backend=sql` (默认) | QueryWrapper LIKE 查询，零额外依赖 |
+| SQL LIKE | `backend=sql` (默认) + MyBatis-Plus `BaseMapper` | QueryWrapper LIKE 查询；依赖或 Mapper 缺失时启动失败 |
 | SQL FULLTEXT | `backend=sql` + MySQL | 自动 `MATCH...AGAINST` (需 FULLTEXT 索引) |
 | Meilisearch | `backend=meilisearch` + SDK 在 classpath | 全文搜索 + 高亮 |
+| Disabled | `backend=disabled` | 不注册 `SearchService`；适用于未配置搜索后端的消费者 |
 | 禁用 | `enabled=false` | 不加载任何 Bean |
 
 详细用法参见 [SEARCH_GUIDE.md](guides/SEARCH_GUIDE.md)。

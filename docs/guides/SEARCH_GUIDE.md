@@ -1,6 +1,6 @@
 # FastDDD Search 模块使用指南
 
-> 轻量级全文搜索，SQL 默认零配置，Meilisearch 可选切换，5 分钟接入。
+> 轻量级全文搜索，SQL、Meilisearch 和 disabled 三种显式模式，5 分钟接入。
 
 ## 1. 引入依赖
 
@@ -13,12 +13,12 @@
 ```
 
 **可选依赖**（运行时）：
-- SQL 后端：默认可用（依赖项目已有的 MyBatis Plus）
+- SQL 后端：默认模式，必须包含 MyBatis Plus、至少一个 `BaseMapper` Bean；缺失时启动失败并提示修复方式
 - Meilisearch 后端：需额外引入 `fast-ddd-search`（已内置 meilisearch-java SDK，optional scope）+ 运行 Meilisearch 服务
 
-## 2. 零配置启动（SQL 后端）
+## 2. SQL 后端启动
 
-不做任何额外配置即可使用，默认值：
+SQL 是默认值；使用它的应用必须已引入 `fast-ddd-crud` 并注册至少一个 MyBatis-Plus Mapper：
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
@@ -281,10 +281,10 @@ Map<String, List<String>> highlights = result.getHighlights();
 
 | 场景 | 配置 | 行为 |
 |------|------|------|
-| **SQL LIKE** | `backend=sql`（默认） | QueryWrapper 查询，零额外依赖 |
+| **SQL LIKE** | `backend=sql`（默认）+ MyBatis-Plus `BaseMapper` | QueryWrapper 查询；依赖或 Mapper 缺失时启动失败 |
 | **SQL FULLTEXT** | `backend=sql` + MySQL | 自动 MATCH...AGAINST |
 | **Meilisearch** | `backend=meilisearch` + SDK 在 classpath | Meilisearch 全文搜索 + 高亮 |
-| **禁用** | `enabled=false` | 不加载任何 Bean |
+| **禁用** | `backend=disabled` 或 `enabled=false` | 不加载 `SearchService`；用于未配置搜索后端的消费者 |
 
 ## 7. 搜索架构
 

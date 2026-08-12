@@ -4,6 +4,7 @@ import com.gallop.fastddd.search.meilisearch.MeilisearchSearchService;
 import com.gallop.fastddd.search.sql.SqlSearchService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,6 +34,13 @@ public class FastDddSearchAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public SearchBackendConfigurationValidator searchBackendConfigurationValidator(
+            SearchProperties properties, ApplicationContext applicationContext) {
+        return new SearchBackendConfigurationValidator(properties, applicationContext);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public SearchIndexRegistry searchIndexRegistry(ApplicationContext applicationContext) {
         return new SearchIndexRegistry(applicationContext);
     }
@@ -46,6 +54,7 @@ public class FastDddSearchAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean
+        @ConditionalOnBean(type = "com.baomidou.mybatisplus.core.mapper.BaseMapper")
         public SearchService sqlSearchService(SearchIndexRegistry registry,
                                               SearchProperties properties,
                                               ApplicationContext applicationContext) {

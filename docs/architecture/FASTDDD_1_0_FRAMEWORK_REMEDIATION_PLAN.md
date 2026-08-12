@@ -3147,6 +3147,46 @@ consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
   编程接口。
 - CACHE-002 完成。下一任务：SEARCH-001（搜索后端缺失时可诊断）。
 
+### 16.36 SEARCH-001：搜索后端缺失时 fail-fast 且可诊断
+
+**问题与设计**
+
+原默认 SQL 模式在 MyBatis-Plus 不在 classpath 时静默不注册 `SearchService`；即使服务已注册，实体
+Mapper 解析失败也会返回空集合，混淆“没有搜索结果”和“应用配置错误”。本任务固定三种模式：
+`sql`（默认）、`meilisearch`、`disabled`。前两者均为显式能力承诺：缺少必需依赖或 SQL Mapper
+必须启动失败并给出补救指引；`disabled` 是允许无搜索后端启动的唯一显式模式。
+
+**实现与验收**
+
+- 新增 `SearchBackendConfigurationValidator`，在启动期校验未知 backend、SQL 的 MyBatis-Plus/
+  `BaseMapper`，及 Meilisearch SDK；错误信息均包含配置路径和可选修复（补依赖/Mapper 或设为 disabled）。
+- SQL `SearchService` 仅在至少一个 `BaseMapper` Bean 存在时注册；运行时某实体没有可解析 Mapper 时
+  抛 `SearchBackendException`，不再返回伪造的空页。
+- `SearchProperties` 支持 `disabled` 并不再将所有非 Meilisearch 值误判为 SQL。
+- 更新参考手册和搜索指南，删除“SQL 零配置”表述；独立 `search-minimal` 消费者覆盖 disabled 启动、
+  无 MyBatis SQL 的可执行失败诊断，并纳入消费者门禁。
+
+**命令级证据**
+
+```
+./mvnw.cmd -B -pl fastddd-framework/fast-ddd-search test
+→ Tests run: 5, Failures: 0, Errors: 0
+
+./mvnw.cmd -B -pl fastddd-framework/fast-ddd-search -am install -DskipTests
+→ SUCCESS
+
+./mvnw.cmd -B -pl fastddd-consumer-tests verify -Pconsumer-tests \
+  '-Dinvoker.test=search-minimal'
+→ Passed: 1, Failed: 0, Errors: 0
+```
+
+**阶段 review**
+
+- 不在本任务拆分物理 search-sql/search-meilisearch 模块，遵循 1.1 再处理内部模块拆分的范围约束。
+- SQL 的全局 `BaseMapper` 校验只证明 SQL 能力已经装配；实体级 Mapper 错配保留到调用点并以异常暴露，
+  避免因为启动时无法预知的实体使用面误报。
+- 诊断使用当前运行线程的 classloader，确保 optional 依赖在独立消费者 classpath 被排除时仍能正确检测。
+- SEARCH-001 完成。下一任务：GEN-001（数据源与 Profile 模板修复）。
 
 
 

@@ -1,16 +1,21 @@
 package com.gallop.fastddd.consumer.search;
 
+import com.gallop.fastddd.search.SearchService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.context.ConfigurableApplicationContext;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * FRM-002 预置场景（ungated）：Search 模块空消费者。
- * 预设 shell——实际启动/失败行为由 SEARCH-001 刻画（审计 P0-5：搜索后端缺失时应可诊断，而非崩溃）。
+ * SEARCH-001 独立消费者：disabled 是唯一允许无 SQL/Meilisearch 后端的显式模式；
+ * SQL 缺少 MyBatis-Plus 时必须给出可执行诊断，不能静默返回空结果。
  */
-@SpringBootTest(classes = SearchConsumerTest.App.class)
 class SearchConsumerTest {
 
     @SpringBootApplication
@@ -18,7 +23,24 @@ class SearchConsumerTest {
     }
 
     @Test
-    void presetShell() {
-        assertTrue(true, "预设 shell；SEARCH-001 将补后端缺失可诊断刻画");
+    void disabledModeStartsWithoutSearchBackend() {
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(App.class)
+                .web(WebApplicationType.NONE)
+                .properties("fastddd.search.backend=disabled")
+                .run()) {
+            assertThrows(NoSuchBeanDefinitionException.class, () -> context.getBean(SearchService.class));
+        }
+    }
+
+    @Test
+    void sqlModeWithoutMyBatisPlusFailsWithActionableConfiguration() {
+        BeanCreationException failure = assertThrows(BeanCreationException.class,
+                () -> new SpringApplicationBuilder(App.class)
+                        .web(WebApplicationType.NONE)
+                        .run("--fastddd.search.backend=sql"));
+        assertTrue(failure.getMessage().contains("fastddd.search.backend=sql"),
+                "错误应明确指向 SQL 后端配置");
+        assertTrue(failure.getMessage().contains("fast-ddd-crud"),
+                "错误应提供依赖修复建议");
     }
 }

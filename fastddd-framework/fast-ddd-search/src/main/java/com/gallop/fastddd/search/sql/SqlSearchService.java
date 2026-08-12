@@ -49,8 +49,9 @@ public class SqlSearchService implements SearchService {
 
         Object mapperObj = registry.resolveMapper(entityType);
         if (!(mapperObj instanceof BaseMapper<?>)) {
-            log.warn("No BaseMapper found for {}, returning empty result", entityType.getSimpleName());
-            return new SearchResult<>(List.of(), 0, query.getPageNum(), query.getPageSize(), getBackendType());
+            throw new SearchBackendException("SQL search cannot resolve a BaseMapper for "
+                    + entityType.getName() + ". Register the entity mapper before querying; "
+                    + "this is a configuration error, not an empty search result.");
         }
         BaseMapper<Object> mapper = (BaseMapper<Object>) mapperObj;
 

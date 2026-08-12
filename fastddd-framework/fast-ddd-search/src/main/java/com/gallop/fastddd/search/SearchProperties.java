@@ -20,7 +20,7 @@ public class SearchProperties {
 
     private boolean enabled = true;
 
-    /** 搜索后端: "sql" | "meilisearch" */
+    /** 搜索后端: "sql" | "meilisearch" | "disabled" */
     private String backend = "sql";
 
     private Sql sql = new Sql();
@@ -61,6 +61,10 @@ public class SearchProperties {
     }
 
     public boolean isSql() {
-        return !isMeilisearch();
+        return "sql".equalsIgnoreCase(backend);
+    }
+
+    public boolean isDisabled() {
+        return "disabled".equalsIgnoreCase(backend);
     }
 }
