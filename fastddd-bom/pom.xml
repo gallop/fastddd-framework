@@ -135,6 +135,12 @@
                 <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
                 <version>${revision}</version>
             </dependency>
+            <!-- Tooling 稳定契约层（SPLIT-003/004）；VER-001 补列——此前根 pom 已列、BOM 漏列致消费者契约缺漏 -->
+            <dependency>
+                <groupId>com.gallop.fastddd</groupId>
+                <artifactId>fastddd-tooling-api</artifactId>
+                <version>${revision}</version>
+            </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fastddd-templates</artifactId>
