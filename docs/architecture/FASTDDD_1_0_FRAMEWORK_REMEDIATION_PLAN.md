@@ -3051,6 +3051,12 @@ consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
 - **Phase D（门禁 + §16.34 收尾快照）**：生成产物真实编译门禁（仿 ID-007 §16.29 真实编译，非字符串断言）+ reactor 全量 + §16.34 补完。
 - **风险**：生成契约变更影响所有消费者默认产出；以「默认只读、写为 opt-in」为安全姿态（最小破坏），examples/archetype 同步收敛。
 
+**执行进度**
+
+- **Phase A ✅（commit `82e6dca`）**：`anemic/Controller.ftl` 切 `BaseReadOnlyController`；examples `UserController` 同步；`TemplateRendererTest`/`GeneratedAnemicCodeCompileTest` 断言同步。命令证据：`GeneratedAnemicCodeCompileTest` 2/0/0（AUTO+ASSIGN_ID 真实编译）、`TemplateRendererTest` 10/0/0、`fastddd-examples` compile SUCCESS。验收 ①②③⑥ 默认面收敛。
+- **Phase B（待执行，入口已勘定）**：`writeMode` 须经 **4 层**串接——(1) `GenerationRequest.writeMode` + 新 `WriteMode{READ_ONLY,DTO}` 枚举（默认 READ_ONLY）；(2) `ToolingProjectGenerator.toGeneratorConfig` 设 `GeneratorConfig.writeMode`；(3) `CodeGeneratorService.generateCodeFromTemplates` 把 `writeMode` 入 `variables`，`generateAnemicModelCode` 于 `writeMode==DTO` 时追加生成 `CreateRequest.ftl`/`UpdateRequest.ftl`（死模板激活，含 `@NotNull` 校验=⑤）；(4) `anemic/Controller.ftl` 加 `<#if writeMode=="DTO">` 写方法分支：`@PostMapping create(@Valid @RequestBody CreateXxxRequest)` 经 `org.springframework.beans.BeanUtils.copyProperties(req,entity)` 映射→`service.save(entity)`（`IService.save/updateById` 已确认）、`@PutMapping/{id} update(...)`。新增 `dtoPackage` 变量。测试：`GeneratedAnemicCodeCompileTest` 加 DTO-write 变体（真实编译，含 CreateRequest/UpdateRequest/Controller 写方法）+ `TemplateRendererTest` DTO-write 断言。
+- **Phase C/D（待执行）**：见上裁定。
+
 
 
 
