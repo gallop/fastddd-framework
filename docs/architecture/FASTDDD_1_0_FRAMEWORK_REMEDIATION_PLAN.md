@@ -3263,3 +3263,22 @@ Hikari/Druid 与 release verify 命令均与本仓已实现契约一致
 **结论**
 
 - QA-001 内部 RC 消费者矩阵完成。下一任务：QA-002（全量回归、安全与依赖门禁）。
+
+### 16.40 QA-002：全量回归与可追溯验证记录
+
+**执行结果**
+
+- 使用 JDK 21.0.3 运行 `./mvnw.cmd -B clean verify`，31/31 reactor 模块成功（耗时 7 分 52 秒），包括 Framework、Tooling、Studio Server 和消费者测试 harness。
+- 使用已安装候选制品运行 `-Pconsumer-tests`，12/12 内部 RC 独立消费者场景通过；完整映射和重放命令见 `docs/QA_001_CONSUMER_MATRIX.md`。
+- `OutboxDispatcherConcurrencyTest`（4 tests）独立通过，并加入 `.github/workflows/pr-validation.yml` 的失败即阻断步骤，覆盖无基础设施的并发 claim、租约回收与失败重试。
+- 修正 Maven Invoker 的配置参数：将无效的 `skip` 改为 `skipInvocation`，消除验证日志警告并保持默认跳过、profile 启用的边界。
+
+**未关闭的发布环境缺口**
+
+- 本机未安装 Docker，显式运行两个 MySQL Testcontainers Outbox 测试时因找不到 Docker 环境失败；没有把该环境失败误写成断言通过。
+- 真实 MySQL、Redis、RocketMQ、依赖漏洞/凭据/静态安全扫描和真实跨仓 Studio 消费者均需在发布验证环境完成。前者阻断内部 RC，跨仓项仅阻断 Framework 公开 GA。
+- 详细结果、阻断级别及待指定的负责人/期限/接受人登记在 `docs/QA_002_VALIDATION_RECORD.md`；未取得负责人授权前不得签发 RC 或公开 GA。
+
+**结论**
+
+- QA-002 的本地可重复代码门禁已完成；发布环境门禁处于待补测状态。下一任务：OSS-001（开源就绪与公开前安全门禁），其中许可证、权利人和私密报告渠道须由项目权利人确认。

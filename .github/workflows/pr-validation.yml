@@ -55,6 +55,13 @@ jobs:
       run: |
         ./mvnw clean compile -B
         ./mvnw test -B
+
+    # QA-002：该测试不依赖 MySQL、Redis 或消息中间件；必须在每个 PR 中失败即阻断，
+    # 以守护 Outbox 多 dispatcher 的 claim、lease 回收和失败重试契约。
+    - name: Run deterministic Outbox concurrency gate (QA-002)
+      run: |
+        ./mvnw -B -pl fastddd-framework/fast-ddd-event test \
+          -Dtest=OutboxDispatcherConcurrencyTest
     
     - name: Run code style checks
       run: |
