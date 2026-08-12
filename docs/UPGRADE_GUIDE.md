@@ -147,6 +147,14 @@ Boot 3.5 的 SnakeYAML 对**重复 YAML 顶层键**由宽容改为严格拒绝�
 Druid 在 Boot 3.5 下的自动配置由 `druid-spring-boot-3-starter` 提供，确认 starter 坐标正确（见上节）后，
 原 `spring.datasource.druid.*` 配置无需改动。
 
+### 本地秘密配置与启动前检查
+
+受跟踪的 `application-*.yml` 只能引用环境变量，例如 `${JWT_SECRET}`；实际值放在被忽略的 `.env`、受管密钥服务或 IDE/CI 环境变量中。建议提交 `.env.example`，但其中不得有可用秘密。
+
+如果应用支持 `.env` 自动加载，必须明确加载路径与进程工作目录的关系。旧配置中若出现 `${LLM_API_KEY:旧默认值}`，迁移时不要把整段表达式写进 `LLM_API_KEY`，否则会产生循环占位符；应填入轮换后的最终值。
+
+FastDDD 1.0 默认 HMAC JWT 使用 HS512。`JWT_SECRET` 必须至少 64 个 UTF-8 字节；旧项目的短密钥会在应用上下文创建前被拒绝，这是应修复的安全配置而非应绕过的兼容问题。
+
 ---
 
 ## 5. 构建与回归
@@ -155,12 +163,20 @@ Druid 在 Boot 3.5 下的自动配置由 `druid-spring-boot-3-starter` 提供，
 # 1. 全量编译
 ./mvnw -B clean compile
 
-# 2. 全量测试
-./mvnw -B test
+# 2. 默认单元测试（不依赖共享数据库或真实第三方服务）
+./mvnw -B clean test
 
 # 3. 打包
 ./mvnw -B clean package -DskipTests
 ```
+
+真实数据库、消息或第三方服务测试应使用单独的 Failsafe profile（通常命名为 `*IT` 或 `*IntegrationTest`），只在受控环境注入所需变量后执行，例如：
+
+```bash
+./mvnw -B -P integration-test verify
+```
+
+若从独立启动模块运行 `spring-boot:run`，先完成一次全 Reactor `install`，再从含主类的模块执行；不要在聚合根 POM 上运行该目标。启动验收必须同时检查监听端口和 `/actuator/health` 返回 `UP`。
 
 ### 回归清单
 
@@ -191,6 +207,15 @@ A: 旧坐标 `mysql:mysql-connector-java` 已废弃，按第 3 节迁移；版�
 **Q: 是否需要改业务代码里的框架 API 调用？**
 A: 1.0.x 线保持 API 向后兼容，一般无需改。若用到 Spring 6.2 弃用 API（如 `@EventListener` 的
 `condition()`/`id()`），属 Spring 框架层面提示，1.0.x 仍可用，Spring 7 迁移时再处理。
+
+**Q: 应用启动时提示 `JWT_SECRET` 不足 64 字节？**
+A: FastDDD 1.0 的 HS512 校验已生效。为当前环境生成并注入至少 64 UTF-8 字节的独立密钥；不要恢复旧短密钥或降低校验。
+
+**Q: 配置提示 `Circular placeholder reference`，涉及 LLM API Key？**
+A: 检查 `.env` 是否把 `${LLM_API_KEY:...}` 这类旧 YAML 嵌套占位符原样写到了 `LLM_API_KEY`。`.env` 应保存最终值而不是 Spring 占位表达式。
+
+**Q: `spring-boot:run` 提示找不到 main class 或单模块编译出现旧接口？**
+A: 前者通常是从聚合根而非启动模块执行；后者通常是单模块解析到过期本地业务 JAR。先执行全 Reactor `install`，再从包含主类的模块运行。
 
 ---
 

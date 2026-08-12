@@ -44,8 +44,10 @@ flowchart LR
 3. 提供可提交的无敏感 `.example` 配置和本地忽略的实际配置方式。
 4. 扫描当前分支、Git 历史、CI/CD 输出、已发布制品及可访问日志；形成范围和处置记录。
 5. 在 CI 加入阻断式密钥扫描，并验证构建日志脱敏。
+6. 提供忽略的 `.env` 与可提交的 `.env.example`；应用明确加载本地 `.env`，并在文档中写明根目录/启动模块目录的加载规则。
+7. 若旧 YAML 使用 `${ENV:旧默认值}`，迁移 `.env` 时只写最终值或已轮换的新值，禁止复制整个嵌套占位表达式。
 
-**完成定义**：全部凭据已轮换且负责人确认生效；扫描无未处置有效凭据；CI 可阻断新增泄露。
+**完成定义**：全部凭据已轮换且负责人确认生效；扫描无未处置有效凭据；CI 可阻断新增泄露；按文档启动时本地配置可被读取且不发生循环占位符解析。
 
 **禁止**：把凭据原文复制进 issue、文档、测试、提交信息或终端输出；以“开发配置”作为不轮换理由。
 
@@ -122,6 +124,7 @@ flowchart LR
 2. 将字符串字段查询替换为 Lambda/Wrapper 查询或语义化仓储方法；分开处理 Service 与 Mapper 调用。
 3. 保持 REST 路径、错误码、JWT 声明和前端 ID 表示的兼容性；变更必须有接口契约说明。
 4. 每个模块完成后运行局部编译，最终运行全量 `mvn -B clean compile`。
+5. 若需直接运行启动模块，先用全 Reactor `mvn -B install -DskipTests` 同步当前业务模块制品；不能在无主类的聚合 POM 上执行 `spring-boot:run`。
 
 **完成定义**：影响清单全部关闭；全量 clean 编译通过；不引入 unchecked cast、raw type 或 Framework 兼容倒退。
 
@@ -153,8 +156,11 @@ flowchart LR
 2. 将外部数据库、LLM 与凭据替换为受控测试配置、容器或替身；测试不得访问生产数据。
 3. 执行 `mvn -B clean verify`，添加 Security SPI、JWT、CORS、WebSocket、项目权限、可靠事件与缓存回归。
 4. 保存构建版本、依赖树、测试数、失败数和报告位置。
+5. 固定 Surefire/Failsafe 版本；JDK 21 使用 Mockito inline 时配置显式 `-javaagent`，并确认动态 agent 挂载警告消失。
+6. 将数据库依赖的 `*IT` / `*IntegrationTest` 放入 Failsafe profile；默认测试与集成测试的命名、启用条件和所需环境变量必须可审计。
+7. 用实际忽略配置从规定目录启动启动模块，检查端口、`/actuator/health=UP` 和数据库健康项。HS512 JWT 在启动前校验密钥不少于 64 个 UTF-8 字节。
 
-**完成定义**：全量 clean verify 通过；测试不泄露或消费真实凭据；关键升级风险有自动回归。
+**完成定义**：全量 clean verify 通过；测试不泄露或消费真实凭据；关键升级风险有自动回归；启动与健康检查均有可复现证据。
 
 ## 09. 完成 PostgreSQL/pgvector UAT（P1）
 
