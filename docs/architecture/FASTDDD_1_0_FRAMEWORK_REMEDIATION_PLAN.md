@@ -2554,3 +2554,61 @@ Java 无默认泛型参数语法，故 5 个 web 控制器基类 bounds 硬编�
 - **CodeGenMojo 生成路径既有缺陷**：`CodeGenMojo:215` 以 `new CodeGeneratorService(databaseMetadataService, null, databaseConfig)` 构造——第二参 `TemplateProcessorService` 为 `null`，实际触达模板渲染即 NPE；插件生成路径当前非功能。元数据读取路径（`getAllTables/getTable`）正常。修复 = 在 Mojo 构造 `TemplateProcessorService`（拉入 FreeMarker 装配）= 与 Studio 共享的 `GeneratorConfig` 生成调用切契约，统一归入 **SPLIT-004**（Studio + 插件同为 Tooling API 消费者）。
 - **步骤 7（Maven 插件经 Tooling API 调用 Generator）**：插件 `DatabaseMetadataService` 字段因同时作为 `CodeGeneratorService` 构造实参（需具体类型）暂无法干净改型为 `DatabaseIntrospector`；生成调用切 `ProjectGenerator` 与上述缺陷修复同属 SPLIT-004。
 - **下一任务**：SPLIT-004（Studio 改为 Tooling API 消费者，依赖 SPLIT-003 ✅ + ID-006 ✅，已解锁）——rewire 5 个 Studio 文件 + CodeGenMojo 生成路径至 `ProjectGenerator`/`DatabaseIntrospector`，并修复上述 null-TPS 缺陷；随后 ID-007（模板/Archetype 迁移，依赖 SPLIT-004）。
+
+### 16.25 SPLIT-004 Studio 切 Tooling API 消费者（Phase A/B1/B2）快照
+
+将 Studio 编译期依赖从生成器内部包 `com.gallop.fastddd.codegen.**` 切换至稳定契约 `com.gallop.fastddd.tooling.api.**`，使生成器内部可变而不影响 Studio 编译（ADR-005 §16.24 (c) 🟡 → 本任务收口 Studio 侧）。分四阶段：**Phase A**（补齐 API 面：`DatabaseConnection` + `DatabaseIntrospectorFactory` + codegen 适配）、**Phase B1**（`NamingUtils` 切 common + DTO `IdStrategy` 切 API）、**Phase B2**（生成调用切 `ProjectGenerator`，本提交）。Maven 插件生成路径（步骤 7）与 `@Import` 拆除（步骤 8 的 ArchUnit）属 SPLIT-004 后续，本快照不含。
+
+**A. 取证（生成器实际读取字段，承接 §16.24）**
+
+`CodeGeneratorService` 经 grep 仅读 `modelType/isEnableCQRS/isUseLombok/isUseSwagger/idStrategy/author` 六项；`generate*/useJpa/useValidation/getOutputDir/isOverwrite` 零命中（死配置，消费方事后过滤返回 Map）。故 `GenerationRequest` 完整表达生成器真实行为，`GeneratorConfig` 的输出写入关切不进契约。
+
+**B. Phase A 改动（commit `b332ff9`）—— 补 API 面 + codegen 工厂**
+
+| 改动 | 证据 |
+|---|---|
+| `DatabaseConnection`（API，不可变 + builder） | 携带 url/username/password/driverClassName(`DEFAULT_DRIVER`)/catalog/schema/tablePrefix；`builder(url)` 构造。 |
+| `DatabaseIntrospectorFactory`（API 接口） | `DatabaseIntrospector create(DatabaseConnection)`。 |
+| `CodegenDatabaseIntrospectorFactory`（codegen 适配 `@Component`） | `DatabaseConnection → DatabaseConfig` 映射，返回 `new DatabaseMetadataService(config)`（typed `DatabaseIntrospector`）。 |
+| API 二进制面 9 → 11 | `ToolingApiContractTest.apiSurfaceIsComplete` 锁 11 类型；新增 `DatabaseConnectionContract`（3 测试）。 |
+| 适配测试 | `CodegenDatabaseIntrospectorFactoryTest`（4 测试）：契约实现、字段映射、默认驱动回退、null 拒绝。 |
+
+**C. Phase B1 改动（commit `785ab10`）—— NamingUtils 切 common + DTO IdStrategy 切 API**
+
+| 改动 | 证据 |
+|---|---|
+| `NamingUtils` 切 common | `DesignCodegenService`/`MultiChannelProjectBuilder` import `codegen.util.NamingUtils` → `common.util.NamingUtils`；调用点 `underscoreToCamel(x,false)`→`toCamelCase(x)`、`(x,true)`→`snakeToPascalCase(x)`（取证：对 DB 标识符输入语义等价）。 |
+| DTO `IdStrategy` 切 API | `UnifiedProjectRequest` import `codegen.constants.IdStrategy` → `tooling.api.IdStrategy`；字段默认值 `IdStrategy.AUTO.getCode()`（"AUTO" 字面量两枚举一致，行为零变）。 |
+| Studio pom | `fastddd-studio-server/pom.xml` 新增 `fastddd-tooling-api` compile 依赖。 |
+
+**D. Phase B2 改动（本提交）—— 生成调用切 ProjectGenerator**
+
+| 改动 | 证据 |
+|---|---|
+| `UnifiedProjectService` 全量切契约 | import `DatabaseConfig/GeneratorConfig/codegen.IdStrategy/CodeGeneratorService/DatabaseMetadataService` → `tooling.api.{DatabaseConnection,DatabaseIntrospector,DatabaseIntrospectorFactory,GenerationRequest,IdStrategy,ModelType,ProjectGenerator}`（`grep import codegen` 零命中）。字段 `CodeGeneratorService` → `ProjectGenerator` + `DatabaseIntrospectorFactory`。 |
+| 5 处 DB 元数据点 | `new DatabaseMetadataService(createDatabaseConfig(ds))` → `databaseIntrospectorFactory.create(createDatabaseConnection(ds))`（typed `DatabaseIntrospector`）。 |
+| 3 处生成点 | `codeGeneratorService.generateCode(table,pkg,module,config)` → `new LinkedHashMap<>(projectGenerator.generate(genRequest).getFiles())`。 |
+| `createDatabaseConfig` → `createDatabaseConnection` | 返回 `DatabaseConnection`（builder）；catalog/schema/驱动推断逻辑逐行保留（MySQL catalog / PG schema / 兜底同设），仅替换承载类型。 |
+| `createGeneratorConfig` → `buildBackendGenerationRequest` | 返回 `GenerationRequest`；6 生成语义字段透传，剔除死 `generate*` 开关；`enableCQRS = request.isCQRSRequired() || modelType==RICH`（保留逐表 RICH 强开 CQRS 语义）。 |
+| `resolveModelTypeForTable` 返回类型 | `GeneratorConfig.ModelType` → `ModelType`（5 处常量同步）；优先级链（手动覆盖 > AI 结论 > 分析器 > 请求默认）不变。 |
+| `DesignCodegenService` 全量切契约 | `buildGeneratorConfig` → `resolveModelType` + `buildGenerationRequest`；`filterGeneratedFiles` 参 `GeneratorConfig.ModelType` → `ModelType`。 |
+| **行为保留修正（自审捕获）** | `GeneratorConfig` 默认 `useLombok=true/useSwagger=true`，而 `GenerationRequest` 默认 `false`。5 处 builder（`DesignCodegenService`×2 + `UnifiedProjectService`×3）显式补 `.useLombok(true).useSwagger(true)`，避免生成代码静默丢失 Lombok/Swagger 注解。 |
+
+**E. 门禁证据（JDK 21）**
+
+```
+./mvnw -B clean verify -Ptest
+→ Reactor Summary: 31/31 SUCCESS（BUILD SUCCESS）
+→ Tests: 546 / 0 Failures / 0 Errors / 10 Skipped（surefire XML 解析，121 报告；与基线 546/0/0/10 一致，0 回归）
+→ studio-server -am clean compile: SUCCESS
+→ grep "import com.gallop.fastddd.codegen" 两个迁移文件：ZERO 命中
+```
+
+**F. 登记与遗留（→ SPLIT-004 后续 / ID-007）**
+
+- **步骤 7（Maven 插件生成路径）**：`CodeGenMojo:215` `new CodeGeneratorService(metadataService, null, dbConfig)` 仍 `null TemplateProcessorService`（触达模板渲染即 NPE，§16.24 G 已登记）；插件生成调用切 `ProjectGenerator` + 修复 null-TPS 属 SPLIT-004 后续阶段。
+- **步骤 8（`@Import CodeGeneratorAutoConfiguration` 拆除 + ArchUnit）**：`FastDddStudioApplication` 仍 `@Import` codegen 自动配置以发布 `ToolingProjectGenerator`/`CodegenDatabaseIntrospectorFactory` bean；拆除前需确认 bean 经 `META-INF/spring/AutoConfiguration.imports` 注册，并补 ArchUnit 规则锁 `studio → tooling.api`、禁 `studio → codegen.**`。
+- **templates.** 直渲染耦合**：`DesignCodegenService`/`MultiChannelProjectBuilder`/`ProjectGeneratorService` 仍直用 `templates.TemplateRenderer`/`TemplateContext`（与 codegen 生成调用解耦的独立轴，不影响"生成器内部可变"目标）。
+- **`writeDesignCodeToDir` 死参**：`genEntity/genMapper/...` 形参仅喂已证死的 `GeneratorConfig.generate*` 字段，方法签名误导（预存技术债，本任务不扩范围）。
+- **下一任务**：SPLIT-004 步骤 7（CodeGenMojo 切契约 + null-TPS 修复）、步骤 8（`@Import` 拆除 + ArchUnit），随后 ID-007（模板/Archetype 迁移）。
+
