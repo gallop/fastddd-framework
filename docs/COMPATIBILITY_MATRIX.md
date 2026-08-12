@@ -32,6 +32,47 @@
 > 业务项目 **不要覆盖** 上表版本（尤其 Spring Boot、Spring、Jackson）——它们经 FastDDD 与上游 BOM 联调验证，
 > 覆盖可能引入版本分裂。如需统一管理，`import` [`fastddd-bom`](../README.md) 即可。
 
+## 跨产品兼容矩阵（Studio → Tooling → Framework）
+
+> 本节是 FastDDD **三产品（Studio / Tooling / Framework）版本组合**的人类可读镜像。
+> **机器可读规范源**：[`fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml`](../fastddd-tooling/fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml)。
+
+FastDDD 当前为单仓单体——Studio / Tooling / Framework 共享同一 `${revision}` 属性（锁步发版）。
+ADR-005 §3.2 已确立：三产品**版本独立分号是拆仓后事项**（"当前共享 `${revision}` 是单体期便利，拆仓后独立"）。
+VER-001 以**机器可读矩阵 + 构建期校验**作为承载机制：拆仓后新增差异化元组即可表达独立发版节奏，
+CI 据此阻断未登记的不兼容组合，无需改动 reactor 结构。
+
+### 合法版本组合（compatible-tuples）
+
+| Studio | Tooling | Framework | 状态 |
+|--------|---------|-----------|------|
+| 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | ✅ current（单体期锁步） |
+
+构建期由 `VersionGovernanceContractTest#currentReactorTupleIsRegisteredInMatrix_step6` 断言当前 reactor 元组
+`(revision, revision, revision)` 在表内；拆仓后新增元组行即放行新的独立组合。
+
+### Framework 平台 manifest（framework-lines）
+
+每个 Framework 版本线携带平台依赖基线，由 `VersionGovernanceContractTest#matrixManifestMatchesBaseline_step1`
+在构建期断言与上表"关键依赖矩阵"一致：
+
+| Framework 线 | 状态 | Java | Spring Boot | Spring AI | SpringDoc | Knife4j |
+|--------------|------|------|-------------|-----------|-----------|---------|
+| 1.0.0-jdk21 | current-stable | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+
+### 生成通道如何取目标 Framework 版本（VER-001 步骤 5）
+
+三条项目生成通道从本矩阵取**目标 Framework 版本**，**不复制 Studio/Tooling 自身版本**：
+
+| 通道 | 目标版本来源 | 矩阵校验 |
+|------|--------------|----------|
+| Maven Plugin（`InitProjectMojo`） | `fastddd-version.properties` `@revision@` 过滤 → 当前构建 Framework 版本 | 解析后 `CompatibilityMatrix.manifestFor()` 校验，未知则 WARN |
+| Studio 运行时（`ProjectGeneratorService` 等） | `FastdddVersionDefaults.CURRENT` 字面量回落 + `@Value("${fastddd.version}")` 可覆盖 | `@PostConstruct` 校验 `manifestFor(fastdddVersion)`，未知则 WARN |
+| Archetype（deprecated） | `archetype-metadata.xml` `fastdddVersion` requiredProperty（用户可覆盖） | — |
+
+Studio 侧 `FastdddVersionDefaults.CURRENT` 字面量由 `FastdddVersionDefaultsContractTest` 机械耦合到矩阵
+`current-stable` 线——升级 Framework 版本线时改矩阵 + 该常量即感知漂移（`@Value` 默认须编译期常量，故保留字面量回落）。
+
 ## 变更边界（语义化版本约定）
 
 为避免"把破坏性变更当作普通 minor 升级"，FastDDD 对各版本线变更边界作如下承诺：
@@ -65,3 +106,39 @@
 
 > ⚠️ **JDK 21 硬前置**：若机器默认 `JAVA_HOME` 指向 JDK 17，Maven 会报"不支持的发行版本 21"直接 BUILD FAILURE。
 > 构建前须显式切换至 JDK 21（CI runner 同理）。
+
+## 版本切版流程（VER-001 步骤 8）
+
+FastDDD 采用 CI-friendly 版本治理（`${revision}` 单属性 + flatten-maven-plugin），切版无需改动任何模块 pom——
+仅覆盖 `revision` 属性即可。**`-jdk21` 限定符是 JDK21 产品线信号，切版时须保留**（UPG-010 + 本矩阵确立）。
+
+> 注：Framework 版本当前**不会 GA**（`1.0.0-jdk21-SNAPSHOT`，无生产消费者）；下列流程是机制文档化，供 RC 候选/未来发版时照做。
+
+### 切 RC 候选
+
+```bash
+# JDK 21 硬前置
+export JAVA_HOME="D:/usr/local/jdk/jdk-21.0.3"; export PATH="$JAVA_HOME/bin:$PATH"
+
+# 覆盖 revision → RC 字面量；flatten 在 install/deploy 时字面量化产物
+./mvnw -B clean verify -Ptest -Drevision=1.0.0-jdk21-rc1
+./mvnw -B install -DskipTests -Drevision=1.0.0-jdk21-rc1
+```
+
+切 RC 后须**同步**：
+1. `fastddd-compatibility-matrix.yaml` 的 `framework-lines[].revision` + `compatible-tuples[].framework/tooling/studio`；
+2. `FastdddVersionDefaults.CURRENT`（Studio 回落字面量）；
+3. `VersionGovernanceContractTest#matrixManifestMatchesBaseline_step1` / `FastdddVersionDefaultsContractTest` 会自动
+   捕获矩阵与 reactor 的漂移（步骤 6/7 守卫）。
+
+### 切下一产品线（如 1.1.0-jdk21-SNAPSHOT）
+
+```bash
+# 1. 根 pom + BOM pom 的 <revision> 属性改为新字面量（BOM 无 parent，须手工同步——步骤 7 测试守护）
+# 2. 矩阵新增 framework-line + compatible-tuple 行
+# 3. 更新 FastdddVersionDefaults.CURRENT
+# 4. 全量门禁：./mvnw -B clean verify -Ptest
+```
+
+`rootRevisionMatchesBomRevision_step7` 断言根 pom 与 BOM 两处 `<revision>` 字面量相等；
+`scripts/verify-version-consistency.py` 扫描全仓 pom 断言无模块硬编码版本字面量（须经 `${revision}`）。

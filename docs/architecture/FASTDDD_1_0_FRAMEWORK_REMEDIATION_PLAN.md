@@ -2788,6 +2788,59 @@ mvn -B clean verify -Ptest  →  31/31 SUCCESS（reactor）
 - **archetype 不涉 idStrategy**：`fastddd-project-archetype` 无 id-type/idStrategy 配置（固定骨架），本任务无需改动。
 - **ID-007 主体完成**。**下一任务：ID-008（在研业务迁移与旧 ID 实现移除，依赖 ID-007 ✅）；并行可推进 SPLIT-005（Studio Server 依赖隔离，依赖 SPLIT-004 ✅ + ID-007 ✅ + VER-001）。**
 
+### 16.30 VER-001：产品内版本 Manifest 与跨产品兼容矩阵（BOM 单一来源 + 机器可读矩阵 + 版本一致性门禁）快照
+
+承接 §16.29（ID-007 完成，reactor 558/0/0/10）。VER-001 的核心缺口：UPG-010 虽交付了 CI-friendly 版本地基（`${revision}` + flatten + `fastddd-bom` + enforcer），但取证暴露四块真实漏洞——(1) 根 pom 与 BOM 两份 depMgmt 重复且**已漂移**（根 pom 列了 `fastddd-tooling-api`，BOM 漏列）；(2) 两处 `<revision>` 字面量靠手工同步、无机械耦合；(3) 无机器可读的 Studio→Tooling→Framework 矩阵；(4) 三条生成通道各自硬编码目标 Framework 版本、无任何版本一致性校验。五次提交：Phase A `395064e`、Phase B `6e0ebb8`、Phase C `14db8ae`、Phase D `7eb064a`、Phase E 本提交。
+
+**A. 取证（版本治理的四块缺口）**
+
+| 缺口 | 命令级证据 |
+|------|------------|
+| depMgmt 重复且已漂移 | `pom.xml:94-331`（238 行）与 `fastddd-bom/pom.xml:49-284` 两份独立清单；根 pom `:198-202` 列 `fastddd-tooling-api`，BOM 无该条目（消费者 import BOM 缺该契约） |
+| 两处 revision 手工同步 | `pom.xml:13` 与 `fastddd-bom/pom.xml:29` 各自独立声明 `1.0.0-jdk21-SNAPSHOT`（BOM 故意无 parent 以保发布自洽，故不继承根属性） |
+| 无机器可读跨产品矩阵 | `docs/COMPATIBILITY_MATRIX.md` 仅有运行时/依赖基线，**不含** (studio,tooling,framework) 元组；全仓无 YAML/JSON 矩阵文件 |
+| 三通道各自硬编码目标版本 | archetype `archetype-metadata.xml` 写死字面量；Studio 4 处 `@Value`/DTO 默认 `1.0.0-jdk21-SNAPSHOT`；Mojo 经 `@revision@` 过滤但无矩阵校验 |
+
+**B. 设计决策（两处对步骤字面文本的有据偏离）**
+
+| 步骤字面文本 | 裁定 | 证据 |
+|--------------|------|------|
+| 步骤 3「Tooling/Studio 独立 revision」 | **延期** | ADR-005 §3.2（`adr/ADR-005-product-boundary-dependency-direction.md:101`）：Studio「独立版本，可与 Framework 解耦迭代」，理由「**当前共享 `${revision}` 是单体期便利，拆仓后独立**」。版本独立分号是拆仓后事项；下一任务 SPLIT-005 是构建隔离。VER-001 以**机器可读矩阵 + CI 校验**承载"能独立升级、不兼容组合被 CI 阻断"语义（满足验收第 2 条），单仓内强行 per-product revision 会破坏 UPG-010 刚稳定的 flatten/CN-friendly 设置。 |
+| 步骤 8「Framework 保留 1.0.0-SNAPSHOT」 | **保留 `-jdk21` 限定符** | `-jdk21` 是 UPG-010 + COMPATIBILITY_MATRIX 确立的 JDK21 产品线信号；回退 `1.0.0-SNAPSHOT` 丢失该信号。RC 切版机制（`-Drevision=…`，已被 `.github/workflows/ci-cd.yml:208-209` 验证）文档化即可。 |
+
+> 两处偏离均在 `docs/COMPATIBILITY_MATRIX.md`（VER-001 新增"跨产品兼容矩阵"与"版本切版流程"两小节）与 B/C/D 各产物注释中以 ADR/命令证据记录。验收三条（无多个默认版本来源 / 不兼容组合被 CI 阻断 / dependency tree 与 BOM 一致）均仍满足。
+
+**C. 各 Phase 执行**
+
+| Phase | 交付 | 关键证据 |
+|-------|------|----------|
+| A — BOM 单一来源 + revision 同步（步骤 1/2/7） | BOM 补列 `fastddd-tooling-api`；根 pom `:94-331` 238 行 depMgmt 替换为单条 `import fastddd-bom ${revision}`（净 −231 行） | `dependency:list` 前后各 306 artifact、集合 diff 空（零漂移）；tree 抽查 spring-boot=3.5.16 / spring-core=6.2.19 / jackson=2.21.x / micrometer=1.15.12 / mybatis-plus=3.5.12 / knife4j=4.5.0 / springdoc=2.8.17 / spring-ai=1.1.8 一致 |
+| B — 机器可读矩阵 + 平台 manifest（步骤 1/4） | 新增 `fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml`（YAML-primary，无 `${...}`/`@..@` 占位符保证过滤字节稳定）+ `compat/CompatibilityMatrix.java`（SnakeYAML 加载，version-less 经 spring-boot-dependencies 管理，未触 SPLIT-003 bannedDependencies） | YAML `target/classes` 副本与源字节一致；`CompatibilityMatrix.{currentFrameworkRevision,isCompatible,manifestFor}` 可加载 |
+| C — 生成通道从矩阵取目标版本（步骤 5） | Mojo 解析后 `manifestFor` 校验未知则 WARN；Studio 4 处字面量收敛为单 `FastdddVersionDefaults.CURRENT` + `@Value` 回落 + `@PostConstruct` 矩阵校验；archetype 增 `fastdddVersion` requiredProperty | `@Value` 默认须编译期常量 → 保留单字面量回落、JUnit 耦合矩阵（见 D） |
+| D — 构建期/CI 版本一致性校验（步骤 6/7） | `VersionGovernanceContractTest`（tooling-api，4 tests）+ `FastdddVersionDefaultsContractTest`（studio，2 tests）+ `scripts/verify-version-consistency.py` + `pr-validation.yml` 声明式步骤 | 负向控制：矩阵 manifest `spring-boot` 改 `3.5.17-DRIFT` → `matrixManifestMatchesBaseline_step1` 红（expected 3.5.16）；脚本硬编码 `fast-ddd-common` parent version → exit 1 精确定位；均 restore 干净 |
+
+**D. 验收映射**
+
+| 验收条目 | 状态 | 证据 |
+|----------|------|------|
+| Framework 产品线不存在多个默认版本来源 | ✅ | 根 pom depMgmt 收敛为单 BOM import；BOM 补齐 `fastddd-tooling-api` |
+| Tooling/Studio 能独立升级，不兼容组合被 CI 阻断 | ✅（承载机制） | 矩阵 `compatible-tuples` + `currentReactorTupleIsRegisteredInMatrix_step6`；步骤 3 延期见 B（ADR-005 §3.2），矩阵即"独立升级"的承载机制 |
+| 生成 dependency tree 与目标 Framework BOM 一致 | ✅ | Phase A `dependency:list` 306==306 集合 diff 空 |
+
+**E. 测试与门禁**
+
+```
+./mvnw -B clean verify -Ptest  →  全 SUCCESS（reactor）
+→ Tests: 564 / 0 Failures / 0 Errors / 10 Skipped
+  （基线 558 + Phase D 新增 6：VersionGovernanceContractTest×4 + FastdddVersionDefaultsContractTest×2，0 回归）
+```
+
+**F. 登记与遗留（→ SPLIT-005 / 拆仓后）**
+
+- **步骤 3（Tooling/Studio 独立 revision）延期**：ADR-005 §3.2 明确为拆仓后事项。VER-001 已交付承载机制（矩阵 `compatible-tuples` + 构建期校验）：拆仓后新增差异化元组即表达独立发版节奏，CI 据此阻断未登记组合，无需改 reactor 结构。登记 SPLIT-005+ / 拆仓后处理。
+- **`COMPATIBILITY_MATRIX.md` 关键依赖矩阵 `mybatis-spring` 行（3.0.3）与 BOM 属性（3.0.4）存在既存文档漂移**：本任务范围外的既存问题（VER-001 矩阵 manifest 仅断言 5 个平台依赖 java/boot/ai/springdoc/knife4j），未在本任务核实 `dependency:tree` 实际解析值，留待后续依赖核对任务修正，不臆改。
+- **VER-001 主体完成**。**下一任务：SPLIT-005（Studio Server 依赖隔离与独立构建，依赖 SPLIT-004 ✅ + ID-007 ✅ + VER-001 ✅ —— 已全部解锁）。**
+
 
 
 
