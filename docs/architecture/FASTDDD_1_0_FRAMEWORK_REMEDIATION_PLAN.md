@@ -3105,6 +3105,47 @@ consumer: mvn verify -pl fastddd-consumer-tests -Pconsumer-tests → 4/4 通过
 - `@DataPermission` 注解需业务侧自行定义——框架不捆绑特定权限方案，注释钩子已提供接入指引
 - `BaseReadOnlyController` 查询端点鉴权需覆盖父类方法——已通过 GEN-002-EXTPT 注释提示
 
+### 16.35 CACHE-002：CacheManager 退让与消费者选择无歧义
+
+**问题与设计**
+
+原 `multiLevelCacheManager` 只使用裸 `@ConditionalOnMissingBean`。由于工厂方法返回具体
+`MultiLevelCacheManager`，条件只会检查该具体类型；消费者提供标准 Spring `CacheManager` 时，
+框架仍会额外注册一个 CacheManager，导致 `@Cacheable` 的默认选择产生歧义。CACHE-002 采用
+最小且可预测的退让规则：框架的默认 `MultiLevelCacheManager` 使用
+`@ConditionalOnMissingBean(CacheManager.class)`；消费者已有任意 Spring CacheManager 时框架不再
+注册第二个管理器。FastDDD `CacheService` 保持为独立编程 API，不受此选择影响。
+
+**实现与验收**
+
+- `FastDddCacheAutoConfiguration` 按 `CacheManager` 契约退让，而非按框架具体实现判断。
+- 新增 `CacheManagerBackOffTest`：无消费者 Bean 时框架唯一注册 `MultiLevelCacheManager`；消费者
+  `ConcurrentMapCacheManager` 存在时框架不注册该实现且上下文可启动。
+- 新增隔离消费者 `cache-with-custom-manager`：通过已 install 制品构建，验证业务
+  `CacheManager` 为唯一默认选择、框架未注册第二个管理器，且 `@Cacheable` 真实命中业务缓存。
+- 将 `cache-*` 场景纳入 `-Pconsumer-tests` 默认消费者门禁。
+
+**命令级证据**
+
+```
+./mvnw.cmd -B -pl fastddd-framework/fast-ddd-cache test
+→ Tests run: 11, Failures: 0, Errors: 0
+
+./mvnw.cmd -B -pl fastddd-framework/fast-ddd-cache -am install -DskipTests
+→ SUCCESS
+
+./mvnw.cmd -B -pl fastddd-consumer-tests verify -Pconsumer-tests \
+  '-Dinvoker.test=cache-with-custom-manager'
+→ Passed: 1, Failed: 0, Errors: 0
+```
+
+**阶段 review**
+
+- 不引入第二默认 CacheManager、`@Primary` 或隐式 CacheResolver；消费者明确提供管理器即拥有
+  Spring Cache 注解的默认选择，避免组合语义漂移。
+- 退让仅作用于 `CacheManager`，不改变 FastDDD 缓存的启用开关、L1/L2 命名空间或 `CacheService`
+  编程接口。
+- CACHE-002 完成。下一任务：SEARCH-001（搜索后端缺失时可诊断）。
 
 
 
