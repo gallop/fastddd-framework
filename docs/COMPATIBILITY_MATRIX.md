@@ -35,18 +35,17 @@
 ## 跨产品兼容矩阵（Studio → Tooling → Framework）
 
 > 本节是 FastDDD **三产品（Studio / Tooling / Framework）版本组合**的人类可读镜像。
-> **机器可读规范源**：[`fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml`](../fastddd-tooling/fastddd-tooling-api/src/main/resources/fastddd-compatibility-matrix.yaml)。
+> **机器可读规范源**：[Tooling 私有仓的 `fastddd-compatibility-matrix.yaml`](ssh://git@192.168.0.160:222/gallop-group/fastddd-tooling.git)。
 
-FastDDD 当前为单仓单体——Studio / Tooling / Framework 共享同一 `${revision}` 属性（锁步发版）。
-ADR-005 §3.2 已确立：三产品**版本独立分号是拆仓后事项**（"当前共享 `${revision}` 是单体期便利，拆仓后独立"）。
-VER-001 以**机器可读矩阵 + 构建期校验**作为承载机制：拆仓后新增差异化元组即可表达独立发版节奏，
-CI 据此阻断未登记的不兼容组合，无需改动 reactor 结构。
+三个产品已完成物理拆仓；当前候选仍使用同一 `${revision}`，以便先验证锁步发布顺序。
+ADR-005 §3.2 已确立：三产品**版本独立分号是拆仓后事项**。VER-001 以**机器可读矩阵 + 构建期校验**作为承载机制：新增差异化元组即可表达独立发版节奏，
+GitLab 跨仓 CI 据此阻断未登记的不兼容组合。
 
 ### 合法版本组合（compatible-tuples）
 
 | Studio | Tooling | Framework | 状态 |
 |--------|---------|-----------|------|
-| 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | ✅ current（单体期锁步） |
+| 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | ✅ current（拆仓后的首个锁步候选） |
 
 构建期由 `VersionGovernanceContractTest#currentReactorTupleIsRegisteredInMatrix_step6` 断言当前 reactor 元组
 `(revision, revision, revision)` 在表内；拆仓后新增元组行即放行新的独立组合。

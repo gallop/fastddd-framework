@@ -1,0 +1,36 @@
+image: maven:3.9.9-eclipse-temurin-21
+
+stages:
+  - validate
+  - verify
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Xmx2048m"
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+
+cache:
+  key:
+    files:
+      - pom.xml
+      - .mvn/wrapper/maven-wrapper.properties
+  paths:
+    - .m2/repository
+    - .m2/wrapper
+
+validate:
+  stage: validate
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS validate
+
+verify:
+  stage: verify
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS clean verify
+  artifacts:
+    when: always
+    reports:
+      junit: "**/target/surefire-reports/TEST-*.xml"
+    paths:
+      - "**/target/surefire-reports/"
+      - "**/target/site/jacoco/"
+    expire_in: 30 days
