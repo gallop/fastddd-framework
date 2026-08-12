@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WEB-002 验收场景②：显式 opt-in（fastddd.web.response-wrapper.enabled=true +
+  fastddd.jackson.enabled=true）→ 响应包装与 Jackson 扩展生效。MockMvc 断言响应 = ApiResponse 信封
+  {code:200, data:{id:"<字符串>", time:"yyyy-MM-dd HH:mm:ss"}}，证明 opt-in 后行为。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>web-response-wrapper</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Web Response Wrapper</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-application</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

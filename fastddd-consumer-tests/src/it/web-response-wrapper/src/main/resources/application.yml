@@ -1,0 +1,25 @@
+# WEB-002 场景②：显式 opt-in → 响应包装 + Jackson 扩展生效
+spring:
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:h2:mem:respwrap
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: assign_id
+
+fastddd:
+  web:
+    openapi:
+      enabled: false
+    knife4j:
+      enabled: false
+    response-wrapper:
+      enabled: true
+  jackson:
+    enabled: true

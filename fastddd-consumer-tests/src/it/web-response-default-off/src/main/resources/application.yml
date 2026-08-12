@@ -1,0 +1,23 @@
+# WEB-002 场景①：故意不设任何 fastddd opt-in 属性。
+# fastddd.web.response-wrapper.enabled 缺失 → 响应包装关（默认关）
+# fastddd.jackson.enabled 缺失 → Jackson 扩展关（默认关）
+spring:
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:h2:mem:respoff
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: assign_id
+
+fastddd:
+  web:
+    openapi:
+      enabled: false
+    knife4j:
+      enabled: false
