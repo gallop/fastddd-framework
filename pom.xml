@@ -7,7 +7,29 @@
   <packaging>pom</packaging>
   <name>FastDDD Framework</name>
   <description>A comprehensive DDD framework based on Spring Boot Starters for rapid development</description>
-  <url>https://github.com/gallop/fastddd</url>
+  <url>ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</url>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <organization>
+    <name>gallop-group</name>
+  </organization>
+  <developers>
+    <developer>
+      <id>gallop</id>
+      <name>Gallop</name>
+      <email>39100782@qq.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</connection>
+    <developerConnection>scm:git:ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</developerConnection>
+    <url>ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</url>
+  </scm>
   <properties>
     <!-- CI-friendly 版本：reactor 唯一版本入口，发布时由 flatten-maven-plugin 解析为字面量 -->
     <revision>1.0.0-jdk21-SNAPSHOT</revision>
@@ -82,12 +104,6 @@
     <module>fastddd-framework</module>
     <!-- BOM：面向业务系统的统一依赖契约入口 -->
     <module>fastddd-bom</module>
-    <!-- 工具层 -->
-    <module>fastddd-tooling</module>
-    <!-- 设计工作室 -->
-    <module>fastddd-studio</module>
-    <!-- 示例 -->
-    <module>fastddd-examples</module>
     <!-- 消费者测试：独立 classpath 隔离 harness（FRM-002） -->
     <module>fastddd-consumer-tests</module>
   </modules>
