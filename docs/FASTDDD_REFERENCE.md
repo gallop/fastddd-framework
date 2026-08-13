@@ -1184,7 +1184,8 @@ mybatis-plus:
 | `fastddd.security.http` | security | HTTP 安全 (permit-all-paths) |
 | `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
 | `fastddd.search` | search | 全文搜索 (backend: sql/meilisearch, SQL 全文策略, Meilisearch 连接配置, 按索引定制) |
-| `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String) |
+| `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String)。⚠️ **默认关**：`FastDddJacksonAutoConfiguration` 类级 `@ConditionalOnProperty(enabled, matchIfMissing=false)`，须 `fastddd.jackson.enabled=true` 才装配，否则 Long→String / 日期格式均不生效 |
+| `fastddd.web.response-wrapper` | web | ApiResponse 自动包装。⚠️ **默认关**：须 `fastddd.web.response-wrapper.enabled=true`，否则裸返回 DTO 的 Controller 漏 `{code,data}` 外壳（注解 `@EnableApiResponseWrapper` 已 `@Deprecated` 纯标记，不再装配） |
 | `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
 | `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
 | `fastddd.ai` | ai | AI 模块开关 |
@@ -1343,8 +1344,39 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 | SecurityUserDetails | builder 必须设 userId（写入 JWT） | 不设 userId → /userinfo 无法直接查询 |
 | permit-all-paths | 精确放行 `/api/auth/login`、`/api/auth/code/send` | 写 `/api/auth/**`（userinfo 被跳过认证） |
 | @MapperScan | 启动类必须加 | 缺失 → BaseRepository 不注册 |
+| `response-wrapper.enabled` | 默认关，须显式 `=true` opt-in | 依赖全局包装的 Controller 裸返回 DTO，前端拦截器透传 → 业务字段 undefined（`@EnableApiResponseWrapper` 已 `@Deprecated` 纯标记） |
+| `jackson.enabled` | 默认关，须显式 `=true` 让 Long→String / 日期格式装配 | 不开则 19 位雪花 id 按 JSON number 序列化，前端 `JSON.parse` 丢精度（如「合同/任务不存在」） |
+| BasePO 主键泛型 | PO 声明 `extends BasePO<Long>`，则 `getId()` 直接返回 `Long` | 持有裸 `BasePO` 引用才需 `(Long) po.getId()`；泛型已参数化时强转是冗余（无害但无意义） |
 | *ByField 字段名 | 传 Java 驼峰 `"createTime"` | 传数据库列名 `"create_time"`（也兼容，但不推荐） |
 | i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
+
+---
+
+## 升级后默认关的配置开关（静默降级类）
+
+FastDDD 1.0 将部分原「开箱即用」的机制改为**显式 opt-in**，属性默认 `false`，且**不报错、只静默降级**——后端日志干净，问题全在前端才暴露。升级或新环境部署后若页面异常却无后端报错，优先排查这两项：
+
+| 配置 | 默认 | 漏配症状 | 排查 |
+|------|------|---------|------|
+| `fastddd.web.response-wrapper.enabled` | false | Controller 裸返回 DTO（无 `{code,data}` 外壳），前端拦截器透传、业务字段 undefined | `curl` 看响应根有无 `code/data` 外壳 |
+| `fastddd.jackson.enabled` | false | Long→String 未注册，19 位雪花 id 前端 `JSON.parse` 丢精度（如「合同/任务不存在」）；日期格式不生效 | Python `repr(id)` 看带不带引号（字符串有引号、number 无） |
+
+两者均建议在基线配置（`application.yml` / 模板 `application.yml.example`）显式开启：
+
+```yaml
+fastddd:
+  web:
+    response-wrapper:
+      enabled: true
+  jackson:
+    enabled: true
+    long-to-string: true
+    date-time-format: "yyyy-MM-dd'T'HH:mm:ss"   # 显式钉回 ISO，避免框架默认空格分隔让前端 new Date 解析失败
+```
+
+> **识别规律**：升级 changelog 里**凡 `@Deprecated` 注解**（如 `@EnableApiResponseWrapper`），多半意味着原机制改成了属性开关——去源码 grep 该注解类级/方法级新的 `@ConditionalOnProperty`，确认默认值与漏配后果。
+>
+> **防御**：本地 `application.yml` 常被 `.gitignore` 忽略，根因配置务必同步进 tracked 的 `application.yml.example` 模板，否则新部署静默回归。
 
 ---
 
