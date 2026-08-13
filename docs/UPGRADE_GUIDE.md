@@ -1,14 +1,14 @@
 # 升级指南（Upgrade Guide）
 
 > 本指南指导业务系统从旧基线（JDK 17 / Spring Boot 3.4.5 / FastDDD `1.0.0-SNAPSHOT`）升级到
-> **JDK 21 / Spring Boot 3.5.16 / FastDDD `1.0.0-jdk21-SNAPSHOT`**。
+> **JDK 21 / Spring Boot 3.5.16 / FastDDD `1.0.0-jdk21-rc1`**。
 >
 > 本文是 JDK/Boot/BOM 的基础操作指引，不能替代完整的业务升级验收。使用 Framework 1.0 强类型 ID、CRUD、
-> Security、Event、缓存或外部基础设施的业务系统，必须同时执行
-> [业务系统升级与试点实施方案](architecture/BUSINESS_SYSTEM_UPGRADE_PLAN.md)。
+> Security、Event、缓存或外部基础设施的业务系统，应按[业务系统升级入口](upgrade/README.md)的能力映射表加载
+> 专题指南；多外部依赖或需要灰度/UAT 的复杂系统，再阅读[业务系统升级与试点实施方案](architecture/BUSINESS_SYSTEM_UPGRADE_PLAN.md)。
 >
-> 对应升级方案 UPG-011（在研业务系统联调）。兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)；
-> 发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
+> 开始新业务系统升级时，先读 [业务系统升级入口](upgrade/README.md)；它明确了最小必读集、按功能追加阅读规则与验收门禁。
+> 兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)；发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -18,7 +18,7 @@
 |----|--------|--------|
 | Java | 17 | **21** |
 | Spring Boot | 3.4.5 | **3.5.16** |
-| FastDDD | `1.0.0-SNAPSHOT` | **`1.0.0-jdk21-SNAPSHOT`**（GA 后为 `1.0.0`） |
+| FastDDD | `1.0.0-SNAPSHOT` | **`1.0.0-jdk21-rc1`**（当前固定 RC；GA 后为 `1.0.0`） |
 | MySQL 驱动坐标 | `mysql:mysql-connector-java` | **`com.mysql:mysql-connector-j`** 9.7.0 |
 | Druid 坐标 | `druid-spring-boot-starter` | **`druid-spring-boot-3-starter`** |
 
@@ -71,7 +71,7 @@ java -version   # 复核
       <dependency>
         <groupId>com.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
-        <version>1.0.0-jdk21-SNAPSHOT</version>   <!-- GA 后改 1.0.0 -->
+        <version>1.0.0-jdk21-rc1</version>   <!-- GA 后改 1.0.0 -->
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -93,7 +93,7 @@ java -version   # 复核
 ```bash
 export JAVA_HOME=<path-to-jdk-21>; export PATH="$JAVA_HOME/bin:$PATH"
 cd <fastddd-source>
-./mvnw -B clean install -DskipTests   # 安装含 fastddd-bom 在内的全部模块
+./mvnw -B -Drevision=1.0.0-jdk21-rc1 clean install -DskipTests   # 安装含 fastddd-bom 在内的全部模块
 ```
 
 ### 禁止覆盖上游版本
@@ -185,7 +185,7 @@ FastDDD 1.0 默认 HMAC JWT 使用 HS512。`JWT_SECRET` 必须至少 64 个 UTF-
 - [ ] API 文档端点可达（SpringDoc 2.8.17 / Knife4j 4.5.0：`/v3/api-docs`、`/doc.html`）。
 - [ ] 安全认证（JWT / 验证码）链路正常（fast-ddd-security-starter）。
 - [ ] 监控指标（`/actuator/prometheus`，Micrometer 1.15.12）正常输出。
-- [ ] 代码生成插件可用：`./mvnw com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:help`。
+- [ ] 代码生成插件可用（仅项目实际使用时）：`./mvnw com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:help`。
 - [ ] 自身业务核心用例全量回归（业务侧主导）。
 
 ---
@@ -204,9 +204,8 @@ A: 仍用了 Boot 2 坐标 `druid-spring-boot-starter`，按第 3 节迁移到 `
 **Q: `com.mysql:mysql-connector-j` 解析不到？**
 A: 旧坐标 `mysql:mysql-connector-java` 已废弃，按第 3 节迁移；版本交 Spring Boot BOM 管理。
 
-**Q: 是否需要改业务代码里的框架 API 调用？**
-A: 1.0.x 线保持 API 向后兼容，一般无需改。若用到 Spring 6.2 弃用 API（如 `@EventListener` 的
-`condition()`/`id()`），属 Spring 框架层面提示，1.0.x 仍可用，Spring 7 迁移时再处理。
+**Q: 是否只改依赖就够了？**
+A: 只使用 Starter 且 `clean compile`、测试、启动和关键链路均通过的项目，可能只需依赖与配置迁移；不能预先假设如此。若出现 `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 的泛型/ID 编译错误，按[升级入口](upgrade/README.md)加载 ID 迁移清单完成业务侧适配。不要为保留旧调用而修改 Framework 契约。
 
 **Q: 应用启动时提示 `JWT_SECRET` 不足 64 字节？**
 A: FastDDD 1.0 的 HS512 校验已生效。为当前环境生成并注入至少 64 UTF-8 字节的独立密钥；不要恢复旧短密钥或降低校验。

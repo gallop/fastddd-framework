@@ -1,6 +1,15 @@
 # FastDDD 文档索引
 
-本目录包含 FastDDD 框架的全部技术文档，按分类组织。
+本目录包含 FastDDD 框架的全部技术文档，按分类组织。文档分为日常使用入口、架构/设计参考和发布审计记录；不需要逐篇阅读。
+
+## 快速入口
+
+| 你的目标 | 先读什么 | 不必先读什么 |
+|---|---|---|
+| **升级一个既有业务系统（含 Claude Code）** | [业务系统升级入口](upgrade/README.md) → [升级指南](UPGRADE_GUIDE.md) → [兼容矩阵](COMPATIBILITY_MATRIX.md) | Framework 整改计划、DataChat 试点步骤、RC 审计证据 |
+| 修改 FastDDD Framework 自身 | [1.0 架构整改实施方案](architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md) | 业务系统试点步骤 |
+| 发布/复核 RC 或 GA | [发布检查清单](RELEASE_CHECKLIST.md) → [RC1 发布证据](RC1_RELEASE_EVIDENCE.md) | 业务系统源码迁移细节 |
+| 查询某个模块 API | [框架完整参考](FASTDDD_REFERENCE.md) 或对应的专题指南 | 与当前问题无关的方案与审计文档 |
 
 ## 目录结构
 
@@ -11,7 +20,8 @@ docs/
 ├── security/        安全模块文档
 ├── ai/              AI 智能分析文档
 ├── devops/          运维部署文档
-└── api/             API 参考文档
+├── api/             API 参考文档
+└── upgrade/         业务系统升级的最小入口（AI/人工）
 ```
 
 ---
@@ -79,13 +89,14 @@ docs/
 | [SPI 参考手册](guides/SPI_REFERENCE.md) | 所有 SPI 接口的定义、替换方式、默认行为与示例 |
 | [兼容矩阵](COMPATIBILITY_MATRIX.md) | 各版本线运行时基线、维护状态与变更边界（PATCH/MINOR/MAJOR 约定） |
 | [升级指南](UPGRADE_GUIDE.md) | 业务系统从旧基线升级到 JDK 21 / Boot 3.5.16 的步骤（对接 UPG-011） |
+| [业务系统升级入口](upgrade/README.md) | 给 Claude Code 与人工升级者的最小必读集、按功能追加阅读表和验收门禁 |
 | [发布检查清单](RELEASE_CHECKLIST.md) | 1.0.0 及后续 GA 版本的发布门禁项 |
 | [变更日志](../CHANGELOG.md) | 全部显著变更（Keep a Changelog 格式） |
 | [JDK21/Boot3.5 升级方案](architecture/JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md) | 升级总方案与 UPG-000～012 执行记录 |
 
 ---
 
-## 项目记录
+## 项目记录与历史审计
 
 | 文档 | 说明 |
 |------|------|
@@ -93,4 +104,4 @@ docs/
 
 ---
 
-> 文档最后更新：2026-08-11
+> 文档最后更新：2026-08-13
