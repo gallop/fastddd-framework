@@ -7,6 +7,7 @@
 | 你的目标 | 先读什么 | 不必先读什么 |
 |---|---|---|
 | **升级一个既有业务系统（含 Claude Code）** | [业务系统升级入口](upgrade/README.md) → [升级指南](UPGRADE_GUIDE.md) → [兼容矩阵](COMPATIBILITY_MATRIX.md) | Framework 整改计划、DataChat 试点步骤、RC 审计证据 |
+| **新建一个业务系统（含 Claude Code）** | [新业务系统开发规范](guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) → [框架完整参考](FASTDDD_REFERENCE.md)（按需检索） | 既有系统升级入口、历史整改计划 |
 | 修改 FastDDD Framework 自身 | [1.0 架构整改实施方案](architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md) | 业务系统试点步骤 |
 | 发布/复核 RC 或 GA | [发布检查清单](RELEASE_CHECKLIST.md) → [RC1 发布证据](RC1_RELEASE_EVIDENCE.md) | 业务系统源码迁移细节 |
 | 查询某个模块 API | [框架完整参考](FASTDDD_REFERENCE.md) 或对应的专题指南 | 与当前问题无关的方案与审计文档 |
@@ -43,6 +44,7 @@ docs/
 | 文档 | 说明 |
 |------|------|
 | [快速开始](guides/QUICK_START.md) | 5 分钟快速上手，覆盖贫血模型和充血模型两种开发模式 |
+| [新业务系统开发规范](guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) | JDK 21/Boot 3.5.16/RC1 基线、BOM、分层、强类型 ID、安全与验收门禁 |
 | [框架使用指南](guides/USAGE_GUIDE.md) | 企业级 DDD 框架完整使用手册，包含依赖配置、模块说明、配置参考 |
 | [CQRS 指南](guides/CQRS_GUIDE.md) | 基于 application 模块的 CQRS 实现：Command、Query、Handler 用法 |
 | [编码规范](guides/CODING_STANDARDS.md) | 统一的 Java 编码规范和命名约定 |

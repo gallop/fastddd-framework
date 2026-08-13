@@ -1,6 +1,8 @@
 # FastDDD 框架使用指南
 
 > 企业级领域驱动设计 (DDD) 开发框架 - 完整使用手册
+>
+> 新项目请先遵循[新业务系统开发规范](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)；本文用于模块功能查阅。
 
 ---
 
@@ -24,9 +26,9 @@
 
 | 组件 | 版本要求 |
 |------|----------|
-| JDK | 17+ |
-| Maven | 3.8+ |
-| Spring Boot | 3.2.0+ |
+| JDK | 21+ |
+| Maven | 3.9+ |
+| Spring Boot | 3.5.16 |
 | MySQL | 8.0+ (生产环境) |
 | Redis | 6.0+ (可选) |
 | Docker | 20.10+ (可选) |
@@ -36,10 +38,22 @@
 #### 1. 添加依赖
 
 ```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.gallop.fastddd</groupId>
+            <artifactId>fastddd-bom</artifactId>
+            <version>1.0.0-jdk21-rc1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+
 <dependency>
     <groupId>com.gallop.fastddd</groupId>
     <artifactId>fast-ddd-starter</artifactId>
-    <version>1.0.0-jdk21-SNAPSHOT</version>
+    <!-- version 由 fastddd-bom 管理 -->
 </dependency>
 ```
 
@@ -56,7 +70,7 @@ spring:
 #### 3. 生成代码
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \
@@ -299,7 +313,7 @@ public interface UserRepository extends BaseMapper<User> {
 @RestController
 @RequestMapping("/api/admin/users")
 public class UserAdminController
-    extends BaseAdminCrudController<UserService, User> {
+    extends BaseAdminCrudController<UserService, User, Long> {
 
     // 自动继承完整 CRUD 端点：
     // GET    /api/admin/users        - 列表
@@ -318,7 +332,7 @@ public class UserAdminController
 @RestController
 @RequestMapping("/api/dictionaries")
 public class DictionaryController
-    extends BaseReadOnlyController<DictionaryService, DictionaryPO> {
+    extends BaseReadOnlyController<DictionaryService, DictionaryPO, Long> {
 
     // 仅暴露 GET 端点，无写操作风险
     // GET    /api/dictionaries        - 列表
@@ -333,7 +347,7 @@ public class DictionaryController
 // BaseController 已 @Deprecated(since="1.1")，仍可编译使用
 @RestController
 @RequestMapping("/api/users")
-public class UserController extends BaseController<UserService, User> {
+public class UserController extends BaseController<UserService, User, Long> {
 }
 ```
 
@@ -557,7 +571,7 @@ CREATE TABLE t_user (
 #### 2. 生成代码
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \

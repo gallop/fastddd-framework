@@ -1,6 +1,8 @@
 # FastDDD 快速开始指南
 
 > 5分钟上手 FastDDD 框架的 DDD 开发模式
+>
+> 新项目请先遵循[新业务系统开发规范](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)：本文仅保留最小示例。
 
 ## 概述
 
@@ -31,10 +33,10 @@ CREATE TABLE t_user (
 ### 2. 生成代码
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
-  -Dcodegen.password=123456 \
+  -Dcodegen.password="$CODEGEN_DB_PASSWORD" \
   -Dcodegen.basePackage=com.example.project \
   -Dcodegen.tablePrefix=t_
 ```
@@ -44,7 +46,7 @@ mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
 ```java
 @RestController
 @RequestMapping("/api/users")
-public class UserController extends BaseController<UserService, User> {
+public class UserController extends BaseAdminCrudController<UserService, User, Long> {
     // 所有 CRUD 端点自动可用
 }
 ```
@@ -231,7 +233,7 @@ public class OrderCommandController extends CommandController<CreateOrderCommand
 使用 Maven 插件生成充血模型代码：
 
 ```bash
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=123456 \

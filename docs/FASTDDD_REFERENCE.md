@@ -1,16 +1,33 @@
-# FastDDD Framework Reference for Claude Code
+# FastDDD Framework Reference
 
-> 本文档为 FastDDD 框架的完整参考，可直接复制到新项目的 CLAUDE.md 中使用。
+> 本文档是 FastDDD 的**按需 API 与设计参考**。新业务系统不要先全文加载：先阅读
+> [新业务系统开发规范](guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)，遇到具体 API、SPI 或配置问题时再检索本文。
 
 ## 框架概述
 
 FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
 
-**Maven 坐标**: `com.gallop.fastddd:fast-ddd-*:1.0.0-jdk21-SNAPSHOT`（业务项目通过 import [`fastddd-bom`](../README.md) 统一管理版本）
+**当前候选坐标**: `com.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（业务项目通过 import
+[`fastddd-bom`](UPGRADE_GUIDE.md#2-升级-fastddd-依赖import-fastddd-bom) 统一管理版本）
 **Java 版本**: 21+
-**Spring Boot 版本**: 3.5.x
+**Spring Boot 版本**: 3.5.16
 
 > 版本基线与兼容线详见 [兼容矩阵](COMPATIBILITY_MATRIX.md)，升级步骤见 [升级指南](UPGRADE_GUIDE.md)。
+
+```xml
+<!-- 业务项目统一版本入口；所有 fast-ddd-* 依赖均不再写 version -->
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fastddd-bom</artifactId>
+      <version>1.0.0-jdk21-rc1</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
 
 ---
 
@@ -52,7 +69,7 @@ FastDDD 提供两套独立的基类体系，字段命名已统一：
 | 创建人 | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
 | 更新人 | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
 | 逻辑删除 | `protected Integer deleted` | `@TableLogic Integer deleted` | `deleted` |
-| 主键 | `protected ID id` (abstract getId/setId) | `protected Serializable id` (内置 @TableId) | `id` |
+| 主键 | `protected ID id` (abstract getId/setId) | `protected ID id`（`ID extends Serializable`，默认 `Long`） | `id` |
 | 版本号 | `VersionedEntity` 子类提供 | `VersionedPO` 子类提供 | `version` |
 
 **version 字段按需继承**：只有数据库表有 `version` 列的实体才继承 `VersionedPO`/`VersionedEntity`，其余继承 `BasePO`/`BaseEntity`。
@@ -84,11 +101,11 @@ public class Order extends BasePO<Long> {
 
 **关键规则**:
 - 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
-- `BasePO` 已内置强类型 `Long id` 字段（**不**携带字段级 `@TableId`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
+- `BasePO<ID>` 已内置强类型 `ID id` 字段（**不**携带字段级 `@TableId`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
 - 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `AuditedPO`（`BasePO` 父类）提供
 - ID 策略唯一由全局配置 `mybatis-plus.global-config.db-config.id-type`（默认 `assign_id` 雪花）决定；需要不同策略的子类自行重声明 `id` 并加 `@TableId(type=...)`
 - 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
-- `BasePO.id` 类型为强类型 `Long`（对应 BIGINT 列），MyBatis-Plus 内置 `LongTypeHandler` 直接处理读写，无需框架额外注册 TypeHandler
+- 对应 `BIGINT` 主键使用 `BasePO<Long>`；UUID/String 主键使用匹配的 `ID` 类型，并在需要时于子类声明 `@TableId(type=...)`。MyBatis-Plus 按实际类型处理读写，无需全局 `SerializableTypeHandler`
 
 ### 2. 充血模型 — AggregateRoot (fast-ddd-common)
 
@@ -180,14 +197,14 @@ public interface VaccineScheduleMapper extends BaseRepository<VaccineSchedule> {
     // 便捷查询方法同样可用，无需 BasePO 审计字段
 }
 
-// Service 接口 — 框架 IService 要求 T extends BasePO
-public interface OrderService extends IService<Order> {
+// Service 接口 — 实体与 ID 类型必须一起传递
+public interface OrderService extends IService<Order, Long> {
     // 继承: save, removeById, updateById, getById, list, page, getByField 等
 }
 
 // Service 实现
 @Service
-public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implements OrderService {
+public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order, Long> implements OrderService {
     // baseMapper 已自动注入，所有 CRUD 方法继承即可
 }
 ```
@@ -206,7 +223,7 @@ public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order> implem
 
 > **字段名约定**：`*ByField` 方法的 `field` 参数写 Java 驼峰名（如 `createTime`、`isDefault`），框架自动转为数据库列名（`create_time`、`is_default`）。传入 snake_case 也兼容。
 
-> **泛型约束说明**：`BaseRepository<T>` 对 `T` 无约束（不要求继承 BasePO），便捷查询方法适用于任何实体表。`BaseServiceImpl<M, T>` 和 `IService<T>` 仍要求 `T extends BasePO`，因为 Service 层需要审计字段自动填充。纯数据表（无审计字段）用 Mapper 层即可，不需要走框架 Service 层。
+> **泛型约束说明**：`BaseRepository<T>` 对 `T` 无约束（不要求继承 BasePO），便捷查询方法适用于任何实体表。`BaseServiceImpl<M, T, ID>` 和 `IService<T, ID>` 要求 `T extends BasePO<ID>` 且 `ID extends Serializable`；实体、服务与控制器必须使用同一个 ID 类型。纯数据表（无审计字段）可仅使用 Mapper 层。
 
 ### 4. Web 层 (fast-ddd-web)
 
@@ -224,7 +241,7 @@ AbstractBaseController              ← 基础设施（service、resolveId、res
 ```java
 @RestController
 @RequestMapping("/api/admin/orders")
-public class OrderAdminController extends BaseAdminCrudController<OrderService, Order> {
+public class OrderAdminController extends BaseAdminCrudController<OrderService, Order, Long> {
     // 自动继承以下 REST 端点:
     // GET    /{id}                     — 按ID查询
     // GET    /                         — 列表查询
@@ -253,7 +270,7 @@ public class OrderAdminController extends BaseAdminCrudController<OrderService, 
 ```java
 @RestController
 @RequestMapping("/api/dictionaries")
-public class DictionaryController extends BaseReadOnlyController<DictionaryService, DictionaryPO> {
+public class DictionaryController extends BaseReadOnlyController<DictionaryService, DictionaryPO, Long> {
     // 仅暴露 GET 端点:
     // GET /{id}                       — 按ID查询
     // GET /                           — 列表查询
@@ -267,7 +284,7 @@ public class DictionaryController extends BaseReadOnlyController<DictionaryServi
 // BaseController 已 @Deprecated(since="1.1")，仍可编译使用
 @RestController
 @RequestMapping("/api/users")
-public class UserController extends BaseController<UserService, User> {
+public class UserController extends BaseController<UserService, User, Long> {
 }
 ```
 
@@ -298,7 +315,7 @@ public class UserController extends BaseController<UserService, User> {
 @RestController
 @RequestMapping("/api/admin/sys/billing-rules")
 @RequiresPermission(value = {"system:view", "fee:billing-rule"}, logical = RequiresPermission.Logical.OR)
-public class SysBillingRuleController extends BaseAdminCrudController<SysBillingRuleService, SysBillingRule> {
+public class SysBillingRuleController extends BaseAdminCrudController<SysBillingRuleService, SysBillingRule, Long> {
 
     @Override
     @RequiresPermission(value = {"fee:manage", "fee:billing-rule:create"}, logical = RequiresPermission.Logical.OR)
@@ -971,7 +988,7 @@ MyBatis-Plus `BaseMapper`，Meilisearch 模式必须显式提供 SDK，业务代
 <dependency>
     <groupId>com.gallop.fastddd</groupId>
     <artifactId>fast-ddd-search</artifactId>
-    <version>1.0.0-jdk21-SNAPSHOT</version>
+    <!-- version 由 fastddd-bom 管理 -->
 </dependency>
 ```
 
@@ -1050,15 +1067,15 @@ fastddd:
 
 ```bash
 # 单表代码生成
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:generate-code \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
-  -Dcodegen.password=123456 \
+  -Dcodegen.password="$CODEGEN_DB_PASSWORD" \
   -Dcodegen.basePackage=com.example.project \
   -Dcodegen.tablePrefix=t_
 
 # 项目初始化
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:init-project \
+mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=my-app \
   -Dinit.modelType=RICH \
@@ -1088,11 +1105,11 @@ mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-SNAPSHOT:init-project \
 ### 贫血模型
 ```
 com.example.{module}
-├── entity/          # extends BasePO
+├── entity/          # extends BasePO<ID>
 ├── mapper/          # extends BaseRepository<T>
-├── service/         # extends IService<T>
-│   └── impl/        # extends BaseServiceImpl<M, T>
-└── controller/      # extends BaseAdminCrudController<S, T> 或 BaseReadOnlyController<S, T>
+├── service/         # extends IService<T, ID>
+│   └── impl/        # extends BaseServiceImpl<M, T, ID>
+└── controller/      # extends BaseAdminCrudController<S, T, ID> 或 BaseReadOnlyController<S, T, ID>
 ```
 
 ### 充血模型
@@ -1108,7 +1125,7 @@ com.example.{aggregate}
 │   └── handler/                    # CommandHandler / QueryHandler
 ├── infrastructure/
 │   └── persistence/
-│       ├── {Aggregate}PO.java      # extends BasePO (数据库映射)
+│       ├── {Aggregate}PO.java      # extends BasePO<ID> (数据库映射)
 │       ├── {Aggregate}BaseMapper.java  # extends BaseMapper<PO>
 │       ├── {Aggregate}EntityMapper.java  # PO ↔ Entity 转换
 │       ├── {Aggregate}Repository.java     # 接口
@@ -1154,7 +1171,7 @@ mybatis-plus:
       logic-not-delete-value: 0
 ```
 
-> `BasePO.id` 类型为 `Serializable`，框架在 `FastDddCrudAutoConfiguration` 中自动注册 `SerializableTypeHandler`，将 JDBC 返回的 Long/String 等类型自动适配为 Serializable，无需手动配置 TypeHandler。
+> `BasePO<ID>` 的 `id` 是强类型契约；例如 BIGINT 使用 `BasePO<Long>`。框架不再注册全局 `SerializableTypeHandler`，避免弱类型主键掩盖调用错误。
 
 ---
 
@@ -1316,7 +1333,7 @@ return ApiResponse.success(data, Messages.get("biz.order.paid"));
 |------|---------|---------|
 | 继承 BasePO | `@Getter @Setter`，不声明 id | `@Data` + 重复声明 `private Long id` |
 | 继承 AggregateRoot | `@Getter @Setter` + 显式实现 getId/setId | `@Data`（不处理父类抽象方法） |
-| BasePO getId 返回值 | `(Long) entity.getId()` 强转 | 期望自动拆箱为 Long |
+| BasePO getId 返回值 | 使用 `Long id = entity.getId()`（当实体为 `BasePO<Long>`） | `(Long) entity.getId()` 的无意义强转或原始泛型 |
 | DTO 跨包字段 | `private` + `@Data` | 默认包级访问（跨包不可见） |
 | Duration 配置 | `8h`, `3600s`, `7d` | 纯数字 `28800`（缺少单位） |
 | CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
