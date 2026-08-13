@@ -188,6 +188,12 @@ public class AuthController {
     public ApiResponse<UserInfoResponse> getUserInfo() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
+        // 无有效认证（token 缺失/失效，经 JwtAuthenticationFilter 静默放行后 SecurityContext 为空）时
+        // 必须返回 401，而非继续 authentication.getName() 触发 NPE 被全局异常处理器吞成 500。
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal() == null) {
+            return ApiResponse.error(401, Messages.get("security.auth.unauthorized"));
+        }
+
         // 优先从 token principal 获取 userId（新 Token）
         String userId = null;
         String username = authentication.getName();
