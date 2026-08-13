@@ -138,8 +138,7 @@ jobs:
       run: |
         ./mvnw spotbugs:check \
           -Dspotbugs.effort=Max \
-          -Dspotbugs.threshold=Low \
-          -Dspotbugs.includeFilterFile=.github/spotbugs-security-include.xml
+          -Dspotbugs.threshold=Low
     
     - name: Upload SpotBugs results
       uses: actions/upload-artifact@v4
