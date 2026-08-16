@@ -13,21 +13,19 @@ import com.gallop.fastddd.agentaccess.contract.BusinessActionEnvelope;
  * 可变调度信息<b>不进入投影</b>（§5.5 规则 2：不进 effectDigest、不参与
  * 许可比对——重试稳定性由稳定字段承载）。</p>
  *
- * <p><b>契约缝隙如实标注（不得在代码中自选语义）</b>：Permit 的
- * {@code preconditionsHash} 与 {@code expectedResourceVersions} 在 Envelope
- * §5.5 字段表中无同名 wire 承载（Envelope 携带结构化
- * {@code preconditions} 列表，两者的推导规则未在契约中冻结）。本投影对这两项
- * 投 {@code null}：「Envelope 侧不主张」与 Permit 侧的比对是提供状态敏感的
- * ——Permit 携带任一项而 Envelope 无法对等证明时验证器拒绝
- * （PERMIT_BINDING_MISMATCH，fail-closed）。真实推导规则的冻结归
- * Contract 勘误与 FastAgent V04-04 真实 carrier 对齐，不在骨架期补造。</p>
+ * <p><b>修订（2026-08-16，FDD-AA-13 收口勘误）</b>：Envelope 增列
+ * {@code preconditionsHash} 与 {@code expectedResourceVersions} 可选组件后，
+ * 本投影对两项<b>直投</b>（此前恒投 null 的契约缝隙已闭合）。提供状态与
+ * Permit 侧的敏感比对语义不变：单方提供即拒（PERMIT_BINDING_MISMATCH，
+ * fail-closed）。直携对齐依据：FastAgent V04-04 真实载体直携两项并与
+ * Permit 构造期交叉校验——无推导规则需要发明。</p>
  */
 public final class EnvelopeBindingProjector {
 
     private EnvelopeBindingProjector() {
     }
 
-    /** Envelope 治理字段 → 许可绑定投影（11 同名字段直投 + 两项按 Descriptor 字段不主张）。 */
+    /** Envelope 治理字段 → 许可绑定投影（13 同名字段直投；提供状态敏感比对归验证器）。 */
     public static PermitBindingView project(BusinessActionEnvelope envelope) {
         if (envelope == null) {
             throw new IllegalArgumentException("envelope 必选");
@@ -41,8 +39,8 @@ public final class EnvelopeBindingProjector {
                 envelope.purpose(),
                 envelope.businessOperationId(),
                 envelope.externalIdempotencyKey(),
-                null,
-                null,
+                envelope.preconditionsHash(),
+                envelope.expectedResourceVersions(),
                 envelope.effectDigest(),
                 envelope.authorizationDigest(),
                 envelope.authorizationBindingDigest());

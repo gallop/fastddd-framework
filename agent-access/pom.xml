@@ -27,6 +27,31 @@
     <module>fastddd-agent-access-contract-kit</module>
   </modules>
 
+  <!--
+    carrier-conformance profile（FDD-AA-13 收口，2026-08-16）：
+
+    真实 V04-04 carrier 消费模块（fastddd-agent-access-carrier-conformance）的显式门控入口。
+    Phase baseline §7 FDD-AA-13 原文约束「必须消费 V04-04 的真实 dispatch contract artifact，
+    在真实 carrier 通过前不得完成」——该模块 test scope 从 Maven 坐标消费
+    com.gallop.fastagent:fastagent-fastddd-command-adapter（本地仓 D-2 形态，与 FastAgent 侧
+    T34 conformance 互为镜像），与 banned-dependencies 的 L3 制品独立性边界（AA-04 §3.3 /
+    ADR-007）冲突，故：
+    - 默认 reactor 不含本模块（无 FastAgent 制品可解析的环境不阻断构建）；
+    - 激活（-Pcarrier-conformance）时子模块以显式 skip 豁免继承的 enforcer 执行并注明依据；
+    - 主制品与 kit 的「零 FastAgent 依赖」不受影响（发布面不变）。
+  -->
+  <profiles>
+    <profile>
+      <id>carrier-conformance</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <modules>
+        <module>fastddd-agent-access-carrier-conformance</module>
+      </modules>
+    </profile>
+  </profiles>
+
   <properties>
     <java.version>21</java.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>

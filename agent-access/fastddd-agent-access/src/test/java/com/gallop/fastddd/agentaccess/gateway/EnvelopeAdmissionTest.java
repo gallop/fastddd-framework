@@ -53,7 +53,7 @@ class EnvelopeAdmissionTest {
     private static final String TRUSTED_ISSUER = "https://issuer.fastagent.example";
     private static final String AUDIENCE = "fastddd-ar-service";
 
-    /** Envelope 路径用许可：不带 expectedResourceVersions（Envelope 投影不主张，见 projector 缝隙标注）。 */
+    /** Envelope 路径用许可：不带 expectedResourceVersions 的形态（信封直投 null=缺省，提供状态一致即通过）。 */
     private static ExecutionPermit envelopePermit() {
         return envelopePermit(null);
     }
@@ -101,7 +101,11 @@ class EnvelopeAdmissionTest {
                 null);
     }
 
-    /** 与许可治理字段逐项一致的匹配信封（requestId/attemptId 可变——不进投影）。 */
+    /**
+     * 与许可治理字段逐项一致的匹配信封（requestId/attemptId 可变——不进投影）。
+     * 修订 2026-08-16：{@code preconditionsHash}/{@code expectedResourceVersions}
+     * 直携自许可（对齐形态——真实 V04-04 载体与许可构造期交叉校验后直携同等值）。
+     */
     private static BusinessActionEnvelope envelope(ExecutionPermit permit, String requestId, String attemptId) {
         return new BusinessActionEnvelope(
                 AgentAccessProtocolVersions.WIRE_SCHEMA_VERSION,
@@ -121,6 +125,43 @@ class EnvelopeAdmissionTest {
                 null,
                 null,
                 "ReferenceThing/REF-001",
+                null,
+                permit.preconditionsHash(),
+                permit.expectedResourceVersions(),
+                permit.purpose(),
+                "{\"amount\":100}",
+                "1",
+                permit.effectDigest(),
+                permit.authorizationBindingDigest(),
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /** 不直携前置条件组件的信封变体（Permit 单方携带时用于 presence-mismatch 负向）。 */
+    private static BusinessActionEnvelope envelopeWithoutPreconditionsCarriage(
+            ExecutionPermit permit, String requestId, String attemptId) {
+        return new BusinessActionEnvelope(
+                AgentAccessProtocolVersions.WIRE_SCHEMA_VERSION,
+                requestId,
+                OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC),
+                permit.caller().tenantId(),
+                permit.caller().environment(),
+                permit.actionId(),
+                permit.actionVersion(),
+                permit.effect(),
+                permit,
+                null,
+                permit.authorizationDigest(),
+                null,
+                permit.businessOperationId(),
+                attemptId,
+                null,
+                null,
+                "ReferenceThing/REF-001",
+                null,
+                null,
                 null,
                 permit.purpose(),
                 "{\"amount\":100}",
@@ -162,7 +203,8 @@ class EnvelopeAdmissionTest {
                 OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), "acme", "dev",
                 "ar.reference.write-sample", "1", Effect.WRITE,
                 null, "permit-ref-001", "sha256:auth", null, "bop-2026-0001",
-                null, null, null, "ReferenceThing/REF-001", null, "reference.testing",
+                null, null, null, "ReferenceThing/REF-001", null, null, null,
+                "reference.testing",
                 "{}", "1", "sha256:effect", "sha256:binding",
                 null, null, null, null);
         assertThrows(IllegalArgumentException.class, () -> gateway().admitAgentAction(refOnly));
@@ -180,7 +222,8 @@ class EnvelopeAdmissionTest {
                 OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), "acme", "dev",
                 "ar.reference.write-sample", "1", Effect.WRITE,
                 forged, null, "sha256:auth", null, "bop-2026-0001",
-                null, null, null, "ReferenceThing/REF-001", null, "reference.testing",
+                null, null, null, "ReferenceThing/REF-001", null, null, null,
+                "reference.testing",
                 "{}", "1", "sha256:effect", "sha256:binding",
                 null, null, null, null);
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -236,7 +279,7 @@ class EnvelopeAdmissionTest {
                 OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), "acme", "dev",
                 permit.actionId(), permit.actionVersion(), Effect.WRITE,
                 permit, null, permit.authorizationDigest(), null, permit.businessOperationId(),
-                null, null, null, "ReferenceThing/REF-001", null, permit.purpose(),
+                null, null, null, "ReferenceThing/REF-001", null, null, null, permit.purpose(),
                 "{\"amount\":100}", "1", "sha256:tampered-effect", permit.authorizationBindingDigest(),
                 null, null, null, null);
         GatewayOutcome.Rejected rejected = assertInstanceOf(GatewayOutcome.Rejected.class,
@@ -247,15 +290,24 @@ class EnvelopeAdmissionTest {
     }
 
     @Test
-    void permitWithExpectedVersionsFailsClosedAgainstEnvelopeProjection() {
-        // 契约缝隙 fail-closed 演示：Permit 携带 expectedResourceVersions 而 Envelope
-        // 投影无法对等主张（推导规则未冻结）→ 提供状态不一致即拒绝，不静默放行
+    void permitWithExpectedVersionsFailsClosedWhenEnvelopeDoesNotCarry() {
+        // 修订 2026-08-16 后的 fail-closed 语义：Permit 携带 expectedResourceVersions 而
+        // Envelope 未直携对等主张（投 null）→ 提供状态不一致即拒绝，不静默放行
         ExecutionPermit permit = envelopePermit(Map.of("ReferenceThing/REF-001", "42"));
         GatewayOutcome.Rejected rejected = assertInstanceOf(GatewayOutcome.Rejected.class,
-                gateway().admitAgentAction(envelope(permit, "req-1", "attempt-1")));
+                gateway().admitAgentAction(envelopeWithoutPreconditionsCarriage(permit, "req-1", "attempt-1")));
         assertAll("Permit 单方携带资源版本 → PERMIT_BINDING_MISMATCH",
                 () -> assertEquals(ActionOutcomeCode.PERMIT_BINDING_MISMATCH, rejected.outcomeCode()),
                 () -> assertEquals("permit.binding.presence.mismatch", rejected.internalReason().code()));
+    }
+
+    /** 修订 2026-08-16 新能力：Permit 携带版本重检表且信封直携同等值 → 放行（对齐 V04-04 直携形态）。 */
+    @Test
+    void permitWithExpectedVersionsAdmitsWhenEnvelopeCarriesThem() {
+        ExecutionPermit permit = envelopePermit(Map.of("ReferenceThing/REF-001", "42"));
+        GatewayOutcome outcome = gateway().admitAgentAction(envelope(permit, "req-1", "attempt-1"));
+        GatewayOutcome.Admitted admitted = assertInstanceOf(GatewayOutcome.Admitted.class, outcome);
+        assertEquals("bop-2026-0001", admitted.audit().businessOperationId());
     }
 
     @Test

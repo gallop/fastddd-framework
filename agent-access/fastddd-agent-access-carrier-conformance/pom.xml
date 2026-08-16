@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FDD-AA-13 真实 V04-04 carrier 消费模块（收口判定物，2026-08-16）
+
+  定位（Phase baseline §7 task 10：「必须消费 V04-04 的真实 dispatch contract artifact，
+  在真实 carrier 通过前不得标记本任务完成」）：
+  - test scope 从 Maven 坐标消费 FastAgent Artifact A（本地仓 D-2 形态）
+    com.gallop.fastagent:fastagent-fastddd-command-adapter:0.4.0-alpha.1
+    （候选 SHA 20356e0；jar SHA-256 与证据索引见 FastAgent 仓
+    .taskmaster/docs/fastagent-v04-m1-artifact-registration.md §2/§6）；
+  - 传递域自动携带 fastagent-security / fastagent-core（Artifact B 同坐标家族），
+    支撑 PermitIssuanceService 真实签发链路参与夹具；
+  - 本模块 test-only、默认不进 reactor（-Pcarrier-conformance 激活，见父 POM profile 注释），
+    不发布、不向任何生产 classpath 传递 FastAgent 依赖——主制品与 kit 的
+    「零 FastAgent 依赖」边界（AA-04 §3.3 / ADR-007 L3）不受影响。
+
+  enforcer skip 依据：agent-access-banned-dependencies 全域禁止 com.gallop.fastagent:*
+  （bannedDependencies 无法按 scope 豁免），而本模块的判定价值恰恰是消费真实制品——
+  与 FastAgent 侧 T34 conformance（fastagent-fastddd-command-adapter 测试域消费
+  FastDDD 制品）互为镜像。豁免仅限本模块的该执行，不回溯修改共享禁令清单
+  （保持 L3 制品独立性主张对发布面完整）。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fastddd-agent-access-parent</artifactId>
+    <version>0.1.0-jdk21-alpha.1</version>
+  </parent>
+
+  <artifactId>fastddd-agent-access-carrier-conformance</artifactId>
+  <packaging>jar</packaging>
+
+  <name>FastDDD Agent Access Carrier Conformance (FDD-AA-13, profile-gated)</name>
+  <description>FDD-AA-13 真实 V04-04 dispatch carrier 消费判定（test-only；-Pcarrier-conformance 激活；不发布）</description>
+
+  <properties>
+    <!-- 「不发布」的机械保证：即使误跑 -Pcarrier-conformance deploy 也不外传本模块
+         （fresh-context 审查 finding #4：仅靠 profile 门控与流程约定不足以支撑主张） -->
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fastddd-agent-access</artifactId>
+    </dependency>
+    <!-- FastAgent Artifact A：升级后 GatewayEgressCommand 真实载体（test-only 消费；
+         传递携带 fastagent-security / fastagent-core） -->
+    <dependency>
+      <groupId>com.gallop.fastagent</groupId>
+      <artifactId>fastagent-fastddd-command-adapter</artifactId>
+      <version>0.4.0-alpha.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- 父 POM 禁止依赖清单的本模块豁免（依据见文件头注释；仅 skip 本执行，
+           不改共享清单） -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>agent-access-banned-dependencies</id>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
