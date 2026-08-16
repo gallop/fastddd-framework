@@ -107,4 +107,17 @@ class StaticDescriptorRegistryTest {
         // 类路径上不存在扫描入口，不存在运行时增量
         assertEquals(3, registry.registeredCount());
     }
+
+    @Test
+    void atSignKeyCollisionResolvesToNotRegisteredInsteadOfWrongDescriptor() {
+        // exactKey("...a@b","c") 与 exactKey("...a","b@c") 拼出同串：lookup 会
+        // 命中他人条目——命中后 (id, version) 一致性校验兜底为视同未命中，
+        // 不得返回 actionId 不匹配的描述符（保守失败）
+        StaticDescriptorRegistry registry = StaticDescriptorRegistry.builder()
+                .register(writeAction("ar.reference.a@b", "c", true)).build();
+        ActionNotExposedException collision = assertThrows(ActionNotExposedException.class,
+                () -> registry.resolve("ar.reference.a", "b@c"));
+        assertEquals(ActionOutcomeCode.ACTION_NOT_EXPOSED, collision.outcomeCode());
+        assertEquals("descriptor.unregistered", collision.internalReason().code());
+    }
 }

@@ -52,9 +52,13 @@ public final class StaticDescriptorRegistry implements DescriptorRegistry {
             throw new ActionNotExposedException(NOT_REGISTERED);
         }
         BusinessActionDescriptor descriptor = registeredByExactKey.get(exactKey(actionId, actionVersion));
-        if (descriptor == null) {
+        if (descriptor == null
+                || !descriptor.actionId().equals(actionId)
+                || !descriptor.actionVersion().equals(actionVersion)) {
             // 版本漂移细分：同 actionId 存在其他已注册版本 → 漂移；否则未注册。
-            // 外部结果码统一 ACTION_NOT_EXPOSED；细因是内部 reason，仅供审计
+            // 外部结果码统一 ACTION_NOT_EXPOSED；细因是内部 reason，仅供审计。
+            // 标识含 @ 的极端拼接碰撞会让 lookup 命中他人条目——命中后校验
+            // (id, version) 一致性，不一致视同未命中（保守拒绝，不返回他人描述符）
             InternalReason reason = registeredActionIds.contains(actionId) ? VERSION_DRIFTED : NOT_REGISTERED;
             throw new ActionNotExposedException(reason);
         }
@@ -82,8 +86,9 @@ public final class StaticDescriptorRegistry implements DescriptorRegistry {
          * 显式注册一个描述符。
          *
          * <p>key 边界：{@code actionId + "@" + actionVersion} 拼接在标识本身含
-         * {@code @} 的极端场景下可能碰撞——碰撞表现为<b>误判重复而拒绝注册</b>
-         * （保守失败，不存在放行风险）；规范动作标识不含 {@code @}。</p>
+         * {@code @} 的极端场景下可能碰撞——注册侧表现为<b>误判重复而拒绝注册</b>，
+         * resolve 侧由命中后 (id, version) 一致性校验兜底为<b>视同未命中</b>——
+         * 两侧均保守失败，不存在放行风险；规范动作标识不含 {@code @}。</p>
          *
          * @throws IllegalArgumentException 描述符缺失或 (actionId, actionVersion) 重复
          */

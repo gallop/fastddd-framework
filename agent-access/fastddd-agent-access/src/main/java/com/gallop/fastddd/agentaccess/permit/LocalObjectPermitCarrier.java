@@ -20,7 +20,10 @@ public final class LocalObjectPermitCarrier implements ExecutionPermitCarrier {
     private final ExecutionPermit permit;
 
     LocalObjectPermitCarrier(ExecutionPermit permit) {
-        this.permit = java.util.Objects.requireNonNull(permit, "permit 必选");
+        if (permit == null) {
+            throw new IllegalArgumentException("permit 必选");
+        }
+        this.permit = permit;
     }
 
     /** 受载体保护的完整许可（供验证器/编排读取，不可变）。 */
