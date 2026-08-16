@@ -44,17 +44,22 @@ class AgentAccessArchitectureTest {
         JavaClasses violating = new ClassFileImporter().importClasses(ContractDependingOnSpi.class);
         assertThatThrownBy(() -> AgentAccessArchitecture.contractIsSelfContained().check(violating))
                 .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("契约包仅 JDK");
+                .hasMessageContaining("Architecture Violation")
+                .hasMessageContaining(ContractDependingOnSpi.class.getSimpleName());
     }
 
     @Test
     void hostDependingOnGatewayImplementationIsCaught() {
         JavaClasses violating =
                 new ClassFileImporter().importClasses(HostDependingOnGatewayImplementation.class);
+        // hostPackages 传违例 fixture 实际所在包：that() 必须真正选中类，
+        // 否则 ArchUnit 抛的是「空选」通用失败而非 Architecture Violation（假绿）
         assertThatThrownBy(() -> AgentAccessArchitecture
-                .hostMayOnlyUseGovernedSeams("com.example.host..").check(violating))
+                .hostMayOnlyUseGovernedSeams("com.gallop.fastddd.agentaccess.arch.violation..")
+                .check(violating))
                 .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("绕过受治理入口");
+                .hasMessageContaining("Architecture Violation")
+                .hasMessageContaining(HostDependingOnGatewayImplementation.class.getSimpleName());
     }
 
     @Test
@@ -65,7 +70,8 @@ class AgentAccessArchitectureTest {
                 .importClasses(ReferringToFastAgent.class, FastAgentSideStub.class);
         assertThatThrownBy(() -> AgentAccessArchitecture.noFastAgentDependency().check(violating))
                 .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("L3 边界");
+                .hasMessageContaining("Architecture Violation")
+                .hasMessageContaining(ReferringToFastAgent.class.getSimpleName());
     }
 
     @Test

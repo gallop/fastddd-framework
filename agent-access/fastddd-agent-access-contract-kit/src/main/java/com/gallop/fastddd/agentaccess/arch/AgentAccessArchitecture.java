@@ -3,6 +3,9 @@ package com.gallop.fastddd.agentaccess.arch;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.lang.ArchRule;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -16,16 +19,21 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * <p>B1 是构建期断言，不是运行时沙箱：无 JPMS 下它不阻止同 JVM 恶意代码
  * 的反射绕过（B2 是编译期包边界 + 唯一入口装配断言，各司其职）。</p>
  *
+ * <p>谓词语义：每条规则以「依赖目标 ∈ agent-access 根包 <b>减去</b> 被检包
+ * 自身与其允许依赖的包」表达——不枚举兄弟包清单，因此根包直接类型与未来
+ * 新增子包自动纳入检查（新增子包若要获得合法依赖位，必须显式修订本规则
+ * 的豁免清单，不出现静默漏检）。</p>
+ *
  * <p>规则清单（AA-04 §3.2 冻结方向）：</p>
  * <ul>
  *   <li>{@link #contractIsSelfContained()}：{@code .contract} 仅 JDK，不依赖
- *       agent-access 其他任何包；</li>
+ *       agent-access 其他任何类型；</li>
  *   <li>{@link #spiDependsOnlyOnContract()}：{@code .spi} 只依赖
- *       {@code .contract}（+ JDK）；</li>
+ *       {@code .contract}（+ JDK + 同包）；</li>
  *   <li>{@link #gatewayDependsOnlyOnSpiAndContract()}：{@code .gateway}
- *       只依赖 {@code .spi} + {@code .contract}；</li>
+ *       只依赖 {@code .spi} + {@code .contract}（+ JDK + 同包）；</li>
  *   <li>{@link #permitDependsOnlyOnContractAndSpi()}：{@code .permit}
- *       只依赖 {@code .contract} + {@code .spi}；</li>
+ *       只依赖 {@code .contract} + {@code .spi}（+ JDK + 同包）；</li>
  *   <li>{@link #noFastAgentDependency()}：主制品不依赖
  *       {@code com.gallop.fastagent..}（AST-06：L3 边界，与 Enforcer
  *       banned-dependencies 同源互证）；</li>
@@ -43,42 +51,40 @@ public final class AgentAccessArchitecture {
     private static final String SPI = "..agentaccess.spi..";
     private static final String GATEWAY = "..agentaccess.gateway..";
     private static final String PERMIT = "..agentaccess.permit..";
-    private static final String KIT_AND_ARCH = "..agentaccess.(kit|arch)..";
-    private static final String IMPLEMENTATION_PACKAGES = "..agentaccess.(gateway|permit)..";
 
     private AgentAccessArchitecture() {
     }
 
-    /** B1：.contract 不依赖 agent-access 其他任何包（仅 JDK）。 */
+    /** B1：.contract 不依赖 agent-access 其他任何类型（仅 JDK + 同包）。 */
     public static ArchRule contractIsSelfContained() {
         return noClasses().that().resideInAPackage(CONTRACT)
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(SPI, GATEWAY, PERMIT, KIT_AND_ARCH)
+                .should().dependOnClassesThat(
+                        resideInAPackage(AGENT_ACCESS_ROOT).and(not(resideInAnyPackage(CONTRACT))))
                 .because("契约包仅 JDK：.contract 被 .spi/.gateway/.permit 单向依赖，不得反向");
     }
 
-    /** B1：.spi 只依赖 .contract（+ JDK）。 */
+    /** B1：.spi 只依赖 .contract（+ JDK + 同包）。 */
     public static ArchRule spiDependsOnlyOnContract() {
         return noClasses().that().resideInAPackage(SPI)
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(GATEWAY, PERMIT, KIT_AND_ARCH)
-                .because("接缝包只依赖契约：.spi 不得依赖实现包（.gateway/.permit）或 kit/arch");
+                .should().dependOnClassesThat(
+                        resideInAPackage(AGENT_ACCESS_ROOT).and(not(resideInAnyPackage(CONTRACT, SPI))))
+                .because("接缝包只依赖契约：.spi 不得依赖实现包（.gateway/.permit）、kit/arch 或未来子包");
     }
 
-    /** B1：.gateway 只依赖 .spi + .contract。 */
+    /** B1：.gateway 只依赖 .spi + .contract（+ JDK + 同包）。 */
     public static ArchRule gatewayDependsOnlyOnSpiAndContract() {
         return noClasses().that().resideInAPackage(GATEWAY)
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(PERMIT, KIT_AND_ARCH)
-                .because("网关实现只编排接缝与契约：不得依赖 .permit 实现或 kit/arch");
+                .should().dependOnClassesThat(
+                        resideInAPackage(AGENT_ACCESS_ROOT).and(not(resideInAnyPackage(CONTRACT, SPI, GATEWAY))))
+                .because("网关实现只编排接缝与契约：不得依赖 .permit 实现、kit/arch 或未来子包");
     }
 
-    /** B1：.permit 只依赖 .contract + .spi。 */
+    /** B1：.permit 只依赖 .contract + .spi（+ JDK + 同包）。 */
     public static ArchRule permitDependsOnlyOnContractAndSpi() {
         return noClasses().that().resideInAPackage(PERMIT)
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(GATEWAY, KIT_AND_ARCH)
-                .because("许可实现只依赖契约与接缝：不得依赖 .gateway 实现或 kit/arch");
+                .should().dependOnClassesThat(
+                        resideInAPackage(AGENT_ACCESS_ROOT).and(not(resideInAnyPackage(CONTRACT, SPI, PERMIT))))
+                .because("许可实现只依赖契约与接缝：不得依赖 .gateway 实现、kit/arch 或未来子包");
     }
 
     /** AST-06：主制品不依赖 FastAgent 侧任何类型（L3 边界；与 Enforcer 互证）。 */

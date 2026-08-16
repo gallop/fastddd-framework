@@ -12,7 +12,6 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.Primary;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Agent Access 显式装配校验器首版（MC-5：无 starter、无 AutoConfiguration、fail-fast）。
@@ -68,8 +67,13 @@ public final class AgentAccessAssemblyValidator implements SmartInitializingSing
     public AgentAccessAssemblyValidator(ConfigurableListableBeanFactory beanFactory,
                                         List<Class<?>> requiredBeanTypes,
                                         List<Class<?>> uniqueRequiredBeanTypes) {
-        this.beanFactory = Objects.requireNonNull(beanFactory, "beanFactory 必选");
-        Objects.requireNonNull(requiredBeanTypes, "requiredBeanTypes 必选");
+        if (beanFactory == null) {
+            throw new IllegalArgumentException("beanFactory 必选");
+        }
+        this.beanFactory = beanFactory;
+        if (requiredBeanTypes == null) {
+            throw new IllegalArgumentException("requiredBeanTypes 必选");
+        }
         if (requiredBeanTypes.isEmpty()) {
             throw new IllegalArgumentException("requiredBeanTypes 不得为空：校验器不允许被收窄为无操作");
         }
@@ -81,7 +85,9 @@ public final class AgentAccessAssemblyValidator implements SmartInitializingSing
                     + removed);
         }
         this.requiredBeanTypes = List.copyOf(requiredBeanTypes);
-        Objects.requireNonNull(uniqueRequiredBeanTypes, "uniqueRequiredBeanTypes 必选");
+        if (uniqueRequiredBeanTypes == null) {
+            throw new IllegalArgumentException("uniqueRequiredBeanTypes 必选");
+        }
         List<Class<?>> removedUnique = DEFAULT_UNIQUE_BEAN_TYPES.stream()
                 .filter(type -> !uniqueRequiredBeanTypes.contains(type))
                 .toList();

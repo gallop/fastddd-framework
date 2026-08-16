@@ -122,7 +122,7 @@ public final class DefaultAgentAccessGateway implements AgentAccessGateway {
         return new GatewayOutcome.Admitted(descriptor, auditOf(permit, null));
     }
 
-    /** §10 白名单审计投影：字段取自已验证许可（权威来源），零 payload，零摘要。 */
+    /** §10 白名单审计投影：字段取自许可本体（非请求自报绑定投影），零 payload，零摘要。 */
     private static AuditProjection auditOf(ExecutionPermit permit, ActionOutcomeCode outcomeCode) {
         return new AuditProjection(
                 permit.caller().tenantId(),

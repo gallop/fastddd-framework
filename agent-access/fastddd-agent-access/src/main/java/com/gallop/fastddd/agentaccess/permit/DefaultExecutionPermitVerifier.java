@@ -11,7 +11,6 @@ import com.gallop.fastddd.agentaccess.spi.PermitVerifierConfig;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * {@link ExecutionPermitVerifier} 默认 fail-closed 实现（Contract §5.2
@@ -55,7 +54,10 @@ public final class DefaultExecutionPermitVerifier implements ExecutionPermitVeri
     private final PermitVerifierConfig config;
 
     public DefaultExecutionPermitVerifier(PermitVerifierConfig config) {
-        this.config = Objects.requireNonNull(config, "config 必选");
+        if (config == null) {
+            throw new IllegalArgumentException("config 必选");
+        }
+        this.config = config;
     }
 
     @Override

@@ -7,7 +7,8 @@ import com.gallop.fastddd.agentaccess.contract.ActionOutcomeCode;
  *
  * <p>只允许 §10 枚举的治理标识字段：不携带 effectDigest、authorizationDigest
  * 等任何摘要，不携带 prompt、工具响应、业务 payload 或 secret。字段值取自
- * <b>已验证许可</b>（权威来源），不从请求自报字段提取。</p>
+ * <b>许可本体</b>（而非请求自报的绑定投影）——拒绝路径上许可未必通过验证，
+ * 审计照常记录其治理标识。</p>
  *
  * <p>{@code outcomeCode} 表达<b>终态</b>结果码：拒绝路径必填（外码已知）；
  * 准入通过等中间事件尚无终态，骨架期允许缺失，FDD-AA-13 Envelope 执行

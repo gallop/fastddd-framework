@@ -4,8 +4,10 @@ import com.gallop.fastddd.agentaccess.contract.ActionOutcomeCode;
 import com.gallop.fastddd.agentaccess.contract.BusinessActionDescriptor;
 import com.gallop.fastddd.agentaccess.contract.InternalReason;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@link DescriptorRegistry} 静态受控实现：只接受构建期显式注册，
@@ -27,13 +29,15 @@ public final class StaticDescriptorRegistry implements DescriptorRegistry {
             new InternalReason("descriptor.version.drifted", ActionOutcomeCode.ACTION_NOT_EXPOSED);
 
     private final Map<String, BusinessActionDescriptor> registeredByExactKey;
-    private final java.util.Set<String> registeredActionIds;
+    private final Set<String> registeredActionIds;
 
     private StaticDescriptorRegistry(Map<String, BusinessActionDescriptor> registeredByExactKey) {
         this.registeredByExactKey = Map.copyOf(registeredByExactKey);
-        java.util.Set<String> ids = new java.util.HashSet<>();
-        registeredByExactKey.keySet().forEach(key -> ids.add(actionIdOf(key)));
-        this.registeredActionIds = java.util.Set.copyOf(ids);
+        // actionId 集合直接取自注册描述符，不从 exactKey 反解——
+        // actionVersion 若含 '@'，lastIndexOf 反解会误读 actionId（漂移误判为未注册）
+        Set<String> ids = new HashSet<>();
+        registeredByExactKey.values().forEach(descriptor -> ids.add(descriptor.actionId()));
+        this.registeredActionIds = Set.copyOf(ids);
     }
 
     /** 显式注册构建器（每个条目独立 add；重复 (actionId, actionVersion) 拒绝）。 */
@@ -69,10 +73,6 @@ public final class StaticDescriptorRegistry implements DescriptorRegistry {
         return actionId + "@" + actionVersion;
     }
 
-    private static String actionIdOf(String exactKey) {
-        return exactKey.substring(0, exactKey.lastIndexOf('@'));
-    }
-
     /** 显式注册构建器。 */
     public static final class Builder {
 
@@ -80,6 +80,10 @@ public final class StaticDescriptorRegistry implements DescriptorRegistry {
 
         /**
          * 显式注册一个描述符。
+         *
+         * <p>key 边界：{@code actionId + "@" + actionVersion} 拼接在标识本身含
+         * {@code @} 的极端场景下可能碰撞——碰撞表现为<b>误判重复而拒绝注册</b>
+         * （保守失败，不存在放行风险）；规范动作标识不含 {@code @}。</p>
          *
          * @throws IllegalArgumentException 描述符缺失或 (actionId, actionVersion) 重复
          */
