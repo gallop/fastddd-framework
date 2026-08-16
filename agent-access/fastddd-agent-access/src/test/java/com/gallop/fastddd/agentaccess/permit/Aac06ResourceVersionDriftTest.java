@@ -1,5 +1,6 @@
 package com.gallop.fastddd.agentaccess.permit;
 
+import com.gallop.fastddd.agentaccess.contract.ActionOutcomeCode;
 import com.gallop.fastddd.agentaccess.contract.AgentAccessProtocolVersions;
 import com.gallop.fastddd.agentaccess.contract.ActorType;
 import com.gallop.fastddd.agentaccess.contract.CallerContext;
@@ -9,6 +10,7 @@ import com.gallop.fastddd.agentaccess.contract.ReferenceDescriptorFixtures;
 import com.gallop.fastddd.agentaccess.contract.ResourceConstraints;
 import com.gallop.fastddd.agentaccess.contract.SubjectType;
 import com.gallop.fastddd.agentaccess.spi.PermitBindingView;
+import com.gallop.fastddd.agentaccess.spi.PermitVerificationException;
 import com.gallop.fastddd.agentaccess.spi.PermitVerifierConfig;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -82,17 +85,25 @@ class Aac06ResourceVersionDriftTest {
     @Test
     void resourceVersionValueDriftIsRejectedAsBindingMismatch() {
         // 审批时声明版本 42；执行时资源已演进为 43 —— 旧批准不覆盖新事实
-        assertThrows(com.gallop.fastddd.agentaccess.spi.PermitVerificationException.class,
-                () -> verifier().verify(permitWithExpectedVersion("42"), bindingWithExpectedVersion(
-                        permitWithExpectedVersion("42"), "43")));
+        ExecutionPermit permit = permitWithExpectedVersion("42");
+        PermitVerificationException rejected = assertThrows(
+                PermitVerificationException.class,
+                () -> verifier().verify(permit, bindingWithExpectedVersion(permit, "43")));
+        // 断言结构化外码而非仅异常类型：漂移必须收敛 BINDING_MISMATCH，
+        // 不得因误走 PERMIT_INVALID_OR_EXPIRED 路径而测绿
+        assertEquals(ActionOutcomeCode.PERMIT_BINDING_MISMATCH,
+                rejected.internalReason().outcome());
     }
 
     @Test
     void resourceVersionKeyRemovalIsRejectedAndMatchingVersionPasses() {
         ExecutionPermit permit = permitWithExpectedVersion("42");
         // 投影丢弃版本声明（单边缺失）→ 拒绝（presence-sensitive，不得默认通过）
-        assertThrows(com.gallop.fastddd.agentaccess.spi.PermitVerificationException.class,
+        PermitVerificationException rejected = assertThrows(
+                PermitVerificationException.class,
                 () -> verifier().verify(permit, bindingWithExpectedVersion(permit, null)));
+        assertEquals(ActionOutcomeCode.PERMIT_BINDING_MISMATCH,
+                rejected.internalReason().outcome());
         // 一致版本通过
         verifier().verify(permit, bindingWithExpectedVersion(permit, "42"));
     }

@@ -72,6 +72,16 @@ class SensitiveDataScannerTest {
     }
 
     @Test
+    void base64UrlVariantIsDetectedToo() {
+        // URL 安全变体（-/_ 字符集）≥40 字符同样是低熵裸串命中方向。
+        // 向量刻意由 -/_ 分隔成 <40 的段：旧正则（字符集不含 -_）逐段不足 40 不命中，
+        // 只有扩展后的字符集把整串视为一个 ≥40 命中——钉住 base64url 扩展的回归
+        String base64Url = "checkpoint=AbCdEf-LmNoPq_RsTuVw-XyZ012_3456789a-BcDeFg_HiJkLmNo";
+        assertTrue(scanner.scanText("checkpoint", base64Url).stream()
+                .anyMatch(f -> f.kind() == ScanFinding.FindingKind.LOW_ENTROPY_DIGEST));
+    }
+
+    @Test
     void cleanGovernedProjectionTextPasses() {
         // 治理投影形态（§10 白名单字段的正常值）：0 命中
         String clean = "tenant=acme action=ar.createCrmFollowup outcome=TARGET_AUTHORIZATION_DENIED "
@@ -127,6 +137,8 @@ class SensitiveDataScannerTest {
         // 空文本/空字段集：0 命中，不是错误
         assertTrue(scanner.isClean(scanner.scanText("row", "")));
         assertTrue(scanner.isClean(scanner.scanText("row", null)));
+        // null 命中清单是编程错误，fail-closed 拒绝（不得默认判为通过）
+        assertThrows(IllegalArgumentException.class, () -> scanner.isClean(null));
     }
 
     @Test

@@ -110,11 +110,15 @@ class EvidenceManifestValidatorTest {
     }
 
     @Test
-    void nullCollectionsNormalizeToEmptyNotError() {
-        assertTrue(validator.isValid(new EvidenceManifest(1,
+    void nullCollectionsNormalizeButZeroEvidenceManifestIsRejected() {
+        // null 集合归一化为空集合（构造不抛），但双空=零证据空壳，不得通过门禁
+        EvidenceManifest normalized = new EvidenceManifest(1,
                 "g:a:1", "sha256:" + "a".repeat(64),
                 null, null, null, null, null,
-                OffsetDateTime.of(2026, 8, 16, 6, 0, 0, 0, ZoneOffset.UTC))));
+                OffsetDateTime.of(2026, 8, 16, 6, 0, 0, 0, ZoneOffset.UTC));
+        List<String> issues = validator.validate(normalized);
+        assertTrue(issues.stream().anyMatch(i -> i.contains("零证据")));
+        assertFalse(validator.isValid(normalized));
     }
 
     @Test

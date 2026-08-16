@@ -16,13 +16,17 @@ import java.util.regex.Pattern;
  *   <li>制品坐标非空白、checksum 形态为 {@code sha256:}+64 位小写 hex；</li>
  *   <li>testResults 与 registeredOnlyTestIds 的每个 ID 必须出自 {@link TestIdCatalog}
  *       全集，且两集合不相交（同一 ID 不得既执行又只登记）；</li>
+ *   <li>testResults 与 registeredOnlyTestIds 不得同时为空（零证据空壳不通过）；</li>
  *   <li>任一 PASSED 时 {@code sensitiveScanFindings} 必须为空（AST-02：
  *       敏感扫描 0 命中是 PASSED 的必要条件）；</li>
  *   <li>generatedAt 必选。</li>
  * </ol>
  *
  * <p>本校验器不证明「测试真实运行过」——它校验填报结构的一致性；
- * 执行真实性由构建产物（surefire 报告、conformance 输出）与 checksum 对账承载。</p>
+ * 执行真实性由构建产物（surefire 报告、conformance 输出）与 checksum 对账承载。
+ * {@code FAILED}/{@code SKIPPED} 是合法记录形态、不产生结构 issue；「存在 FAILED
+ * 即不得宣称全绿」的全绿门禁由宿主对 {@code testResults} 迭代执行，本类不越权
+ * 替宿主做执行语义判断。</p>
  */
 public final class EvidenceManifestValidator {
 
@@ -61,13 +65,14 @@ public final class EvidenceManifestValidator {
                 issues.add("test ID 同时出现在执行结果与只登记集合：" + entry.getKey()
                         + "（不得既宣称执行又只登记）");
             }
-            if (entry.getValue() == null) {
-                issues.add("testResults 结果缺失：" + entry.getKey());
-            }
         }
         boolean anyPassed = manifest.testResults().containsValue(TestOutcome.PASSED);
         if (anyPassed && !manifest.sensitiveScanFindings().isEmpty()) {
             issues.add("存在 PASSED 但敏感扫描非 0 命中（AST-02：0 命中是 PASSED 的必要条件）");
+        }
+        if (manifest.testResults().isEmpty() && manifest.registeredOnlyTestIds().isEmpty()) {
+            issues.add("零证据 manifest：testResults 与 registeredOnlyTestIds 至少其一非空"
+                    + "（空壳清单不得通过门禁）");
         }
         if (manifest.generatedAt() == null) {
             issues.add("generatedAt 必选");

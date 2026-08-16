@@ -1,7 +1,10 @@
 # fastddd-agent-access-contract-kit
 
-FastDDD Agent Access 治理契约测试工具包（普通 jar，**compile scope 传递 JUnit5/Testcontainers/ArchUnit**，
-版本由本 kit POM 统一管理）。宿主在 test scope 引入本 kit 即可复用四族工具，无需自配测试框架版本。
+FastDDD Agent Access 治理契约测试工具包（普通 jar）。**compile scope 传递**给宿主 test scope 的依赖只有：
+`junit-jupiter-api`（conformance 基类编译域）、ArchUnit（`arch` 规则）、`spring-context`
+（`AgentAccessAssemblyValidator` 需要）。Testcontainers/postgresql/assertj 与 junit-jupiter
+引擎为 kit 自身 test scope，**不传递**——宿主在真实表上执行 conformance 基类时须自配
+Testcontainers 与 JUnit 引擎。
 
 ## 定位与边界
 

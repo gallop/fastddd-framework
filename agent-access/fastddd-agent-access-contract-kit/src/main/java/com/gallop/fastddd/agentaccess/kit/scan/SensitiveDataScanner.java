@@ -59,8 +59,8 @@ public final class SensitiveDataScanner {
     /** 未标注长 hex 串（≥32 位 = 至少 sha-256 输出长度） */
     private static final Pattern BARE_HEX = Pattern.compile("(?i)(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])");
 
-    /** 未标注长 base64 串（≥40 字符且 base64 字符集） */
-    private static final Pattern BARE_BASE64 = Pattern.compile("(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/])");
+    /** 未标注长 base64/base64url 串（≥40 字符，字符集含 RFC 4648 标准与 URL 安全变体） */
+    private static final Pattern BARE_BASE64 = Pattern.compile("(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{40,}={0,2}(?![A-Za-z0-9+/_-])");
 
     /**
      * 审计投影白名单字段名（Contract §10）：从 {@code AuditProjection} record
@@ -113,9 +113,17 @@ public final class SensitiveDataScanner {
         return List.copyOf(findings);
     }
 
-    /** 0 命中=通过（AST-02 验收） */
+    /**
+     * 0 命中=通过（AST-02 验收）。
+     *
+     * @throws IllegalArgumentException findings 为 null——缺失的命中清单是编程错误，
+     *                                  按本扫描器 fail-closed 姿态拒绝，不默认视为通过
+     */
     public boolean isClean(List<ScanFinding> findings) {
-        return findings == null || findings.isEmpty();
+        if (findings == null) {
+            throw new IllegalArgumentException("findings 必选（null 命中清单不得默认判为通过）");
+        }
+        return findings.isEmpty();
     }
 
     private void collectPatternMatches(List<ScanFinding> findings, String label, String text,
