@@ -139,15 +139,51 @@
         "id": "8",
         "title": "FDD-AA-11 Permit 验证与两段式授权 SPI",
         "description": "实现双端 PEP 的 FastDDD 执行点与 Permit fail-closed 全字段验证，关闭 TOCTOU：Permit carrier/Verifier、两段式授权 Port、EntitlementRevision、typed Decision/Obligation",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           "7"
         ],
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-11 / AA-04 §9）：双端 PEP 的 FastDDD 执行点、关闭 TOCTOU。\n\n落点：\n1. .permit Permit carrier 默认实现（package-private 构造）+ 受控 PermitIssuer（唯一实现，Validator 唯一性校验；owner gallop，SEC-0 点名）\n2. .spi ExecutionPermitVerifier 显式安全 Bean：fail-closed 全字段（版本/字段/时间窗/issuer/audience/sender + Envelope 全字段绑定比对；clock skew 可配置上界，TM-20 关联）\n3. .spi TargetAdmissionAuthorizationPort + ResourceAuthorizationPort 两段式授权（事务外准入预检 + 事务内资源终检；deny-overrides；INDETERMINATE 拒绝；事务内终检不调远程 PDP——TM-19）\n4. EntitlementRevision CAS 断言（事务内）；typed Decision/Obligation（允许集合求交、必做义务求并、数值上限取更严格值、未知类型 fail-closed）\n5. PDP 失效策略：唯一允许降级=仍在适用窗口内的已验证本地决定（policyVersion/decisionDigest 一致 + TTL 未过 + revision 未漂移三要素缺一不可）\n\n代码 owner=gallop（D2，SEC-0 issuer/verifier/两段式均点名）。依赖：FDD-AA-10",
         "testStrategy": "验收判定（Phase baseline §7）：无 Permit 不放行；PDP/Verifier 故障 fail-closed；准入后撤销 ACL 终检拒绝。\n\n验证步骤：\n1. AAC-01/18：FastAgent ALLOW + FastDDD DENY 象限 → 业务表 0 变更\n2. AAC-02：无 Permit 调用 → 拒绝；AAC-03/04 + AST-01：forged/expired/wrong-audience Permit、Verifier Bean 缺失、PDP 超时/INDETERMINATE → 全部 fail-closed 拒绝\n3. AAC-15：预检后撤 ACL/改归属 → 终检拒绝 + revision 漂移记录\n4. fresh-context 对抗审查（§13.7）\n\n负向要求：禁止任何默认 allow、无限期缓存、跨 policyVersion 复用缓存决定；缺 Verifier Bean 不得静默降级",
-        "subtasks": [],
-        "updatedAt": "2026-08-16T04:13:52.000Z"
+        "subtasks": [
+          {
+            "id": "8.1",
+            "title": ".contract ExecutionPermit 协议 DTO",
+            "status": "done",
+            "dependencies": [],
+            "description": "Effect 枚举（READ/WRITE/TASK，§5.2 冻结语义：WRITE 同步提交/TASK 异步受理同幂等键/READ 四约束）；ResourceConstraints 最小 record（resourceTypes 必选非空 + resourceIdConstraints/dataScope 可选，结构未细化处 javadoc 标注最小承载、细化随 FDD-AA-12，防过早冻结）；UsageLimit(Long)/DataBudget(maxRows/maxFields/maxBytes) READ 按 Descriptor 可选；ExecutionPermit record 23 组件 implements ExecutionPermitCarrier（caller() 组件即接口实现，不破坏 7.2 冻结的最小性）；紧致校验统一 IAE：17 必选非空、schemaVersion=0.1、notBefore<expiresAt 结构校验（时刻有效性留 Verrier）"
+          },
+          {
+            "id": "8.2",
+            "title": ".spi 验证与签发 SPI 接口",
+            "status": "done",
+            "dependencies": [],
+            "description": "PermitIssuer 接口（本地受控签发）；ExecutionPermitVerifier 接口（fail-closed 全字段验证的契约）；PermitBindingView（Envelope 治理字段投影：tenant/environment/action/version/effect/purpose/businessOperationId/externalIdempotencyKey/三摘要等——Envelope 完整 DTO 归 FDD-AA-12，落地时投影适配，§5.5 安全绑定组逐项比对）；VerifierConfig（clock skew 可配置上界，TM-20）"
+          },
+          {
+            "id": "8.3",
+            "title": ".permit 受控默认实现与 Validator 唯一性扩充",
+            "status": "done",
+            "dependencies": [],
+            "description": "LOCAL_OBJECT carrier 默认实现（package-private 构造）；LocalPermitIssuer（PermitIssuer 受控唯一实现）；DefaultExecutionPermitVerifier（版本/必选/时间窗含 skew 上界/issuer 受信名单/audience 匹配/PermitBindingView 同名字段逐项比对，全 fail-closed；sender/confirmation 检查骨架期 LOCAL_OBJECT 可选、REMOTE 强化如实标注）；kit AgentAccessAssemblyValidator 扩充唯一性清单（PermitIssuer 恰好 1 个 Bean，禁止宿主第二实现——AA-04 §125/126）"
+          },
+          {
+            "id": "8.4",
+            "title": ".spi 两段式授权与 typed Decision/Obligation",
+            "status": "done",
+            "dependencies": [],
+            "description": "TargetAdmissionAuthorizationPort（事务外准入预检）+ ResourceAuthorizationPort（事务内资源终检，不调远程 PDP——TM-19）；EntitlementRevision 值类型 + 事务内 CAS 断言语义（事务边界接线归 FDD-AA-12，javadoc 如实表达）；AuthorizationDecision（PERMIT/DENY/INDETERMINATE，deny-overrides、INDETERMINATE 拒绝）与 Obligation 合成规则（允许集合求交、必做义务求并、数值上限取更严格值、未知类型 fail-closed）；PDP 失效唯一允许降级=已验证本地决定（policyVersion/decisionDigest 一致 + TTL 未过 + revision 未漂移三要素缺一不可）"
+          },
+          {
+            "id": "8.5",
+            "title": "AAC/AST 负向测试（骨架期语义级）",
+            "status": "done",
+            "dependencies": [],
+            "description": "无 Permit 拒绝（AAC-02）；forged/expired/wrong-audience Permit、缺 Verifier Bean、PDP 超时/INDETERMINATE 全 fail-closed（AAC-03/04+AST-01）；deny 合成（FastAgent ALLOW+FastDDD DENY 象限→无放行路径，AAC-01/18 语义级——完整业务表 0 变更验收需 FDD-AA-12/16 宿主接线，测试注释如实标注层级不得宣称完整通过）；预检后撤 ACL/revision 漂移→终检拒绝（AAC-15 语义级）；本地决定降级三要素负向（跨 policyVersion/过期 TTL/漂移 revision 均拒绝）"
+          }
+        ],
+        "updatedAt": "2026-08-16T04:16:32.000Z"
       },
       {
         "id": "9",
@@ -233,7 +269,7 @@
       "version": "1.0.0",
       "lastModified": "2026-08-16T00:00:00.000Z",
       "taskCount": 13,
-      "completedCount": 7,
+      "completedCount": 8,
       "tags": [
         "master"
       ],
