@@ -25,6 +25,8 @@
   <modules>
     <module>fastddd-agent-access</module>
     <module>fastddd-agent-access-contract-kit</module>
+    <!-- FDD-AA-16：BOM 进默认 reactor（发布面；AA-04 §3.1 三模块收齐） -->
+    <module>fastddd-agent-access-bom</module>
   </modules>
 
   <!--

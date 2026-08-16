@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  fastddd-agent-access-bom（FDD-AA-16 / AA-04 §2.1、§3.1）
+
+  Phase 1A 候选制品的版本对齐入口：宿主 import 本 BOM 后按需引入
+  fastddd-agent-access（compile）与 fastddd-agent-access-contract-kit（test），
+  无需自配版本。四版本轴解耦声明（AA-04 §2.2）：本 BOM 只管理制品轴
+  （0.1.0-jdk21-alpha.1），不隐含契约文档轴（fastddd-agent-access/0.1）、
+  wire schemaVersion（"0.1"）或 digestSchemaVersion（1）。
+
+  不管理（骨架期冻结）：
+  - fast-ddd-application:1.0.0-jdk21-rc1（RC1 仅是兼容基线非 Phase 1A 制品，
+    AA-04 §2.3；由宿主/主制品 POM 各自声明）；
+  - com.gallop.fastagent:*（L3 制品，两侧 core 互不依赖——ADR-007；真实
+    carrier 的 test 域消费只在 carrier-conformance profile 模块，不经 BOM）。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fastddd-agent-access-parent</artifactId>
+    <version>0.1.0-jdk21-alpha.1</version>
+  </parent>
+
+  <artifactId>fastddd-agent-access-bom</artifactId>
+  <packaging>pom</packaging>
+
+  <name>FastDDD Agent Access BOM (experimental line)</name>
+  <description>Phase 1A experimental 制品版本对齐（仅制品轴；AA-04 §2.2 四轴解耦）</description>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-agent-access</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-agent-access-contract-kit</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

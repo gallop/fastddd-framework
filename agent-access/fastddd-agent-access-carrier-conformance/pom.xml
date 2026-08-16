@@ -56,6 +56,16 @@
       <version>0.4.0-alpha.1</version>
       <scope>test</scope>
     </dependency>
+    <!-- FastAgent Artifact B（V04-07 Permit carrier）：IssuedExecutionPermit /
+         PermitIssuanceService 所在制品的显式坐标消费（FDD-AA-16 判定物——
+         不再只经 adapter 传递域到达；坐标/SHA-256 见 FastAgent 仓
+         fastagent-v04-m1-artifact-registration.md §3/§6） -->
+    <dependency>
+      <groupId>com.gallop.fastagent</groupId>
+      <artifactId>fastagent-security</artifactId>
+      <version>0.4.0-alpha.1</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
