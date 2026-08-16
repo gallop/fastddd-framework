@@ -20,8 +20,8 @@ class CallerContextTest {
 
     private static final OffsetDateTime AUTH_TIME = OffsetDateTime.parse("2026-08-16T03:00:00Z");
 
-    /** Contract §5.1 表序的合法样板（Agent 场景：HUMAN subject + AGENT actor）。 */
-    private static CallerContext validAgentCaller() {
+    /** Contract §5.1 表序的合法样板（Agent 场景：HUMAN subject + AGENT actor；同包测试复用）。 */
+    static CallerContext validAgentCaller() {
         return new CallerContext(
                 AgentAccessProtocolVersions.WIRE_SCHEMA_VERSION,
                 "subject-alice",
