@@ -361,7 +361,7 @@
         "id": "12",
         "title": "FDD-AA-15 Contract Kit 与安全负向矩阵全量",
         "description": "宿主可消费的 P0 全覆盖 Kit：Kit 制品化（普通 jar、test scope 消费）、AAC+AST 全量执行、敏感数据扫描、证据 manifest schema",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           "8",
           "9",
@@ -369,9 +369,50 @@
           "11"
         ],
         "priority": "high",
-        "details": "目标（Phase baseline §7 FDD-AA-15 / AA-04 §9）：宿主可消费的 P0 全覆盖 Kit。\n\n落点（AA-04 §7 四条）：\n1. Kit 制品化：普通 jar 制品（禁 test-jar classifier、禁 reactor 内 ../ 相对路径依赖偷渡）；kit POM 管理 JUnit5/Testcontainers/ArchUnit 版本，宿主 test scope 消费无需自配\n2. AAC-01～18 + AST-01～08 全量自动化（test ID 全集以 AA-03 矩阵 §1～§4 为准）+ golden vectors 资源（GV-01～07 + UTF-16 边界补充向量）\n3. 敏感数据扫描（AST-02）：<audit>/<outbox>/日志产物 token 模式、prompt 关键词、字段白名单 diff、熵扫描，0 命中为通过\n4. 证据 manifest schema 随 kit 发布（AAC/AST 执行记录 + 制品 checksum + SQL 前后断言快照）；SEC-1A Attestation「测试 ID」字段直接引用其输出\n5. AgentAccessAssemblyValidator 完整版（七类八 Bean 存在性 + 条件化注解扫描 → 启动 fail-fast）\n\n禁令：kit 发布前不得以主仓 example 冒充宿主消费证据（SEC-1A NO-GO 第 1 条同源）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-11～14",
+        "details": "目标（Phase baseline §7 FDD-AA-15 / AA-04 §9）：宿主可消费的 P0 全覆盖 Kit。\n\n落点（AA-04 §7 四条）：\n1. Kit 制品化：普通 jar 制品（禁 test-jar classifier、禁 reactor 内 ../ 相对路径依赖偷渡）；kit POM 管理 JUnit5/Testcontainers/ArchUnit 版本，宿主 test scope 消费无需自配\n2. AAC-01～18 + AST-01～08 全量自动化（test ID 全集以 AA-03 矩阵 §1～§4 为准）+ golden vectors 资源（GV-01～07 + UTF-16 边界补充向量）\n3. 敏感数据扫描（AST-02）：<audit>/<outbox>/日志产物 token 模式、prompt 关键词、字段白名单 diff、熵扫描，0 命中为通过\n4. 证据 manifest schema 随 kit 发布（AAC/AST 执行记录 + 制品 checksum + SQL 前后断言快照）；SEC-1A Attestation「测试 ID」字段直接引用其输出\n5. AgentAccessAssemblyValidator 完整版（七类八 Bean 存在性 + 条件化注解扫描 → 启动 fail-fast）\n\n禁令：kit 发布前不得以主仓 example 冒充宿主消费证据（SEC-1A NO-GO 第 1 条同源）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-11～14\n\n[2026-08-16 展开] 5 subtask：12.1 AST-02 扫描器 / 12.2 manifest schema / 12.3 AAC 显式负向 / 12.4 故障注入+AST-06 / 12.5 制品化+全集对照。范围裁决：Kit 只提供 conformance 与负向载体，不实现新执行语义（READ 步骤 8 编排、预算账本、资源终检步骤 9/11 归宿主/后续任务）；跨仓半边显式登记不冒充。",
         "testStrategy": "验收判定（Phase baseline §5/§7 FDD-AA-15）：Contract AAC-01～18 和威胁模型全部 P0 可自动执行；Kit 可由仓库外干净消费。\n\n验证步骤：\n1. AA-03 矩阵全部 test ID（AAC-01～18、AST-01～08、GV-01～07）在 kit 中全部可执行且负向断言（零业务效果）通过\n2. Threat §12 十九类安全测试全部映射并执行（矩阵 §4 映射表）\n3. kit 从安装制品（非 reactor）被消费的冒烟验证\n4. 敏感数据扫描 0 命中证据归档\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：禁 test-jar/reactor 偷渡；禁以 example 冒充宿主消费证据；manifest 缺失或 schema 不符不得通过",
-        "subtasks": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Kit 敏感数据扫描器（AST-02）",
+            "description": "kit main 新增 SensitiveDataScanner：token 模式匹配、prompt 关键词、字段白名单 diff（Contract §10 十字段 + Receipt committed 白名单）、低熵裸摘要检测；前缀标注 digest（sha256:）豁免防误报；输出 ScanFinding 列表，0 命中=通过。纯 JDK。AA-03 §8.4：对 audit/outbox/日志产物扫描进证据 manifest。",
+            "dependencies": [],
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Kit 证据 manifest schema 与校验器（AA-04 §7.4）",
+            "description": "kit main 新增 EvidenceManifest（schemaVersion/制品坐标+checksum/testId→执行结果/SQL 前后断言快照引用/调用账本引用/敏感扫描结果）+ EvidenceManifestValidator（字段完备性、hash 格式、test ID 登记范围校验）。承接 AA-05 R8「FDD-AA-15 后由 kit schema 校验器自动化」。校验器只做 schema 校验，不生成执行事实——「已执行」与「登记范围」显式区分。",
+            "dependencies": [],
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "主制品 AAC 负向矩阵补齐（显式 test ID）",
+            "description": "对已实现组件补显式 AAC 编号测试：AAC-01/18 四象限（仅双 PERMIT 进接缝，其余 Rejected+零业务效果）、AAC-02 无有效 Permit、AAC-06 版本漂移收敛 PRECONDITION_CHANGED/RESOURCE_VERSION_CONFLICT、AAC-12 人工入口不依赖 FastAgent、AAC-15 EntitlementRevision 漂移终检拒绝、AAC-11/AST-07 READ 超界（DTO+Decision 层负向；时间窗/速率编排未实现如实标注）。不实现新执行语义。",
+            "dependencies": [],
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "AST-01 故障注入 SPI 与 AST-06 kit 规则扩展",
+            "description": "kit main 故障注入工具（Port 包装器：超时/抛错/INDETERMINATE）+ 主制品 fail-closed 显式场景（PDP INDETERMINATE→拒绝不降级、Verifier 缺 Bean→装配 fail-fast 已有对照）；AST-06 egress 宿主参数化规则导出（noFastAgentDependency 基础上显式 noFastAgentAuthorityTypes）。",
+            "dependencies": [],
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Kit 制品化验证与 test ID 全集对照登记",
+            "description": "kit POM 消费形态断言（compile 传递 ArchUnit/JUnit，宿主 test scope 无需自配；PostgreSqlDedupConformanceTest 即 reactor 内消费证明，clean consumer 归 FDD-AA-16）；AAC-01~18/AST-01~08/GV 全集三分类对照（本仓实现/kit conformance 承载/宿主或跨仓归属——Python GV 复算、V04-04 联测显式登记不冒充）；mvn 全量门禁。",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "status": "pending"
+          }
+        ],
         "updatedAt": "2026-08-16T00:00:00.000Z"
       },
       {
