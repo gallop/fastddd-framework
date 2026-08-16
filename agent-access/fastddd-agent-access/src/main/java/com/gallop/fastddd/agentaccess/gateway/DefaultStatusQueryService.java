@@ -68,7 +68,9 @@ public final class DefaultStatusQueryService implements StatusQueryService {
     }
 
     private StatusQueryResult convergeByRecord(ReconciliationPermit permit) {
-        OutcomeRecordView view = statusPort.find(new DedupKey(permit.tenantId(), permit.businessOperationId()));
+        // allowedProjection 原样透传（§5.7 冻结绑定面）：数据最小化由拥有数据的宿主执行
+        OutcomeRecordView view = statusPort.find(
+                new DedupKey(permit.tenantId(), permit.businessOperationId()), permit.allowedProjection());
         return switch (view) {
             case OutcomeRecordView.Recorded recorded -> convergeRecorded(permit, recorded.receipt());
             case OutcomeRecordView.InFlight inFlight -> inProgressResult(permit);
@@ -85,9 +87,14 @@ public final class DefaultStatusQueryService implements StatusQueryService {
     }
 
     private StatusQueryResult convergeRecorded(ReconciliationPermit permit, BusinessActionReceipt receipt) {
+        // §5.7 许可绑定面逐项复验（AAC-16 同构）：tenant/businessOperationId/bindingRef/
+        // actionId/actionVersion/audience 任一错位即「原 binding 不可证明」
         boolean originalBindingProvable = receipt.tenantId().equals(permit.tenantId())
                 && receipt.businessOperationId().equals(permit.businessOperationId())
-                && receipt.bindingRef().equals(permit.bindingRef());
+                && receipt.bindingRef().equals(permit.bindingRef())
+                && receipt.actionId().equals(permit.actionId())
+                && receipt.actionVersion().equals(permit.actionVersion())
+                && receipt.audience().equals(permit.audience());
         if (!originalBindingProvable) {
             // AAC-16 同构完整性错位：不可证明即 UNKNOWN；不泄露差异细因，不切换新 binding 收敛成功（AST-08）
             return new StatusQueryResult(new BusinessActionStatus.Unknown(),

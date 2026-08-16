@@ -34,7 +34,15 @@ public sealed interface BusinessActionStatus {
         }
     }
 
-    /** 确定失败：携带失败分类（外部稳定结果码，非内部细因）。 */
+    /**
+     * 确定失败：携带失败分类（外部稳定结果码，非内部细因）。
+     *
+     * <p>失败分类域 = 十二码减 {@code ALREADY_COMPLETED}（已提交态，经
+     * {@link Completed} 收敛）减 {@code UNKNOWN}（可证明性状态，不是错误
+     * 分类，§9.3 禁止映射为任何具体失败）——即十个失败分类码，含
+     * {@code TARGET_TEMPORARILY_UNAVAILABLE}（该<b>次</b>操作确定未提交；
+     * 原键重试是后续 attempt，不改变本次终态）。</p>
+     */
     record FailedFinal(ActionOutcomeCode outcomeCode) implements BusinessActionStatus {
 
         public FailedFinal {
@@ -44,6 +52,10 @@ public sealed interface BusinessActionStatus {
             if (outcomeCode == ActionOutcomeCode.ALREADY_COMPLETED) {
                 throw new IllegalArgumentException(
                         "ALREADY_COMPLETED 是已提交态，不得作为 FAILED_FINAL 分类（应经 COMPLETED 收敛）");
+            }
+            if (outcomeCode == ActionOutcomeCode.UNKNOWN) {
+                throw new IllegalArgumentException(
+                        "UNKNOWN 是可证明性状态而非错误分类（§9.3），不得作为 FAILED_FINAL 分类（应经 UNKNOWN 态承载）");
             }
         }
 

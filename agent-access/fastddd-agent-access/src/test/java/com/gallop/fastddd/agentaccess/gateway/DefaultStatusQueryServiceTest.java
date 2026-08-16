@@ -67,11 +67,18 @@ class DefaultStatusQueryServiceTest {
 
     private static BusinessActionReceipt receipt(ActionOutcomeCode outcomeCode, String tenantId,
                                                  String businessOperationId, String bindingRef) {
+        return receipt(outcomeCode, tenantId, businessOperationId, bindingRef,
+                "ar.createCrmFollowup", "1", AUDIENCE);
+    }
+
+    private static BusinessActionReceipt receipt(ActionOutcomeCode outcomeCode, String tenantId,
+                                                 String businessOperationId, String bindingRef,
+                                                 String actionId, String actionVersion, String audience) {
         boolean committed = outcomeCode == ActionOutcomeCode.ALREADY_COMPLETED;
         return new BusinessActionReceipt(
                 AgentAccessProtocolVersions.WIRE_SCHEMA_VERSION, tenantId, businessOperationId,
-                "ar.createCrmFollowup", "1", "sha256:a",
-                "https://fastddd.target.example", AUDIENCE, bindingRef, null, outcomeCode,
+                actionId, actionVersion, "sha256:a",
+                "https://fastddd.target.example", audience, bindingRef, null, outcomeCode,
                 committed ? "cmd-1" : null,
                 committed ? "arFollowup/FOLLOW-001" : null,
                 committed ? "8" : null,
@@ -162,7 +169,7 @@ class DefaultStatusQueryServiceTest {
     void verificationFailureIsUniformlyNotVisibleWithoutRecordRead() {
         // 三种失败形态（workload 错配/许可过期/issuer 不受信）响应不可区分，且都不读记录
         int[] findCalls = {0};
-        OutcomeStatusPort countingPort = key -> {
+        OutcomeStatusPort countingPort = (key, allowedProjection) -> {
             findCalls[0]++;
             return new OutcomeRecordView.Recorded(
                     receipt(ActionOutcomeCode.ALREADY_COMPLETED, TENANT, BOP_ID, BINDING_REF));
@@ -191,30 +198,41 @@ class DefaultStatusQueryServiceTest {
     @Test
     void verificationPrecedesRecordRead() {
         List<String> events = new ArrayList<>();
+        List<String> projections = new ArrayList<>();
         ReconciliationPermitVerifier recordingVerifier = (permit, workloadId) -> {
             events.add("verify");
             return verifier().verify(permit, workloadId);
         };
         InMemoryOutcomeStatusStore store = new InMemoryOutcomeStatusStore();
-        OutcomeStatusPort recordingPort = key -> {
+        OutcomeStatusPort recordingPort = (key, allowedProjection) -> {
             events.add("find");
-            return store.find(key);
+            projections.add(allowedProjection);
+            return store.find(key, allowedProjection);
         };
         StatusQueryService service = new DefaultStatusQueryService(recordingVerifier, recordingPort);
         service.queryStatus(validPermit(), RECOVERY_WORKLOAD);
         assertEquals(List.of("verify", "find"), events, "验证必须先于记录读取（§5.7：授权不依赖二元键，先验证后读键）");
+        assertEquals(List.of("status-minimal"), projections,
+                "许可冻结的 allowedProjection 必须原样透传宿主（§5.7 绑定面；数据最小化执行点在宿主）");
     }
 
     @Test
     void misboundRecordedReceiptStaysUnknownUniformly() {
-        // AAC-16 同构：tenant/bopId/bindingRef 任一错位都不可证明——统一 UNKNOWN，无差异信道
+        // AAC-16 同构 + §5.7 绑定面：tenant/bopId/bindingRef/actionId/actionVersion/audience
+        // 任一错位都不可证明——统一 UNKNOWN，无差异信道
         List<OutcomeRecordView> misbound = List.of(
                 new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
                         "OTHER-TENANT", BOP_ID, BINDING_REF)),
                 new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
                         TENANT, "bop-OTHER", BINDING_REF)),
                 new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
-                        TENANT, BOP_ID, "binding-NEW")));
+                        TENANT, BOP_ID, "binding-NEW")),
+                new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
+                        TENANT, BOP_ID, BINDING_REF, "ar.OTHER-action", "1", AUDIENCE)),
+                new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
+                        TENANT, BOP_ID, BINDING_REF, "ar.createCrmFollowup", "9", AUDIENCE)),
+                new OutcomeRecordView.Recorded(receipt(ActionOutcomeCode.ALREADY_COMPLETED,
+                        TENANT, BOP_ID, BINDING_REF, "ar.createCrmFollowup", "1", "other-service")));
         StatusQueryResult first = null;
         for (OutcomeRecordView view : misbound) {
             StatusQueryResult result = service(view).queryStatus(validPermit(), RECOVERY_WORKLOAD);

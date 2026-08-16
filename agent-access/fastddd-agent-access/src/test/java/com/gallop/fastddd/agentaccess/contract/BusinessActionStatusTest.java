@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * §5.7 五态 sealed 形态：visibility 逐态映射、COMPLETED 必携带稳定 Receipt、
- * FAILED_FINAL 拒收 ALREADY_COMPLETED（已提交态应经 COMPLETED 收敛）、
- * NOT_VISIBLE 零负载不泄露存在性。
+ * FAILED_FINAL 拒收 ALREADY_COMPLETED（已提交态应经 COMPLETED 收敛）与
+ * UNKNOWN（可证明性状态非错误分类，§9.3）、NOT_VISIBLE 零负载不泄露存在性。
  */
 class BusinessActionStatusTest {
 
@@ -45,9 +45,11 @@ class BusinessActionStatusTest {
     }
 
     @Test
-    void failedFinalRejectsCommittedAndNullClassification() {
+    void failedFinalRejectsCommittedUnprovableAndNullClassification() {
+        // ALREADY_COMPLETED=已提交（经 COMPLETED 收敛）；UNKNOWN=可证明性状态
+        // 不是错误分类（§9.3，经 UNKNOWN 态承载）
         List<ActionOutcomeCode> invalid = java.util.Arrays.asList(
-                ActionOutcomeCode.ALREADY_COMPLETED, null);
+                ActionOutcomeCode.ALREADY_COMPLETED, ActionOutcomeCode.UNKNOWN, null);
         for (ActionOutcomeCode code : invalid) {
             assertThrows(IllegalArgumentException.class,
                     () -> new BusinessActionStatus.FailedFinal(code), "非法 FAILED_FINAL 分类：" + code);

@@ -12,10 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class InMemoryOutcomeStatusStoreTest {
 
     private static final DedupKey KEY = new DedupKey("acme", "bop-2026-0001");
+    private static final String PROJECTION = "status-minimal";
 
     @Test
     void unknownKeyDefaultsToAbsent() {
-        assertInstanceOf(OutcomeRecordView.Absent.class, new InMemoryOutcomeStatusStore().find(KEY));
+        assertInstanceOf(OutcomeRecordView.Absent.class, new InMemoryOutcomeStatusStore().find(KEY, PROJECTION));
     }
 
     @Test
@@ -23,20 +24,23 @@ class InMemoryOutcomeStatusStoreTest {
         InMemoryOutcomeStatusStore store = new InMemoryOutcomeStatusStore();
         OutcomeRecordView.InFlight inFlight = new OutcomeRecordView.InFlight();
         store.put(KEY, inFlight);
-        assertSame(inFlight, store.find(KEY));
+        assertSame(inFlight, store.find(KEY, PROJECTION));
         // 覆盖式写入：测试组装状态演进（类注已如实标注非追加写语义）
         OutcomeRecordView.Absent absent = new OutcomeRecordView.Absent();
         store.put(KEY, absent);
-        assertSame(absent, store.find(KEY));
+        assertSame(absent, store.find(KEY, PROJECTION));
         // 键作用域：其他租户/其他操作不可达
-        assertInstanceOf(OutcomeRecordView.Absent.class, store.find(new DedupKey("acme", "bop-OTHER")));
-        assertInstanceOf(OutcomeRecordView.Absent.class, store.find(new DedupKey("OTHER", KEY.businessOperationId())));
+        assertInstanceOf(OutcomeRecordView.Absent.class, store.find(new DedupKey("acme", "bop-OTHER"), PROJECTION));
+        assertInstanceOf(OutcomeRecordView.Absent.class,
+                store.find(new DedupKey("OTHER", KEY.businessOperationId()), PROJECTION));
     }
 
     @Test
     void nullArgumentsAreProgrammingErrors() {
         InMemoryOutcomeStatusStore store = new InMemoryOutcomeStatusStore();
-        assertThrows(IllegalArgumentException.class, () -> store.find(null));
+        assertThrows(IllegalArgumentException.class, () -> store.find(null, PROJECTION));
+        assertThrows(IllegalArgumentException.class, () -> store.find(KEY, null));
+        assertThrows(IllegalArgumentException.class, () -> store.find(KEY, "  "));
         assertThrows(IllegalArgumentException.class, () -> store.put(null, new OutcomeRecordView.InFlight()));
         assertThrows(IllegalArgumentException.class, () -> store.put(KEY, null));
     }

@@ -62,6 +62,14 @@ class StatusQueryResultTest {
         // UNKNOWN 收敛携带非 UNKNOWN 终态
         assertThrows(IllegalArgumentException.class, () -> new StatusQueryResult(
                 new BusinessActionStatus.Unknown(), audit(ActionOutcomeCode.ALREADY_COMPLETED), null));
+        // UNKNOWN + tombstoneRef 仍不得携带非 UNKNOWN 终态（含 tombstone 场景的矩阵收紧）
+        assertThrows(IllegalArgumentException.class, () -> new StatusQueryResult(
+                new BusinessActionStatus.Unknown(), audit(ActionOutcomeCode.BUSINESS_RULE_VIOLATION), "ts-001"));
+        // IN_PROGRESS/NOT_VISIBLE 无终态结果码，不得伪填（§9.3）
+        assertThrows(IllegalArgumentException.class, () -> new StatusQueryResult(
+                new BusinessActionStatus.InProgress(), audit(ActionOutcomeCode.UNKNOWN), null));
+        assertThrows(IllegalArgumentException.class, () -> new StatusQueryResult(
+                new BusinessActionStatus.NotVisible(), audit(ActionOutcomeCode.UNKNOWN), null));
     }
 
     @Test

@@ -28,10 +28,15 @@ public final class InMemoryOutcomeStatusStore implements OutcomeStatusPort {
     }
 
     @Override
-    public OutcomeRecordView find(DedupKey key) {
+    public OutcomeRecordView find(DedupKey key, String allowedProjection) {
         if (key == null) {
             throw new IllegalArgumentException("key 必选");
         }
+        if (allowedProjection == null || allowedProjection.isBlank()) {
+            throw new IllegalArgumentException("allowedProjection 必选且不得为空白（§5.7 许可绑定面透传）");
+        }
+        // 如实标注：参考实现不执行字段级投影（形态未冻结），原样返回已存视图；
+        // 真实宿主实现必须按 allowedProjection 施加数据最小化（见 OutcomeStatusPort）
         OutcomeRecordView view = records.get(key);
         return view != null ? view : new OutcomeRecordView.Absent();
     }

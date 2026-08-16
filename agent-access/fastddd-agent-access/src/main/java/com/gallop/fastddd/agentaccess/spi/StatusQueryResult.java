@@ -46,10 +46,14 @@ public record StatusQueryResult(BusinessActionStatus status, AuditProjection aud
             throw new IllegalArgumentException("FAILED_FINAL 收敛的审计终态必须与失败分类一致");
         }
         if (status instanceof BusinessActionStatus.Unknown
-                && tombstoneRef == null
                 && audit.outcomeCode() != null
                 && audit.outcomeCode() != ActionOutcomeCode.UNKNOWN) {
-            throw new IllegalArgumentException("UNKNOWN 收敛的审计终态只能是 UNKNOWN 或缺失");
+            throw new IllegalArgumentException("UNKNOWN 收敛的审计终态只能是 UNKNOWN 或缺失（含 tombstone 场景）");
+        }
+        if ((status instanceof BusinessActionStatus.InProgress || status instanceof BusinessActionStatus.NotVisible)
+                && audit.outcomeCode() != null) {
+            throw new IllegalArgumentException(
+                    "IN_PROGRESS/NOT_VISIBLE 无终态结果码：该两态由 BusinessActionStatus 形态承载，不得伪填 outcomeCode（§9.3）");
         }
     }
 }
