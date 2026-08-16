@@ -1,8 +1,11 @@
 package com.gallop.fastddd.agentaccess.kit;
 
+import com.gallop.fastddd.agentaccess.spi.AgentAccessGateway;
 import com.gallop.fastddd.agentaccess.spi.CallerIdentityBridge;
+import com.gallop.fastddd.agentaccess.spi.DescriptorRegistry;
 import com.gallop.fastddd.agentaccess.spi.ExecutionPermitVerifier;
 import com.gallop.fastddd.agentaccess.spi.PermitIssuer;
+import com.gallop.fastddd.agentaccess.spi.TargetAdmissionAuthorizationPort;
 import com.gallop.fastddd.agentaccess.spi.VerifiedCaller;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -17,10 +20,12 @@ import java.util.Objects;
  * <p>在全部单例实例化完成后校验安全关键治理 Bean 的装配事实，违例即启动失败并指名：</p>
  * <ol>
  *   <li><b>必需 Bean 缺失</b>：宿主必须显式提供 {@link VerifiedCaller}、
- *       {@link CallerIdentityBridge} 与 {@link ExecutionPermitVerifier}
- *       （清单随编排落地扩充），缺一不可；</li>
- *   <li><b>受控入口唯一性</b>：{@link PermitIssuer} 在容器中必须恰好一个——
- *       禁止宿主自造第二受控签发实现（AA-04 §4.2）。</li>
+ *       {@link CallerIdentityBridge}、{@link ExecutionPermitVerifier}、
+ *       {@link DescriptorRegistry} 与 {@link TargetAdmissionAuthorizationPort}，
+ *       缺一不可；</li>
+ *   <li><b>受控入口唯一性</b>：{@link PermitIssuer} 与 {@link AgentAccessGateway}
+ *       在容器中必须各自恰好一个——禁止宿主自造第二受控签发实现或旁路网关
+ *       （AA-04 §4.2；FDD-AA-12）。</li>
  *   <li><b>条件化/越权声明</b>：必需 Bean 的声明（类、工厂方法，或外围
  *       {@code @Configuration} 配置类）携带 {@code @Conditional} 家族（含
  *       Spring Boot 的 {@code @ConditionalOnMissingBean} 等全部 meta 注解）或
@@ -32,13 +37,20 @@ import java.util.Objects;
  */
 public final class AgentAccessAssemblyValidator implements SmartInitializingSingleton {
 
-    /** 必需 Bean 清单（存在 ≥1）：Caller 入口 + 桥接 Port + 许可验证安全 Bean。 */
+    /**
+     * 必需 Bean 清单（存在 ≥1）：Caller 入口 + 桥接 Port + 许可验证安全 Bean +
+     * 网关编排协作者（Descriptor 显式注册表、事务外准入预检 Port）。
+     */
     public static final List<Class<?>> DEFAULT_REQUIRED_BEAN_TYPES =
-            List.of(VerifiedCaller.class, CallerIdentityBridge.class, ExecutionPermitVerifier.class);
+            List.of(VerifiedCaller.class, CallerIdentityBridge.class, ExecutionPermitVerifier.class,
+                    DescriptorRegistry.class, TargetAdmissionAuthorizationPort.class);
 
-    /** 唯一性 Bean 清单（恰好 1 个）：受控签发入口禁止宿主自造第二实现（AA-04 §4.2）。 */
+    /**
+     * 唯一性 Bean 清单（恰好 1 个）：受控签发入口与 Agent 唯一入口网关均禁止
+     * 宿主自造第二实现（AA-04 §4.2；FDD-AA-12 网关接缝）。
+     */
     public static final List<Class<?>> DEFAULT_UNIQUE_BEAN_TYPES =
-            List.of(PermitIssuer.class);
+            List.of(PermitIssuer.class, AgentAccessGateway.class);
 
     private final ConfigurableListableBeanFactory beanFactory;
     private final List<Class<?>> requiredBeanTypes;
