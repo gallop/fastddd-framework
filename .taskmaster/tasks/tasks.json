@@ -425,7 +425,7 @@
         "id": "13",
         "title": "FDD-AA-16 候选制品/clean consumer/SEC-1A Attestation",
         "description": "Phase 1A 候选制品冻结（坐标/BOM/tag/checksum 实值）+ sample-host 内 clean consumer 干净消费证明 + SEC-1A Integration Ready Gate Attestation",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "7",
           "8",
@@ -437,8 +437,65 @@
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-16 / AA-04 §9）：干净消费证明 + Integration Ready Gate。\n\n落点：\n1. 候选制品实值冻结：坐标/版本 0.1.0-jdk21-alpha.1/BOM/tag 候选 v0.1.0-jdk21-alpha.1/checksum（jar/pom 各 SHA-256）——补冻结 AA-04 §2.3 开放例外并解除候选制品禁引条款；tag/push/上传未经 owner 批准不执行\n2. 兼容矩阵：Phase 1A 制品 × fast-ddd-application:1.0.0-jdk21-rc1 × JDK 21 × 宿主 Spring Boot 版本\n3. clean consumer：sample-host 仓（fastddd-agent-access-sample-host）从安装制品（非 reactor）消费，产出真实宿主消费证据\n4. SEC-1A Attestation：Threat §14 SEC-1A 五项逐项（Gateway/Verifier/两段式 SPI/Descriptor/Receipt-Status 契约/typed obligations 已具备；golden vectors 与 Kit 可由干净 consumer 消费；候选制品版本/仓库/checksum/兼容范围/测试 SHA 冻结；P0 负向 Contract Test Kit 全绿；运行时 Bean 图/架构测试无旁路）+ NO-GO 十三条逐项核对\n5. D3 剩余风险强制复审（SEC-1A Attestation 签发时点）\n\n外部依赖：必须消费 V04-07 的真实 Permit carrier evidence 方可完成（Phase baseline §8 尾段原文约束）；不跨仓复制任务状态（§13.10）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-10～15",
         "testStrategy": "验收判定（Phase baseline §5/§7 FDD-AA-16 + Threat §14 SEC-1A）：候选制品可被仓库外干净消费且全部门禁证据可校验。\n\n验证步骤：\n1. clean consumer 从安装制品构建执行，无 reactor/test-jar/example 冒充\n2. SEC-1A 清单五项 + NO-GO 十三条逐项核对，证据可定位、hash 可复算\n3. 候选制品 checksum 实值冻结并回填 Attestation；D3 剩余风险复审记录\n4. V04-07 真实 Permit carrier evidence 已消费（跨仓只引用版本/hash/证据）\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：无真实 V04-07 evidence 不得置 done；门禁未全绿不得宣称 Integration Ready；tag/push/上传未经 owner 批准不得执行",
-        "subtasks": [],
-        "updatedAt": "2026-08-16T00:00:00.000Z"
+        "subtasks": [
+          {
+            "id": "13.1",
+            "title": "BOM 模块 + Artifact B 显式消费 + 候选制品 install + checksum 实值冻结",
+            "description": "创建 fastddd-agent-access-bom（packaging=pom，dependencyManagement 管理主制品+kit，AA-04 §2.1/§3.1 三模块收齐）；carrier-conformance 显式声明 fastagent-security:0.4.0-alpha.1 test 依赖（V04-07 Permit carrier 即 Artifact B 的显式坐标消费，不再只经 adapter 传递）；agent-access reactor mvn clean install；三制品（主制品/kit/bom）jar+pom SHA-256 实值计算；候选制品冻结文档（坐标/版本/仓库 local-only/tag 候选 v0.1.0-jdk21-alpha.1 登记 OPEN 不执行——tag 未经 owner 批准不执行）；解除 AA-05 开放例外的禁引条款以本冻结文档为据",
+            "status": "done",
+            "dependencies": [],
+            "priority": "high",
+            "details": "",
+            "testStrategy": "",
+            "notes": "13.1 制品面收口：fastddd-agent-access-bom（packaging=pom，dependencyManagement 管理主制品+kit，四轴解耦声明）进默认 reactor；carrier-conformance 显式声明 fastagent-security:0.4.0-alpha.1 test 坐标（Artifact B 显式消费，V04-07 判定物）；37f7aa0 干净树 mvn clean install 两态全绿（227/234 tests，7 skipped Docker 守卫）；checksum 实值冻结五件（jar/pom SHA-256 见 AA16 候选制品冻结文档 §3，本地仓产物复核一致）；候选 tag v0.1.0-jdk21-alpha.1 登记 OPEN 不执行（授权未授予）；AA-05 checksum 禁引条款解除（AA16 文档 §3）。commit 37f7aa0 + 本次文档提交。"
+          },
+          {
+            "id": "13.2",
+            "title": "兼容矩阵（Phase 1A 制品 × fast-ddd-application:1.0.0-jdk21-rc1 × JDK 21 × 宿主 Spring Boot）",
+            "description": "以真实构建/测试证据支撑矩阵：agent-access reactor 对 RC1 的 compile 依赖（既有）、JDK 21 release、kit 宿主消费所需 Spring Boot 版本轴（3.5.x 管理轴）；写入候选制品冻结文档或独立矩阵章节；不得虚构未实测组合",
+            "status": "done",
+            "dependencies": [],
+            "priority": "medium",
+            "details": "",
+            "testStrategy": "",
+            "notes": "13.2 兼容矩阵（AA16 文档 §4）：制品×JDK21 实测（37f7aa0 两态门禁）；主制品×RC1 为零 compile 依赖的结构性主张——子任务描述预设「RC1 compile 依赖（既有）」与实现事实相反（FDD-AA-12 编排落地为纯 SPI，主制品零 RC1 依赖，严于 AA-04 §2.3 预设），已在矩阵显式差异登记而非静默改义；kit×宿主 Spring Boot 3.5.16 管理轴实测（spring-context 6.2.19）；clean consumer 独立宿主实测（14a5529）；RC1 同 JVM 共存轴如实 OPEN（EX-2，无虚构实测）。"
+          },
+          {
+            "id": "13.3",
+            "title": "sample-host clean consumer 实值化 + 干净消费证据",
+            "description": "fastddd-agent-access-sample-host 仓 pom 填实值（BOM import + 主制品 + kit test scope）；新增 clean consumer 测试（骨架期边界内：ActionDigestCalculator 复算 GV 冻结值=golden vectors 可消费；AgentAccessArchitecture.hostMayOnlyUseGovernedSeam 应用；TestIdCatalog 消费）——不写业务聚合/DDL/Handler（SEC-1B 域）；从安装制品（非 reactor/test-jar）运行并归档证据；sample-host 仓 selective commit",
+            "status": "done",
+            "dependencies": [],
+            "priority": "high",
+            "details": "",
+            "testStrategy": "",
+            "notes": "13.3 clean consumer：sample-host 仓初始提交 14a5529（.gitignore/README/pom/测试/证据文档 5 files）。pom 经 BOM import 管版本、主制品+kit test scope（SEC-1B 升 compile 登记于文件头）；CleanConsumerConsumptionTest 3 tests 全绿（GV-01 双插入序/02 JCS 数字哨兵/03 Unicode/05a/b 空集合互异/06+07 域分离双摘要独立复算 + kit 五条架构规则消费含 hostMayOnlyUseGovernedSeams 宿主域真实运行 + TestIdCatalog 消费）；消费形态本地仓安装制品（非 reactor/test-jar/../，依赖树无 fastagent:*）；原始证据 docs/SEC1A_CLEAN_CONSUMER_EVIDENCE.md。"
+          },
+          {
+            "id": "13.4",
+            "title": "SEC-1A Attestation 起草（Threat §14 五项 + GO 十条 + NO-GO 十三条 + D3 强制复审）",
+            "description": "文档 docs/architecture/FASTDDD_AGENT_ACCESS_SEC1A_GATE_ATTESTATION.md：schemaVersion/状态（Candidate 待 owner 签署）/候选制品坐标与 checksum（13.1 实值）/Contract v0.1 与 Threat Model 文档 hash/测试 SHA 与测试 ID/owner/例外/失效条件；Threat §14 SEC-1A 五项逐项证据；baseline §10 GO 十条与 NO-GO 十三条逐项核对；V04-07 真实 Permit carrier evidence 消费登记（carrier-conformance 显式 Artifact B 坐标 + FastAgent 侧 T34 conformance 证据引用）；AA-00 D3 剩余风险强制复审记录（到期 2026-10-31 前提下复审并更新撤销/延续）",
+            "status": "done",
+            "dependencies": [],
+            "priority": "high",
+            "details": "",
+            "testStrategy": "",
+            "notes": "13.4 SEC-1A Attestation（FASTDDD_AGENT_ACCESS_SEC1A_GATE_ATTESTATION.md，状态 Candidate 待 owner 签署、签署栏空）：schemaVersion sec1a-attestation/1；判定物 hash 十件（五制品+五治理文档实测）；Threat §14 五项/baseline §10 GO 十条/NO-GO 十三条逐项对照；测试 ID 以 kit TestCoverageCatalog 三分类登记（33 全集，半边显式）；V04-07 Artifact B 消费登记（§6）；D3 强制复审真实执行（§7，前提列 AA-00 签署原文保真摘录，维持接受、到期 2026-10-31）；例外 EX-1～7（Docker 守卫跳过/RC1 共存/tag 未创建/事务终检归宿主/Python GV 跨仓/单人项目/无远端）；失效条件七条。"
+          },
+          {
+            "id": "13.5",
+            "title": "fresh-context 对抗审查 + T13 收口",
+            "description": "fresh-context 审查全部 FDD-AA-16 交付物（BOM/冻结文档/兼容矩阵/clean consumer/Attestation）；修复 findings；T13 置 done 附完成记录；FastDDD 仓 selective commit（[#13] 前缀）",
+            "status": "done",
+            "dependencies": [],
+            "priority": "high",
+            "details": "",
+            "testStrategy": "",
+            "notes": "13.5 fresh-context 对抗审查 VERDICT PASS（3 MINOR 0 BLOCKER，六维全过：事实精确性经实测复现、诚实边界无冒充、对照完整 1:1、clean consumer 三向复算、授权红线无越界、D3 复审有据）。3 MINOR 全修复：§5 汇总补 AAC-06 REPOSITORY_TEST 半边、§1 AA-05 行补文件名与历史命名说明、§7 D3 前提列改签署原文保真摘录（检测方式/补偿控制对齐原文要素）；另按审查观察对 AA16 §2 补 git 内网 remote 消歧（候选 SHA 未推送）。T13 置 done。Attestation 保持 Candidate——owner 签署动作不冒充。"
+          }
+        ],
+        "updatedAt": "2026-08-16T00:00:00.000Z",
+        "notes": "FDD-AA-16 收口（2026-08-16）：候选制品冻结（坐标/版本/local-only/checksum 实值/tag OPEN/AA-05 禁引解除）+ 兼容矩阵（含 AA-04 §2.3 预设与实现的差异登记：主制品零 RC1 compile 依赖，严于预设）+ clean consumer（sample-host 仓 14a5529，3 tests 全绿，安装制品消费）+ SEC-1A Attestation Candidate（Threat 五项/GO 十条/NO-GO 十三条逐项、D3 强制复审保真执行、例外 EX-1～7、失效条件七条）+ fresh-context 审查 PASS（3 MINOR 全修复）。制品面 commit 37f7aa0；文档与任务收口随本提交。Gate 判定待 owner 签署 Attestation §10 后生效；tag/远端发布未获授权不执行。"
       }
     ],
     "metadata": {
