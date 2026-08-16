@@ -7,6 +7,7 @@ import com.gallop.fastddd.agentaccess.contract.BusinessActionEnvelope;
 import com.gallop.fastddd.agentaccess.contract.CallerContext;
 import com.gallop.fastddd.agentaccess.contract.Effect;
 import com.gallop.fastddd.agentaccess.contract.ExecutionPermit;
+import com.gallop.fastddd.agentaccess.contract.ExecutionPermitCarrier;
 import com.gallop.fastddd.agentaccess.contract.ReferenceDescriptorFixtures;
 import com.gallop.fastddd.agentaccess.contract.ResourceConstraints;
 import com.gallop.fastddd.agentaccess.contract.SubjectType;
@@ -166,6 +167,27 @@ class EnvelopeAdmissionTest {
                 null, null, null, null);
         assertThrows(IllegalArgumentException.class, () -> gateway().admitAgentAction(refOnly));
         assertThrows(IllegalArgumentException.class, () -> gateway().admitAgentAction((BusinessActionEnvelope) null));
+    }
+
+    @Test
+    void unknownCarrierFormFailsClosedAtSkeleton() {
+        // 载体静态类型是 ExecutionPermitCarrier；骨架期仅接受许可本体（ExecutionPermit）
+        // 承载——非本体实现（伪造载体/未来远程 token 载体）显式 IAE。
+        // 负向锁定该守卫分支，防止后续重构无声删除
+        ExecutionPermitCarrier forged = () -> caller();
+        BusinessActionEnvelope withForgedCarrier = new BusinessActionEnvelope(
+                AgentAccessProtocolVersions.WIRE_SCHEMA_VERSION, "req-1",
+                OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC), "acme", "dev",
+                "ar.reference.write-sample", "1", Effect.WRITE,
+                forged, null, "sha256:auth", null, "bop-2026-0001",
+                null, null, null, "ReferenceThing/REF-001", null, "reference.testing",
+                "{}", "1", "sha256:effect", "sha256:binding",
+                null, null, null, null);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> gateway().admitAgentAction(withForgedCarrier));
+        // 消息断言区分于 permitRef 路径的 IAE（两条守卫各自可辨）
+        org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("载体形态"),
+                "未知载体守卫消息应含「载体形态」，实际：" + e.getMessage());
     }
 
     @Test

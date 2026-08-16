@@ -188,8 +188,8 @@
       {
         "id": "9",
         "title": "FDD-AA-12 Descriptor 与旁路防护",
-        "description": "只允许显式发布的 Action 进入 Agent 路径：Descriptor registry/resolver、AgentAccessGateway 编排实现（.gateway 包）、包可见性与 ArchUnit 旁路阻断",
-        "status": "pending",
+        "description": "只允许显式发布的 Action 进入 Agent 路径：Descriptor registry/resolver、AgentAccessGateway 编排实现（.gateway 包）、包可见性与 ArchUnit 旁路阻断\n\n完成记录：FDD-AA-12 全链完成——9.1~9.5 见 subtask 记录（043e52d/622cc97/5ad625b/d8951bf/968b849）；两轮审计 bf9d6b1、ca01438 后全量门禁 101 绿。done 标记曾在 8ea02cd 提交时丢失（脚本写入未持久化），按 git 证据恢复（[#10-audit]）。",
+        "status": "done",
         "dependencies": [
           "7"
         ],
@@ -200,37 +200,37 @@
           {
             "id": "9.1",
             "title": ".contract BusinessActionDescriptor + 十二结果码 + 内部 reason 承载",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "description": "BusinessActionDescriptor record 按 §5.3 表：actionId/actionVersion/effect/resourceTypes(非空)/inputSchemaRef/outputSchemaRef/requiredPurposes(非空)/dataClassification/timeoutClass 必选；IdempotencyMode(REQUIRED/NOT_APPLICABLE) 与 ReconciliationMode(QUERYABLE/MANUAL_ONLY/NOT_SUPPORTED) 在 WRITE/TASK 时必选（跨字段校验）；PreconditionMode(REQUIRED/OPTIONAL/NOT_APPLICABLE) 必选；enabled 必选。紧致校验统一 IAE。ActionOutcomeCode 枚举恰十二值（§9 表逐字）；InternalReason（小写点分 code + 唯一映射 outcome，AA-02 冻结：多内→一外、反向唯一）。与 FastAgent ActionDefinition 所有权分离：仅 actionId+actionVersion 引用，javadoc 表达（类型级禁依赖由 Enforcer/ArchUnit 兜底）"
+            "description": "BusinessActionDescriptor record 按 §5.3 表：actionId/actionVersion/effect/resourceTypes(非空)/inputSchemaRef/outputSchemaRef/requiredPurposes(非空)/dataClassification/timeoutClass 必选；IdempotencyMode(REQUIRED/NOT_APPLICABLE) 与 ReconciliationMode(QUERYABLE/MANUAL_ONLY/NOT_SUPPORTED) 在 WRITE/TASK 时必选（跨字段校验）；PreconditionMode(REQUIRED/OPTIONAL/NOT_APPLICABLE) 必选；enabled 必选。紧致校验统一 IAE。ActionOutcomeCode 枚举恰十二值（§9 表逐字）；InternalReason（小写点分 code + 唯一映射 outcome，AA-02 冻结：多内→一外、反向唯一）。与 FastAgent ActionDefinition 所有权分离：仅 actionId+actionVersion 引用，javadoc 表达（类型级禁依赖由 Enforcer/ArchUnit 兜底）\n\n完成记录：commit 043e52d；任务级审计 bf9d6b1（5 项修复）+ ca01438（复审收口），修复后全量门禁 mvn -f agent-access/pom.xml clean test 101 绿。done 状态曾在提交 8ea02cd 时因脚本写入未持久化而丢失，本记录按 git 证据恢复（[#10-audit]）。"
           },
           {
             "id": "9.2",
             "title": ".spi DescriptorRegistry/resolver + 受控静态实现 + reference fixture",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "description": "DescriptorRegistry 接口（resolve(actionId, actionVersion) 精确版本匹配；publishedCount() 供无扫描增量断言）+ ActionNotExposedException（携带内部 reason）。StaticDescriptorRegistry：builder 显式注册（TM-10 禁自动扫描——无扫描入口可写），重复 (actionId, actionVersion) 注册拒绝（禁覆盖式 put），resolve 未注册/disabled/版本漂移 → ACTION_NOT_EXPOSED 语义拒绝；fail-closed。reference fixture（测试源）：无业务语义的 reference action 样板（ar.reference.* 命名，避免伪装业务语义）"
+            "description": "DescriptorRegistry 接口（resolve(actionId, actionVersion) 精确版本匹配；publishedCount() 供无扫描增量断言）+ ActionNotExposedException（携带内部 reason）。StaticDescriptorRegistry：builder 显式注册（TM-10 禁自动扫描——无扫描入口可写），重复 (actionId, actionVersion) 注册拒绝（禁覆盖式 put），resolve 未注册/disabled/版本漂移 → ACTION_NOT_EXPOSED 语义拒绝；fail-closed。reference fixture（测试源）：无业务语义的 reference action 样板（ar.reference.* 命名，避免伪装业务语义）\n\n完成记录：commit 622cc97；任务级审计 bf9d6b1（5 项修复）+ ca01438（复审收口），修复后全量门禁 mvn -f agent-access/pom.xml clean test 101 绿。done 状态曾在提交 8ea02cd 时因脚本写入未持久化而丢失，本记录按 git 证据恢复（[#10-audit]）。"
           },
           {
             "id": "9.3",
             "title": ".spi AgentAccessGateway 接口 + .gateway 编排实现骨架（AA-13/14 充实点如实标注）",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "description": "AgentAccessGateway 接口（.spi 公共接缝）+ AgentActionRequest/GatewayOutcome/AuditProjection 骨架协议 record（放 .spi——需引用 PermitBindingView，.contract 不得反向依赖 .spi；permit + binding 投影入参，outcome+reason+resolvedDescriptor+审计投影出参——完整 Envelope/Receipt wire DTO 归 FDD-AA-13，javadoc 如实标注）。.gateway DefaultAgentAccessGateway 编排（标准执行顺序骨架子集 3-6：验证 permit → 比对绑定 → resolve descriptor（ACTION_NOT_EXPOSED）→ 事务外准入预检（TargetAdmissionAuthorizationPort）；事务内 7-13 步 AA-14 充实）：异常→结果码映射（CallerAuthenticationException→TARGET_AUTHENTICATION_FAILED、PermitVerificationException→PERMIT_INVALID_OR_EXPIRED/PERMIT_BINDING_MISMATCH、not-exposed→ACTION_NOT_EXPOSED、admission DENY/INDETERMINATE→TARGET_AUTHORIZATION_DENIED）；审计白名单投影（§10 字段：tenant/businessOperationId/action/subject/actor/workload/permitId/traceId/outcomeCode，零 payload）。实现类公共（宿主 @Configuration 装配唯一豁免，javadoc 表达 B2 编译期包边界如实口径）"
+            "description": "AgentAccessGateway 接口（.spi 公共接缝）+ AgentActionRequest/GatewayOutcome/AuditProjection 骨架协议 record（放 .spi——需引用 PermitBindingView，.contract 不得反向依赖 .spi；permit + binding 投影入参，outcome+reason+resolvedDescriptor+审计投影出参——完整 Envelope/Receipt wire DTO 归 FDD-AA-13，javadoc 如实标注）。.gateway DefaultAgentAccessGateway 编排（标准执行顺序骨架子集 3-6：验证 permit → 比对绑定 → resolve descriptor（ACTION_NOT_EXPOSED）→ 事务外准入预检（TargetAdmissionAuthorizationPort）；事务内 7-13 步 AA-14 充实）：异常→结果码映射（CallerAuthenticationException→TARGET_AUTHENTICATION_FAILED、PermitVerificationException→PERMIT_INVALID_OR_EXPIRED/PERMIT_BINDING_MISMATCH、not-exposed→ACTION_NOT_EXPOSED、admission DENY/INDETERMINATE→TARGET_AUTHORIZATION_DENIED）；审计白名单投影（§10 字段：tenant/businessOperationId/action/subject/actor/workload/permitId/traceId/outcomeCode，零 payload）。实现类公共（宿主 @Configuration 装配唯一豁免，javadoc 表达 B2 编译期包边界如实口径）\n\n完成记录：commit 5ad625b；任务级审计 bf9d6b1（5 项修复）+ ca01438（复审收口），修复后全量门禁 mvn -f agent-access/pom.xml clean test 101 绿。done 状态曾在提交 8ea02cd 时因脚本写入未持久化而丢失，本记录按 git 证据恢复（[#10-audit]）。"
           },
           {
             "id": "9.4",
             "title": "kit Validator 扩充（gateway 唯一入口）+ .arch ArchUnit 规则导出（kit 模块承载）",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "description": "kit DEFAULT_UNIQUE_BEAN_TYPES 扩充 AgentAccessGateway（恰 1 Bean=无替代入口，AAC-05/B6 运行时 Bean 图防线）。.arch 包物理落 kit 模块（com.gallop.fastddd.agentaccess.arch；ArchUnit 依赖由 kit POM 管理——AA-04 §3.2 允许依赖 .contract 只读元数据级，AA-15 落点 1 同源；主制品保持纯 JDK）：AgentAccessArchitecture 导出 B1 规则（.contract 不依赖 agentaccess 其他包/.spi 只依赖 .contract/.gateway 依赖 .spi+.contract/各包禁依赖 .gateway 实现）+ AST-06 同源规则（主制品代码不依赖 com.gallop.fastagent.**，与 Enforcer banned 构建期双保险）+ 宿主侧参数化规则工厂（宿主包名 → web/event/schedule/普通 bean 禁依赖 agentaccess 受保护入口，骨架期导出工厂供宿主复用）"
+            "description": "kit DEFAULT_UNIQUE_BEAN_TYPES 扩充 AgentAccessGateway（恰 1 Bean=无替代入口，AAC-05/B6 运行时 Bean 图防线）。.arch 包物理落 kit 模块（com.gallop.fastddd.agentaccess.arch；ArchUnit 依赖由 kit POM 管理——AA-04 §3.2 允许依赖 .contract 只读元数据级，AA-15 落点 1 同源；主制品保持纯 JDK）：AgentAccessArchitecture 导出 B1 规则（.contract 不依赖 agentaccess 其他包/.spi 只依赖 .contract/.gateway 依赖 .spi+.contract/各包禁依赖 .gateway 实现）+ AST-06 同源规则（主制品代码不依赖 com.gallop.fastagent.**，与 Enforcer banned 构建期双保险）+ 宿主侧参数化规则工厂（宿主包名 → web/event/schedule/普通 bean 禁依赖 agentaccess 受保护入口，骨架期导出工厂供宿主复用）\n\n完成记录：commit d8951bf；任务级审计 bf9d6b1（5 项修复）+ ca01438（复审收口），修复后全量门禁 mvn -f agent-access/pom.xml clean test 101 绿。done 状态曾在提交 8ea02cd 时因脚本写入未持久化而丢失，本记录按 git 证据恢复（[#10-audit]）。"
           },
           {
             "id": "9.5",
             "title": "AST-05/AAC-05/B6 负向测试",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "description": "DescriptorRegistry 测试：未注册 actionId/disabled/版本高于与低于已发布 → 四种输入均 ACTION_NOT_EXPOSED 拒绝（AST-05）；publishedCount=显式注册数（无扫描增量）；重复注册拒绝。Gateway 编排测试：无 permit→PERMIT_INVALID_OR_EXPIRED（AAC-02 入口级）、not-exposed→ACTION_NOT_EXPOSED、admission DENY 与 INDETERMINATE→TARGET_AUTHORIZATION_DENIED、成功路径 outcome+审计投影白名单字段齐全且零 payload（骨架期入口级语义；事务级验收归 AA-14）。kit ArchUnit 测试：规则在 agent-access 自身代码全通过 + kit 内违例样例类触发规则失败（B1 构建失败即断言）。kit Validator gateway 唯一性正负向"
+            "description": "DescriptorRegistry 测试：未注册 actionId/disabled/版本高于与低于已发布 → 四种输入均 ACTION_NOT_EXPOSED 拒绝（AST-05）；publishedCount=显式注册数（无扫描增量）；重复注册拒绝。Gateway 编排测试：无 permit→PERMIT_INVALID_OR_EXPIRED（AAC-02 入口级）、not-exposed→ACTION_NOT_EXPOSED、admission DENY 与 INDETERMINATE→TARGET_AUTHORIZATION_DENIED、成功路径 outcome+审计投影白名单字段齐全且零 payload（骨架期入口级语义；事务级验收归 AA-14）。kit ArchUnit 测试：规则在 agent-access 自身代码全通过 + kit 内违例样例类触发规则失败（B1 构建失败即断言）。kit Validator gateway 唯一性正负向\n\n完成记录：commit 968b849；任务级审计 bf9d6b1（5 项修复）+ ca01438（复审收口），修复后全量门禁 mvn -f agent-access/pom.xml clean test 101 绿。done 状态曾在提交 8ea02cd 时因脚本写入未持久化而丢失，本记录按 git 证据恢复（[#10-audit]）。"
           }
         ],
         "updatedAt": "2026-08-16T04:50:00.000Z"
@@ -238,8 +238,8 @@
       {
         "id": "10",
         "title": "FDD-AA-13 Envelope/Precondition 与双 digest 映射",
-        "description": "关闭 Adapter 丢字段、绑定审批事实：BusinessActionEnvelope、ResourcePrecondition、双 digest 实现 + golden vectors Java 复算、Provider Contract Test",
-        "status": "pending",
+        "description": "关闭 Adapter 丢字段、绑定审批事实：BusinessActionEnvelope、ResourcePrecondition、双 digest 实现 + golden vectors Java 复算、Provider Contract Test\n\n实现与审查状态（2026-08-16，[#10-audit] 收尾）：10.1~10.5 全部完成并经 fresh-context 对抗审查 PASS（4 项次要发现已闭环）；subtask 展开曾因脚本写入未持久化丢失，按 git 证据重建。顶层保持未完成：外部 Gate——FastAgent V04-04 真实 permitRef carrier 未落地（FastAgent 仓 v0.4 任务未导入），Gate 解除并补真实载体对齐前不得置 done（baseline §7 AA-13 原文约束）。",
+        "status": "in-progress",
         "dependencies": [
           "8",
           "9"
@@ -247,7 +247,51 @@
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-13 / AA-04 §9）：关闭 Adapter 丢字段、绑定审批事实。\n\n落点：\n1. .contract BusinessActionEnvelope + ResourcePrecondition/ResourceFactSnapshot（tenant-scoped 权威重读、expectedVersion/CAS 语义）\n2. 双 digest 实现：effectDigest/authorizationBindingDigest 域分离、digestSchemaVersion=1、RFC 8785 JCS canonical、域标签常量按 AA-04 §2.2 四轴表（digest 域标签用 golden vectors v1 冻结值）\n3. golden vectors Java 复算：GV-01～07 逐字节一致（GV-01 9d47d5d4…、GV-02 e3de59fb…、GV-03 54b84597…、GV-04 39a370f8…、GV-05a 6224fcc2…、GV-05b 837b4d0d…、GV-06 6b4a2e83…、GV-07 4c869666…）\n4. Gateway 编排充实：Permit 验证先于任何业务读取、信封↔已验证上下文一致比对\n\n外部依赖：FastAgent V04-04 dispatch artifact（真实载体）。V04-04 未交付时可先以 Contract Candidate 推进测试侧工作，但真实 V04-04 carrier 通过前不得标记本任务完成（Phase baseline §7 AA-13 原文约束）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-11、FDD-AA-12",
         "testStrategy": "验收判定（Phase baseline §7）：Contract 安全字段（credential、tenant/environment、subject/actor/workload、action/version、resource、purpose、preconditions、双 digest、幂等、证据引用）无丢失、无 ThreadLocal/Map 隐藏通道。\n\n验证步骤：\n1. AAC-06：审批后版本变化 → PRECONDITION_CHANGED/RESOURCE_VERSION_CONFLICT；AAC-07：合法重试同摘要 → 稳定 Receipt\n2. AAC-08 + AST-03：同键异摘要 → IDEMPOTENCY_CONFLICT；Java（及后续 Python 联测）复算 GV-01～07 全一致；可变绑定项不影响 effectDigest\n3. AST-03：凭据轮换/attempt/worker 变化后摘要稳定；UNKNOWN 恢复不换键\n4. fresh-context 对抗审查（§13.7）\n\n负向要求：请求体覆盖 tenant/subject 必须拒绝；ThreadLocal 补传可信字段必须拒绝；digest 不得混入可变绑定项；真实 V04-04 carrier 未通过前不得置 done",
-        "subtasks": [],
+        "subtasks": [
+          {
+            "id": "10.1",
+            "title": ".contract ResourcePrecondition + ResourceFactSnapshot 协议 DTO",
+            "status": "done",
+            "dependencies": [],
+            "description": "§5.4 ResourcePrecondition 七组件（resourceType/resourceId/capturedAt 必选，expectedVersion String 承载版本/ETag/CAS 值，factSnapshotRef/factDigest/requiredState 可选）；§13 ResourceFactSnapshot 样板八组件（version/amount Long）。紧致校验统一 IAE。\n\n完成记录：commit 55258ea，主制品 89 绿。"
+          },
+          {
+            "id": "10.2",
+            "title": ".contract BusinessActionEnvelope 协议 DTO（§5.5 九字段组）",
+            "status": "done",
+            "dependencies": [
+              "10.1"
+            ],
+            "description": "27 组件：permit:ExecutionPermitCarrier 与 permitRef:String 二选一恰好一个；可选字段统一提供时非空白；preconditions 提供时非空列表且不含 null 元素；payload 骨架期 String 不透明承载；承载规则 1/4/5/6 javadoc 冻结。\n\n完成记录：commit ed41c1f，主制品 95 绿（null 元素 IAE 口径统一为 [#10-audit] 增补）。"
+          },
+          {
+            "id": "10.3",
+            "title": ".spi JsonCanonicalizer（RFC 8785 JCS 子集）+ ActionDigestCalculator",
+            "status": "done",
+            "dependencies": [
+              "10.2"
+            ],
+            "description": "纯 JDK：UTF-16 码元键序、控制字符小写 hex 转义、非 ASCII 字面、ECMAScript Number::toString 记法（-6<n<=21 十进制否则科学记法、-0→0、NaN/Infinity IAE）；SHA-256 域分离摘要（tag ‖ U+0000 ‖ JCS）+ digestSchemaVersion 门禁。\n\n完成记录：commit 8607744，主制品 105 绿（大整数域偏离登记向量文档 E-1 归 [#10-audit]）。"
+          },
+          {
+            "id": "10.4",
+            "title": "golden vectors GV-01~07 Java 复算冻结值",
+            "status": "done",
+            "dependencies": [
+              "10.3"
+            ],
+            "description": "8 向量（含 05a/05b）逐字符一致；canonicalizer 负向（null 值/NaN/Infinity/不支持类型/null 投影）；域分离；可变调度字段（AST-03）语义级不进 effect 摘要。\n\n完成记录：commit a8d33ca，主制品 105 绿。"
+          },
+          {
+            "id": "10.5",
+            "title": "EnvelopeBindingProjector + Gateway Envelope 入口编排",
+            "status": "done",
+            "dependencies": [
+              "10.2"
+            ],
+            "description": "治理字段直投 PermitBindingView（requestId/attemptId/dispatchId/traceId 不进投影）；preconditionsHash/expectedResourceVersions 契约缝隙投 null + presence-sensitive fail-closed（推导规则冻结归 Contract 勘误 + V04-04）；Gateway §7 步骤 1-6：permitRef 路径与未知载体形态骨架期显式 IAE；verify→resolve→admission 事件序断言；信封摘要篡改与 Permit 单方 expectedResourceVersions 比对拒绝；AAC-07 语义级重试结构稳定。\n\n完成记录：commit 29b6345，主制品 111 + kit 17 绿。"
+          }
+        ],
         "updatedAt": "2026-08-16T00:00:00.000Z"
       },
       {

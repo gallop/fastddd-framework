@@ -118,5 +118,8 @@ class BusinessActionEnvelopeTest {
                 "7", null, null, "OVERDUE", SENT_AT);
         assertDoesNotThrow(() -> envelope(PRECONDITIONS, List.of(p)));
         assertThrows(IllegalArgumentException.class, () -> envelope(PRECONDITIONS, List.of()));
+        // null 元素必须以本组统一紧致校验口径 IAE 拒绝，而非 List.copyOf 的 NPE
+        assertThrows(IllegalArgumentException.class,
+                () -> envelope(PRECONDITIONS, java.util.Arrays.asList(p, null)));
     }
 }

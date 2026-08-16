@@ -122,6 +122,14 @@ public record BusinessActionEnvelope(
         if (preconditions != null && preconditions.isEmpty()) {
             throw new IllegalArgumentException("preconditions 提供时不得为空列表（无前置条件请传 null）");
         }
+        if (preconditions != null) {
+            for (ResourcePrecondition precondition : preconditions) {
+                if (precondition == null) {
+                    // 与本组 record 统一的紧致校验口径：显式 IAE 而非 List.copyOf 的 NPE
+                    throw new IllegalArgumentException("preconditions 列表不得含 null 元素（无前置条件请传 null 列表本身）");
+                }
+            }
+        }
         requireNonBlank("purpose", purpose);
         requireNonBlank("payload", payload);
         requireNonBlank("payloadSchemaVersion", payloadSchemaVersion);
