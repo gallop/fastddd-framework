@@ -115,6 +115,29 @@ public final class AgentAccessArchitecture {
     }
 
     /**
+     * AST-06 宿主参数化规则（TM-15）：宿主 Egress/Connector 包不得依赖
+     * FastAgent 侧任何类型——结构上排除「FastDDD/Egress 直写 FastAgent
+     * Receipt/Outcome 权威表」的路径（权威表只由 FastAgent Java Kernel 追加，
+     * Contract §5.6 尾段；跨仓同向锁定见 FastAgent V04-04）。
+     *
+     * <p>依赖断言是结构防线；「Egress 调用账本只含 invoke/query 语义行」是
+     * 运行时断言，归宿主测试（本规则不代签）。</p>
+     *
+     * @param egressPackages 宿主 Egress/Connector 包前缀（至少一个）
+     * @return 逐包规则
+     */
+    public static ArchRule hostEgressMustNotTouchFastAgent(String... egressPackages) {
+        if (egressPackages == null || egressPackages.length == 0) {
+            throw new IllegalArgumentException("egressPackages 必选且不得为空");
+        }
+        return noClasses().that().resideInAnyPackage(egressPackages)
+                .should().dependOnClassesThat()
+                .resideInAPackage("com.gallop.fastagent..")
+                .because("宿主 Egress 不得依赖 FastAgent 权威类型（TM-15：权威 Receipt/Outcome 只由"
+                        + " FastAgent Kernel 追加；本仓规则与 FastAgent V04-04 同向锁定）");
+    }
+
+    /**
      * 主制品自身 B1/AST-06 全量自检（kit 测试与宿主 CI 复用）。
      *
      * @param classes 主制品编译输出（宿主可用 ClassFileImporter 按包导入）

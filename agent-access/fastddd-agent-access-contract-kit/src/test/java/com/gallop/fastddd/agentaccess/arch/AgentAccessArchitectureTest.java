@@ -81,4 +81,35 @@ class AgentAccessArchitectureTest {
         assertThrows(IllegalArgumentException.class,
                 () -> AgentAccessArchitecture.hostMayOnlyUseGovernedSeams((String[]) null));
     }
+
+    @Test
+    void hostEgressTouchingFastAgentIsCaught() {
+        // AST-06 宿主参数化：同一违例 fixture（引用 FastAgent stub）在 egress 规则下同样被捕获
+        JavaClasses violating = new ClassFileImporter()
+                .importClasses(ReferringToFastAgent.class, FastAgentSideStub.class);
+        assertThatThrownBy(() -> AgentAccessArchitecture
+                .hostEgressMustNotTouchFastAgent("com.gallop.fastddd.agentaccess.arch.violation..")
+                .check(violating))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Architecture Violation")
+                .hasMessageContaining(ReferringToFastAgent.class.getSimpleName());
+    }
+
+    @Test
+    void hostEgressRuleLeavesCleanPackagesAlone() {
+        // 正向：干净包（kit.fault 不引用 FastAgent）不报违例——规则不空转
+        JavaClasses clean = new ClassFileImporter()
+                .importClasses(com.gallop.fastddd.agentaccess.kit.fault.FaultInjection.class);
+        assertDoesNotThrow(() -> AgentAccessArchitecture
+                .hostEgressMustNotTouchFastAgent("com.gallop.fastddd.agentaccess.kit.fault..")
+                .check(clean));
+    }
+
+    @Test
+    void emptyEgressPackagesIsRejected() {
+        assertThrows(IllegalArgumentException.class,
+                () -> AgentAccessArchitecture.hostEgressMustNotTouchFastAgent());
+        assertThrows(IllegalArgumentException.class,
+                () -> AgentAccessArchitecture.hostEgressMustNotTouchFastAgent((String[]) null));
+    }
 }
