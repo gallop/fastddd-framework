@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  fastddd-agent-access-contract-kit（AA-04 §7 / MC-8）
+
+  普通 jar 制品（禁 test-jar classifier / reactor 相对路径依赖偷渡）；
+  宿主以 test scope 消费；JUnit5/Testcontainers/ArchUnit 版本由本 POM（经
+  spring-boot-dependencies BOM）管理，宿主无需自配。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fastddd-agent-access-parent</artifactId>
+    <version>0.1.0-jdk21-alpha.1</version>
+  </parent>
+
+  <artifactId>fastddd-agent-access-contract-kit</artifactId>
+  <packaging>jar</packaging>
+
+  <name>FastDDD Agent Access Contract Kit</name>
+
+  <dependencies>
+    <!-- .kit → 主制品全部包（AA-04 §3.2） -->
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fastddd-agent-access</artifactId>
+    </dependency>
+    <!-- AgentAccessAssemblyValidator 需要（SmartInitializingSingleton/BeanFactory API） -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
