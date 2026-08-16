@@ -16,40 +16,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class BusinessActionDescriptorTest {
 
-    /** 无业务语义的 reference 样板（WRITE：全字段齐备；同包测试复用）。 */
+    /** 无业务语义的 reference 样板（委托公共 fixture；同包测试复用）。 */
     static BusinessActionDescriptor referenceWriteAction() {
-        return new BusinessActionDescriptor(
-                "ar.reference.write-sample",
-                "1.0",
-                Effect.WRITE,
-                Set.of("ReferenceThing"),
-                "schema://reference/write-input@1",
-                "schema://reference/write-output@1",
-                Set.of("reference.testing"),
-                "INTERNAL",
-                IdempotencyMode.REQUIRED,
-                PreconditionMode.REQUIRED,
-                ReconciliationMode.QUERYABLE,
-                "SHORT",
-                true);
+        return ReferenceDescriptorFixtures.referenceWriteAction();
     }
 
     /** 无业务语义的 reference 样板（READ：idempotency/reconciliation 可选）。 */
     static BusinessActionDescriptor referenceReadAction() {
-        return new BusinessActionDescriptor(
-                "ar.reference.read-sample",
-                "1.0",
-                Effect.READ,
-                Set.of("ReferenceThing"),
-                "schema://reference/read-input@1",
-                "schema://reference/read-output@1",
-                Set.of("reference.testing"),
-                "INTERNAL",
-                null,
-                PreconditionMode.NOT_APPLICABLE,
-                null,
-                "SHORT",
-                true);
+        return ReferenceDescriptorFixtures.referenceReadAction();
     }
 
     @Test
