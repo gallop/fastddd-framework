@@ -1,0 +1,209 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "FDD-AA-00 冻结输入与 owner 决策（D1～D5）",
+        "description": "冻结 FastDDD/FastAgent 精确源码与制品基线、Egress DTO 字段清单、首个仓库外宿主标识与 tenant/environment、四类 owner 名单、LOCAL_OBJECT TCB 风险接受与 experimental 制品命名决策。执行载体已由 owner 决策 D6 确定为 Task Master（本任务系统）",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "details": "已交付：docs/architecture/FASTDDD_AGENT_ACCESS_AA00_DECISION_SHEET.md（2026-08-16 闭合）。\n\n1. §2 事实区（机器可核实）：FastDDD HEAD 47157fe8c9c68c075af223e1c94c46fac693092a（RC1 tag 落后 HEAD 4 提交）；FastAgent HEAD 2004ff03955516e5816c0b7f751406f175f95dcc；fastddd-bom-1.0.0-jdk21-rc1 与 FastAgent 0.3.0-alpha.1 制品均 local-only 未发布；GatewayEgressCommand 12 字段清单与 Contract 目标字段缺口表（TM-25 输入）；FastDDD 现有公共接缝复核；四文档 hash 快照\n2. §3 决策区（owner gallop 2026-08-16 签署）：D1 宿主 fastddd-agent-access-sample-host / tenant acme / env dev；D2 四 owner 均 gallop + 单人项目流程补偿；D3 接受 LOCAL_OBJECT（Threat §13 全要素，到期 2026-10-31 或 SEC-1A 签发时复审）；D4 experimental 制品 com.gallop.fastddd:fastddd-agent-access-*（1.x 公共面承诺延后）；D5 FastAgent 基线=源码 SHA 2004ff0 + §2.4 字段清单（制品坐标留 SEC-1A）\n3. §5 导入记录：本任务（id=1）即 FDD-AA-00 在 Task Master 中的映射\n\n边界：不签发任何 ADR/Contract/Gate，不构成 Phase 0 GO，不授权生产代码、DDL、POM 变更",
+        "testStrategy": "验收判定（Phase baseline §5 AA-00）：不存在「实现时再选宿主/版本/tenant/owner」——D1～D5 五项决策全部签署即达成。\n\n证据核对：\n1. 决策清单 §1 交付对照表五行全部指向已签署决策或已冻结事实\n2. 事实区每个 SHA/checksum 可由 git 命令与本地 localRepository 复算核实\n3. 决策区每条签署栏含决定、owner、日期三要素\n4. D3 接受记录含 Threat §13 全要素（风险/影响/检测/补偿/owner/到期/撤销人）\n\n负向要求：验证决策清单未把 ADR-006 置为 Accepted、未把 Contract 置为 Approved、未宣称 Phase 0 GO",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "2",
+        "title": "FDD-AA-01 形成 ADR-006 决策草案（十二项待决问题关闭）",
+        "description": "为 ADR-006 §15 十二项待决问题（Q1～Q12）逐一形成候选决策、依据、反例、被拒方案与 owner；产出 AA-01 决策草案文档；本任务完成时 ADR-006 仍保持 Proposed",
+        "status": "done",
+        "dependencies": [
+          "1"
+        ],
+        "priority": "high",
+        "details": "产出：docs/architecture/FASTDDD_AGENT_ACCESS_AA01_DECISION_DRAFT.md。\n\n必须回答（Phase baseline §5 FDD-AA-01 + ADR-006 §15）：\n\n- Q1 CallerContext 是扩展还是替换 user-oriented Security SPI（现有 SecurityIdentityService/SecurityPermissionService/SecurityCurrentUserProvider 行为保持）\n- Q2 LOCAL_OBJECT Permit 的构造/验证防护：受控 PermitIssuer/Verifier、package-private carrier、显式安全 Bean 装配、ArchUnit 规则；TCB 组件清单（FastAgent 侧 GatewayExecutor/Egress 实现；FastDDD 侧 AgentAccessGateway/PermitIssuer/Verifier/VerifiedCaller factory/Agent 专用 Handler/宿主装配；JVM 本身）；是否接受同 JVM 任意代码执行为 TCB 剩余风险（AA-00 D3 已签）\n- Q3 LOCAL_OBJECT 与跨进程 Profile 边界：Phase 1A 仅 LOCAL_OBJECT，远程（RFC 8693 token exchange 短 TTL + DPoP/mTLS、撤销上界=TTL）何时引入\n- Q4 BusinessActionDescriptor 与 FastAgent ActionDefinition 的所有权分离（actionId+actionVersion 引用、版本漂移 fail-closed）\n- Q5 ResourceFactSnapshot 最小字段集（resourceId/type/version/status/归属/数据分类/金额；AA-02 按 ar.createCrmFollowup 定稿）\n- Q6 事务外准入预检 + 事务内资源授权终检与现有 RBAC/外部 PDP 的组合规则（deny-overrides；外部决定只作带 TTL/revision 的受限输入；INDETERMINATE 拒绝）\n- Q7 Agent Access PEP 的模块位置（独立 fastddd-agent-access 模块，不进 security-starter、不进宿主）\n- Q8 哪些错误码进 FastDDD 1.x 兼容面（AA-00 D4 已决：experimental 制品，1.x 承诺延后；本任务只定错误码外部↔内部映射原则，细则留 AA-02/AA-04）\n- Q9 首个宿主与 tenant/environment（D1 已签：fastddd-agent-access-sample-host / acme / dev）\n- Q10 owner 名单（D2 已签：均 gallop + 单人补偿；SEC-0 细化角色在 AA-04）\n- Q11 effectDigest/authorizationBindingDigest canonical 规则候选（RFC 8785 JCS 候选 + golden vectors + READ 四约束）\n- Q12 Receipt/Status 完整性与独立恢复授权、Gate Attestation 签发/失效/撤销模型\n\n约束：ADR-006 正文只读不改（保持 Proposed）；N2（Contract §5.5「已授权意图摘要」措辞）移交 AA-02 统一为双摘要命名；每项候选决策必须附反例（该决策下必须被拒绝的具体场景）与被拒方案及拒绝理由；草案不签发任何 Gate",
+        "testStrategy": "验收判定（Phase baseline §5 FDD-AA-01）：十二项待决问题均有候选答案、owner、反例和被拒方案；ADR-006 未被改为 Accepted。\n\n验证步骤：\n1. 逐项核对 Q1～Q12 与 ADR-006 §15 清单一一对应、无遗漏、无自行增删问题\n2. Q8/Q9/Q10 引用 AA-00 已签决策值，不与决策清单冲突\n3. 每项候选决策至少含一个具体反例场景（负向语义）\n4. 每项含被拒方案及拒绝理由\n5. LOCAL_OBJECT TCB 组件清单与 Threat §8.2/§13、Contract §4.1 表述一致（只防误接线，不宣称抵御同 JVM 任意代码执行）\n6. fresh-context 对抗审查（Phase baseline §13.7）：审任务导入合规性 + 草案对 ADR-006 §15/Phase baseline AA-01 验收的符合性 + 与已签 AA-00 决策一致性；审查只读不改文件\n\n负向要求：草案不得出现「AA-05 前提前 Accepted/Approved」、不得引入 FastPolicy/MCP/A2A/Capability 元模型范围漂移",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "3",
+        "title": "FDD-AA-02 冻结 Contract Candidate 与字段映射",
+        "description": "形成可供最终批准的 Caller/Permit/Descriptor/Envelope/Precondition/Receipt/Status Candidate 与错误分类；完成 FastAgent GatewayEgressCommand 到 Agent Access Contract 的字段映射；本任务完成时 Contract 仍保持 Draft",
+        "status": "done",
+        "dependencies": [
+          "2"
+        ],
+        "priority": "high",
+        "details": "产出：FASTDDD_AGENT_ACCESS_CONTRACT_V0.1.md 升级为 Candidate 内容（状态仍 Draft）+ 字段映射文档。\n\n1. JSON/Java 语义字段表（Caller/Permit/Descriptor/Envelope/Precondition/Receipt/Status 全类型）\n2. effectDigest/authorizationBindingDigest canonical 规则定稿（RFC 8785 JCS 或等价；独立 schemaVersion；Unicode/数字/空值/排序规则）与跨语言 golden vectors（Java/Python 双侧）\n3. N2 修正：Contract §5.5「已授权意图摘要」措辞统一为双摘要命名，消除第三种摘要概念\n4. GatewayEgressCommand 12 字段 → Contract 目标字段映射表，逐项闭合 AA-00 §2.4 缺口表（subject/actor/workload、actionVersion、resourceConstraints/purpose、preconditionsHash/expectedResourceVersions、双 digest、authorizationEvidenceRef、dispatchId/binding 引用）；Phase 1A 不修补 DTO 全部缺口（V04-04 载体职责），本任务只冻结目标契约与映射\n5. P2-1 错误码：外部错误码 ↔ 内部 reason code 映射；Contract §9 为规范超集、ADR-006 §8 为子集的层级关系定稿\n6. P2-2 TASK 语义：TASK 是否独立 effect 或异步 WRITE 定稿（首样板为 WRITE，不阻断）\n7. 本地对象与未来远程承载的等价性规则；版本协商、未知版本拒绝、旧 Receipt 对账规则\n8. Permit 全字段绑定与按 effect 的重放规则（WRITE/TASK 同 operation+同 effectDigest；READ usageLimit/时间窗/dataBudget/速率；Status 独立 ReconciliationPermit）；Receipt/Status integrityProof 与绑定字段\n9. 协议制品所有权候选或明确暂留宿主的候选方案\n\n约束：Contract 不提前标 Approved；字段映射以 AA-00 D5 冻结的源码 SHA 2004ff0 + GatewayEgressCommand 清单为唯一输入基线",
+        "testStrategy": "验收判定（Phase baseline §5 FDD-AA-02）：credential、tenant/environment、subject/actor/workload、action/version、resource、purpose、preconditions、两个 digest、幂等和证据引用无丢失；没有 ThreadLocal/Map 隐藏字段；Contract 未提前标 Approved。\n\n验证步骤：\n1. 字段表逐类型核对覆盖上述安全字段全集，缺失即 fail\n2. golden vectors 至少覆盖：同对象不同字段序、Unicode 转义、数字规范化（1 vs 1.0）、null/空集合区分、跨语言（Java/Python）同输入同摘要\n3. 映射表逐行对照 AA-00 §2.4 缺口表闭合或显式标记「V04-04 载体职责」\n4. 错误码映射双向无歧义（一外码 ↔ 唯一内码组）\n5. fresh-context 对抗审查（§13.7），重点：字段丢失、隐藏通道、摘要概念混淆\n\n负向要求：候选契约必须显式声明反例——请求体覆盖 tenant/subject、ThreadLocal 补传可信字段、permitId 自带防重放、同键异摘要被当重试，均必须被判拒绝语义",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "4",
+        "title": "FDD-AA-03 关闭威胁模型 P0 设计项",
+        "description": "为全部 P0 Threat（TM-01～TM-15、TM-30～TM-32）指定 Contract MUST、缓解、代码落点、自动化测试和 owner",
+        "status": "done",
+        "dependencies": [
+          "3"
+        ],
+        "priority": "high",
+        "details": "产出：FASTDDD_AGENT_ACCESS_THREAT_MODEL.md 升级 + 威胁追踪矩阵。\n\n1. 威胁追踪矩阵：Threat ID → Contract MUST → Phase task → test ID → SQL/审计前后断言，逐项形成（Threat §12 要求）\n2. 旁路图：Controller/Listener/Scheduler/普通 Bean → 受保护 Handler/Repository 的所有可达路径与阻断点（TM-09/TM-10）\n3. 凭证/Permit 生命周期：签发、验证、过期、撤销、重放窗口（TM-06/TM-07）\n4. PDP 失效策略：不可用/INDETERMINATE 拒绝；已验证本地决定的适用窗口（TTL/revision）与缓存约束（TM-18）\n5. 数据处理规则：日志/审计/Outbox 白名单投影与敏感数据扫描要求（TM-17）\n6. 剩余风险模板：按 Threat §13 落地 LOCAL_OBJECT 同 TCB 剩余风险登记（AA-00 D3 已签要素）\n\n约束：AA-02 的 Contract Candidate 是本任务 Contract MUST 的唯一输入；本任务只做威胁→控制映射，不实现代码",
+        "testStrategy": "验收判定（Phase baseline §5 FDD-AA-03）：没有 P0 仅靠文档提醒或「部署时注意」；LOCAL_OBJECT 任意代码执行是明确 TCB 剩余风险或改用远程隔离（D3 已签为前者）；每项都有自动化测试入口和 SQL/审计前后断言。\n\n验证步骤：\n1. 逐个 P0 Threat 核对矩阵四元组（MUST/task/test ID/断言）完整，缺任一即 fail\n2. Threat §12 的 19 类安全测试全部映射到 test ID\n3. 每个测试 ID 对应的负向场景可执行描述（构造什么攻击输入、断言什么零业务效果）\n4. 剩余风险登记与 AA-00 D3 签署值逐字段一致（到期 2026-10-31 或 SEC-1A 复审）\n5. fresh-context 对抗审查（§13.7），重点：仅文档级缓解、无 owner、无测试落点的 P0\n\n负向要求：不得出现「实现时注意」「部署时配置」类缓解替代设计缓解；不得把 P0 降级为 P1/P2",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "5",
+        "title": "FDD-AA-04 冻结 Phase 1A 模块与兼容方案",
+        "description": "在不扩大 FastDDD 1.0 公共面的前提下确定最小实现落点：模块/包/依赖方向、Spring Bean 显式装配、兼容策略、Contract Test Kit 发布方式、RC1 兼容基线与 Phase 1A 候选制品方案、三层边界、Phase 1A 子任务与代码 owner",
+        "status": "done",
+        "dependencies": [
+          "4"
+        ],
+        "priority": "high",
+        "details": "已交付：docs/architecture/FASTDDD_AGENT_ACCESS_AA04_MODULE_AND_COMPAT_PLAN.md（2026-08-16 闭合，fresh-context 对抗审查 2 MAJOR + 4 MINOR + 4 NIT 全部修复）。\n\n决策 MC-1～MC-10：① 三制品 fastddd-agent-access/-contract-kit/-bom，首版 0.1.0-jdk21-alpha.1（四版本轴解耦：制品/契约文档 fastddd-agent-access/0.1/wire schemaVersion 0.1/digestSchemaVersion 1）；② 仓内独立聚合 reactor（agent-access/，不进根 POM modules）；③ agentaccess 五包 + kit 包，依赖方向 ArchUnit/Enforcer 固化；④ 禁依赖 FastAgent/FastPolicy/MCP/A2A/LLM/传输/fast-ddd-starter，主线仅 fast-ddd-application 一个 compile 接缝（对 AA-01 Q7 的修订已显式登记，CallerIdentityBridge 承载宿主桥接）；⑤ 无 starter，七类（八个）安全关键 Bean 显式装配 + AgentAccessAssemblyValidator fail-fast；⑥ 人工入口零依赖（TM-24）/Agent 禁匿名（TM-02，桥接不作 Agent Caller 来源）；⑦ 首版无迁移、回滚=移除依赖；⑧ Kit 普通制品 test scope，禁 test-jar/reactor；⑨ RC1 仅兼容基线不含新能力，候选制品新 tag v0.1.0-jdk21-alpha.1，checksum 为 SEC-1A 开放例外；⑩ 三层边界（ar.createCrmFollowup 归宿主）+ sample-host 创建时点=AA-05 后 FDD-AA-10 前。FDD-AA-10～16 草案依赖图与 baseline §8 逐边一致；SEC-0 四项 owner（issuer/verifier/两段式/审计）均 gallop 点名；协议制品所有权定稿以 ADR-007 随 AA-05 批准批次签署（Contract §11.5 程序合规）",
+        "testStrategy": "验收判定（Phase baseline §5 FDD-AA-04）：FastDDD Core 不依赖 FastAgent/FastPolicy/MCP；普通人工入口不依赖 FastAgent 在线。\n\n验证步骤：\n1. 模块依赖方向表逐项核对禁止依赖清单，出现违例即 fail\n2. 制品方案含坐标/版本/仓库/checksum 占位与生成时点（AA-05/SEC-1A 冻结实值）\n3. 装配策略逐 Bean 核对：无条件化替换路径、缺 Bean 启动 fail-fast\n4. 兼容策略含负向声明：Agent 路径匿名降级 system 必须拒绝；人工入口移除 Agent 依赖后行为不变\n5. FDD-AA-10～16 草案依赖图与 Phase baseline §8 依赖图一致、无环\n6. fresh-context 对抗审查（§13.7），重点：公共面扩大、条件化装配、RC1 冒充新能力\n\n负向要求：不得把 Phase 1A API 塞进 fast-ddd-security-starter 或宿主私有包；不得宣称 RC1 已含 Phase 1A 能力",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "6",
+        "title": "FDD-AA-05 Ratification 与 Phase 0/SEC-0 Gate Attestation",
+        "description": "在所有候选决策闭合后，由人类 owner 一次性批准 ADR-006 Accepted、Contract v0.1 Approved 和 Phase 0/SEC-0 Attestation；自动化只备料，签发权在人类 owner",
+        "status": "done",
+        "dependencies": [
+          "5"
+        ],
+        "priority": "high",
+        "details": "产出：Ratification 记录 + Phase 0/SEC-0 Gate Attestation 文档。\n\n1. ADR-006 Accepted 记录与反对意见处置（若 fresh-context 审查留有未采纳 findings，逐条记录处置理由）\n2. Contract v0.1 Approved 版本/hash（签发时点重算值，AA-00 §2.6 说明草案 hash 会因修订改变）\n3. Threat → Contract MUST → Phase task → test ID → SQL/审计断言矩阵（引用 AA-03 产出）\n4. Phase 0/SEC-0 Gate Attestation，至少包含：schemaVersion、状态、FastDDD/FastAgent 基线 SHA、候选制品坐标/checksum、Contract/Threat hash、测试 ID、开放例外、签字 owner、签发时间、失效条件、撤销记录\n5. 失效条件：任一输入 SHA/制品/checksum 变化或例外超期即失效；撤销权在 owner（重签）\n6. 签发权与流程：gallop 一次性签发（D2 单人补偿说明必须显式记录）；本任务自动化交付物=Attestation 草稿与待签清单，owner 签署后才可标记本任务 done\n7. 签发后动作：FDD-AA-10～16 按依赖图正式导入（§13.2 解锁）；FastAgent V04-01 在其自身任务中本地验证本 Attestation（不复制任务状态）\n\n约束：任一 P0 未有设计缓解或 owner 时不得签发 GO；ADR、Contract 与 Gate 必须同一批准批次一致",
+        "testStrategy": "验收判定（Phase baseline §5 FDD-AA-05）：ADR、Contract 与 Gate 同一批准批次一致；任一 P0 未有设计缓解或 owner 时不得签发 GO。\n\n验证步骤：\n1. Attestation 字段逐项核对 Phase baseline AA-05 交付清单（schemaVersion、状态、两仓基线 SHA、制品坐标与 checksum、Contract/Threat hash、测试 ID、开放例外、签字 owner、签发时间、失效条件、撤销记录——逐字段枚举核对无缺失）\n2. 签发时点重算 ADR/Contract/Threat/baseline 四文档 hash 并与 Attestation 记录一致\n3. GO 清单（Phase baseline §6，含 N1 修正后第 6 条判定物）逐项可定位证据\n4. NO-GO 条款（§6 七条）逐条核对未命中\n5. 外部 Gate 以 Attestation schema 本地验证（§13.9）：FastAgent V04-01 侧验证记录引用本 Attestation 的版本/hash/失效状态\n\n负向要求：自动化不得代签；「核对为未 GO」不得标记本任务完成；Attestation 失效后引用方任务不得保持 done；不得宣称 Phase 1A 代码已完成",
+        "prepRecord": "备料已交付（2026-08-16，自动化部分完成，待 owner 签发）：docs/architecture/FASTDDD_AGENT_ACCESS_AA05_RATIFICATION_DRAFT.md——§1 待签清单 R1～R7（R1 ADR-006 Accepted/R2 Contract Approved/R3 新立 ADR-007/R4 Threat+矩阵定稿/R5 Attestation 签发/R6 FDD-AA-10～16 导入解锁/R7 sample-host 创建解锁）；§2 GO 八项+NO-GO 七条核对；§3 各轮审查处置登记（AA-02 8/AA-03 8/AA-04 10 findings 全部采纳；AA-01 明细未持久化如实登记并建议抽查）；§4 Attestation 草稿（字段齐备、hash 十文档实测、checksum 开放例外、失效条件含禁引条款、签字段空）。fresh-context 审查 2 MINOR + 2 NIT 全部修复（GO 条目 4 证据表述/失效条件禁引条款落位/责任链字段表述/AA-04 §11 计数残渣）。owner 签署 R1～R5 后本任务方可置 done",
+        "signingRecord": "已签发（2026-08-16 11:27:29 +0800）：owner gallop 以会话指令「帮我签署」批准 R1～R5 全批次，由 Claude Code 会话按备料 §5 清单执行并如实登记（非自动化自签）。交付：① R1 ADR-006 Accepted（含 AA-04 §3.3 Q7 修订采纳注记）；② R2 Contract v0.1 Approved；③ R3 ADR-007-agent-access-artifact-ownership 新立 Accepted；④ R4 Threat/AA-03 矩阵定稿 + AA-01/AA-02 映射/golden vectors/AA-04/Phase baseline 五份文档状态行随批次更新（批次一致性）；⑤ R5 Attestation 转正为 FASTDDD_AGENT_ACCESS_PHASE0_SEC0_GATE_ATTESTATION.md（SIGNED、十一文档签发时点实测 hash、两仓 HEAD 复核无漂移）。签发后动作：T6 置 done、FDD-AA-10～16 导入（id=7～13）、sample-host 骨架创建、FastAgent V04-01 侧本地验证通知（均随批执行）",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "7",
+        "title": "FDD-AA-10 CallerContext 与安全上下文接缝",
+        "description": "建立不可歧义的 Subject/Actor/Workload 责任链与 Agent 路径唯一 Caller 构造入口，阻断匿名 Agent 降级；含人工/SystemJob 桥接 Port 与显式装配 Validator 首版",
+        "status": "pending",
+        "dependencies": [
+          "6"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-10 / AA-04 §9）：不可歧义责任链、阻断匿名 Agent 降级。\n\n落点（com.gallop.fastddd.agentaccess 命名空间，AA-04 §3.2）：\n1. .contract CallerContext/ActorChain 协议 DTO（wire schemaVersion=0.1，四轴表 AA-04 §2.2）\n2. .spi VerifiedCaller factory（Agent 路径唯一 Caller 构造入口）+ CallerIdentityBridge Port（人工/SystemJob 路径身份桥接：宿主实现，把既有安全上下文或显式注册的 SYSTEM_JOB 适配为 CallerContext；Agent 路径禁用此桥接）\n3. 人工/Agent/SystemJob 三类 adapter 分流；SYSTEM_JOB 显式注册显式使用（Contract §5.1 不变量 4）\n4. 显式装配 + AgentAccessAssemblyValidator 首版（安全关键 Bean 缺失 fail-fast；禁 @ConditionalOnMissingBean/@Primary/@Conditional 家族）\n\n兼容负向（AA-04 §5）：人工入口零依赖（移除 agent-access 全部装配后人工用例全部通过，TM-24）；Agent 路径禁匿名 system 回落（TM-02）；桥接不作 Agent Caller 来源。\n\n代码 owner=gallop（D2）。依赖：Phase 0 GO（本任务链首）",
+        "testStrategy": "验收判定（Phase baseline §5/§7）：责任链三段（subject/actor/workload）不可歧义；匿名 Agent 降级被阻断。\n\n验证步骤：\n1. AST-04：移除认证 adapter 后发起 Agent WRITE → 启动 fail-fast（缺安全 Bean）或调用拒绝；<audit> 无 system 归因兜底行；业务表 0 变更\n2. AST-04 补充负向：Agent 请求经 CallerIdentityBridge 取得人工归因 → 拒绝（ArchUnit 装配规则禁止 Agent adapter 装配点引用桥接）\n3. 兼容测试：移除 agent-access 全部装配后人工用例全部通过（AA-04 §5.1 锚点）\n4. fresh-context 对抗审查（Phase baseline §13.7）\n\n负向要求：不得出现任何匿名兜底 principal；不得让桥接成为 Agent 路径 Caller 来源；未认证上下文直调 Gateway 必须拒绝",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "8",
+        "title": "FDD-AA-11 Permit 验证与两段式授权 SPI",
+        "description": "实现双端 PEP 的 FastDDD 执行点与 Permit fail-closed 全字段验证，关闭 TOCTOU：Permit carrier/Verifier、两段式授权 Port、EntitlementRevision、typed Decision/Obligation",
+        "status": "pending",
+        "dependencies": [
+          "7"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-11 / AA-04 §9）：双端 PEP 的 FastDDD 执行点、关闭 TOCTOU。\n\n落点：\n1. .permit Permit carrier 默认实现（package-private 构造）+ 受控 PermitIssuer（唯一实现，Validator 唯一性校验；owner gallop，SEC-0 点名）\n2. .spi ExecutionPermitVerifier 显式安全 Bean：fail-closed 全字段（版本/字段/时间窗/issuer/audience/sender + Envelope 全字段绑定比对；clock skew 可配置上界，TM-20 关联）\n3. .spi TargetAdmissionAuthorizationPort + ResourceAuthorizationPort 两段式授权（事务外准入预检 + 事务内资源终检；deny-overrides；INDETERMINATE 拒绝；事务内终检不调远程 PDP——TM-19）\n4. EntitlementRevision CAS 断言（事务内）；typed Decision/Obligation（允许集合求交、必做义务求并、数值上限取更严格值、未知类型 fail-closed）\n5. PDP 失效策略：唯一允许降级=仍在适用窗口内的已验证本地决定（policyVersion/decisionDigest 一致 + TTL 未过 + revision 未漂移三要素缺一不可）\n\n代码 owner=gallop（D2，SEC-0 issuer/verifier/两段式均点名）。依赖：FDD-AA-10",
+        "testStrategy": "验收判定（Phase baseline §7）：无 Permit 不放行；PDP/Verifier 故障 fail-closed；准入后撤销 ACL 终检拒绝。\n\n验证步骤：\n1. AAC-01/18：FastAgent ALLOW + FastDDD DENY 象限 → 业务表 0 变更\n2. AAC-02：无 Permit 调用 → 拒绝；AAC-03/04 + AST-01：forged/expired/wrong-audience Permit、Verifier Bean 缺失、PDP 超时/INDETERMINATE → 全部 fail-closed 拒绝\n3. AAC-15：预检后撤 ACL/改归属 → 终检拒绝 + revision 漂移记录\n4. fresh-context 对抗审查（§13.7）\n\n负向要求：禁止任何默认 allow、无限期缓存、跨 policyVersion 复用缓存决定；缺 Verifier Bean 不得静默降级",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "9",
+        "title": "FDD-AA-12 Descriptor 与旁路防护",
+        "description": "只允许显式发布的 Action 进入 Agent 路径：Descriptor registry/resolver、AgentAccessGateway 编排实现（.gateway 包）、包可见性与 ArchUnit 旁路阻断",
+        "status": "pending",
+        "dependencies": [
+          "7"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-12 / AA-04 §9）：只允许显式发布动作进入。\n\n落点：\n1. .spi DescriptorRegistry read-only resolver（显式注册，禁自动扫描——TM-10）+ reference fixture（无业务语义）\n2. .gateway AgentAccessGateway 编排实现：Agent 路径唯一入口、异常→十二结果码映射、审计白名单投影（AA-04 §3.2；编排步骤在 AA-13/14 充实）；各包与业务代码禁依赖 .gateway 实现类，唯一豁免=宿主装配 @Configuration\n3. .arch ArchUnit 规则导出（B1/B2 阻断点 + 「不依赖 FastAgent 权威类型」规则 AST-06 同源）\n4. BusinessActionDescriptor 与 FastAgent ActionDefinition 所有权分离（actionId+actionVersion 引用、版本漂移 fail-closed）\n\n代码 owner=gallop（D2）。依赖：FDD-AA-10（与 FDD-AA-11 并行可行，baseline §8）",
+        "testStrategy": "验收判定（Phase baseline §7）：未发布/禁用/版本错 action 不进入；无旁路入口。\n\n验证步骤：\n1. AST-05：未注册 actionId、已 disabled、actionVersion 高于/低于已发布版本 → 三种输入均 ACTION_NOT_EXPOSED 拒绝；registry 行数=显式发布数（无扫描增量）\n2. AAC-05 + B6：运行时真实 Bean 图测试无替代入口；ArchUnit 违例=构建失败（B1）\n3. fresh-context 对抗审查（§13.7）\n\n负向要求：禁止自动扫描 CommandHandler/MCP tool 冒充发布；.gateway 实现类不得进入公共接缝（除宿主装配豁免）",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "10",
+        "title": "FDD-AA-13 Envelope/Precondition 与双 digest 映射",
+        "description": "关闭 Adapter 丢字段、绑定审批事实：BusinessActionEnvelope、ResourcePrecondition、双 digest 实现 + golden vectors Java 复算、Provider Contract Test",
+        "status": "pending",
+        "dependencies": [
+          "8",
+          "9"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-13 / AA-04 §9）：关闭 Adapter 丢字段、绑定审批事实。\n\n落点：\n1. .contract BusinessActionEnvelope + ResourcePrecondition/ResourceFactSnapshot（tenant-scoped 权威重读、expectedVersion/CAS 语义）\n2. 双 digest 实现：effectDigest/authorizationBindingDigest 域分离、digestSchemaVersion=1、RFC 8785 JCS canonical、域标签常量按 AA-04 §2.2 四轴表（digest 域标签用 golden vectors v1 冻结值）\n3. golden vectors Java 复算：GV-01～07 逐字节一致（GV-01 9d47d5d4…、GV-02 e3de59fb…、GV-03 54b84597…、GV-04 39a370f8…、GV-05a 6224fcc2…、GV-05b 837b4d0d…、GV-06 6b4a2e83…、GV-07 4c869666…）\n4. Gateway 编排充实：Permit 验证先于任何业务读取、信封↔已验证上下文一致比对\n\n外部依赖：FastAgent V04-04 dispatch artifact（真实载体）。V04-04 未交付时可先以 Contract Candidate 推进测试侧工作，但真实 V04-04 carrier 通过前不得标记本任务完成（Phase baseline §7 AA-13 原文约束）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-11、FDD-AA-12",
+        "testStrategy": "验收判定（Phase baseline §7）：Contract 安全字段（credential、tenant/environment、subject/actor/workload、action/version、resource、purpose、preconditions、双 digest、幂等、证据引用）无丢失、无 ThreadLocal/Map 隐藏通道。\n\n验证步骤：\n1. AAC-06：审批后版本变化 → PRECONDITION_CHANGED/RESOURCE_VERSION_CONFLICT；AAC-07：合法重试同摘要 → 稳定 Receipt\n2. AAC-08 + AST-03：同键异摘要 → IDEMPOTENCY_CONFLICT；Java（及后续 Python 联测）复算 GV-01～07 全一致；可变绑定项不影响 effectDigest\n3. AST-03：凭据轮换/attempt/worker 变化后摘要稳定；UNKNOWN 恢复不换键\n4. fresh-context 对抗审查（§13.7）\n\n负向要求：请求体覆盖 tenant/subject 必须拒绝；ThreadLocal 补传可信字段必须拒绝；digest 不得混入可变绑定项；真实 V04-04 carrier 未通过前不得置 done",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "11",
+        "title": "FDD-AA-14 幂等/Receipt/Status 与 Provider 契约",
+        "description": "冻结宿主持久幂等/事务/对账语义：持久幂等 Provider SPI/Contract、(tenantId,businessOperationId,effectDigest) 去重、ReconciliationPermit、conformance fixture",
+        "status": "pending",
+        "dependencies": [
+          "10"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-14 / AA-04 §9）：冻结宿主持久幂等/事务/对账语义。\n\n落点：\n1. Provider SPI/Contract：宿主持久去重、Receipt/Status Provider（完整性证明 issuer/audience/tenant/operation/action/version/effectDigest/binding 绑定字段；AAC-16）\n2. (tenantId,businessOperationId,effectDigest) 持久唯一约束语义；FastDDD commandId 仅调查不作业务幂等键（TM-26）\n3. ReconciliationPermit 独立对账授权（STATUS_QUERY scope，绑定原 tenant/subject/actor/action/audience/binding/operation；不复用原执行 Permit）\n4. Status 查询与 UNKNOWN 收敛：无记录仍为 UNKNOWN；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功\n5. 聚合+去重+Outbox 同一 DataSource/TransactionManager（TM-14）\n6. kit conformance fixture（PostgreSQL/Testcontainers；<agg>/<dedup>/<outbox>/<audit> 表占位，与 V04-09 宿主真表同名同义）\n\n代码 owner=gallop（D2；审计投影 schema L1 固化落点含本任务，SEC-0 点名）。依赖：FDD-AA-13",
+        "testStrategy": "验收判定（Phase baseline §7）：commit-response 窗口、重放、对账语义全部有负向证明；同键异摘要零第二次业务变更。\n\n验证步骤：\n1. AAC-09 + 故障注入：Outbox insert 失败 → 三表全回滚（0 净变更）\n2. AAC-10 + AST-08：commit 后响应丢失 → UNKNOWN；原键查询收敛既有结果；变更恰一次；tombstone 后不切换新 binding 收敛成功\n3. AAC-16 + AST-07：伪造/错 digest/错 binding/旧 Receipt → 保持 UNKNOWN + 安全事件；READ 四约束超限（usageLimit/时间窗/dataBudget/速率）全部拒绝\n4. AAC-17：原 Permit 过期后独立 ReconciliationPermit 对账可用且授权不放宽\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：UNKNOWN 禁止换键/换 binding 重放；禁止内存去重替代持久去重；禁止聚合先提交后补 Outbox",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "12",
+        "title": "FDD-AA-15 Contract Kit 与安全负向矩阵全量",
+        "description": "宿主可消费的 P0 全覆盖 Kit：Kit 制品化（普通 jar、test scope 消费）、AAC+AST 全量执行、敏感数据扫描、证据 manifest schema",
+        "status": "pending",
+        "dependencies": [
+          "8",
+          "9",
+          "10",
+          "11"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-15 / AA-04 §9）：宿主可消费的 P0 全覆盖 Kit。\n\n落点（AA-04 §7 四条）：\n1. Kit 制品化：普通 jar 制品（禁 test-jar classifier、禁 reactor 内 ../ 相对路径依赖偷渡）；kit POM 管理 JUnit5/Testcontainers/ArchUnit 版本，宿主 test scope 消费无需自配\n2. AAC-01～18 + AST-01～08 全量自动化（test ID 全集以 AA-03 矩阵 §1～§4 为准）+ golden vectors 资源（GV-01～07 + UTF-16 边界补充向量）\n3. 敏感数据扫描（AST-02）：<audit>/<outbox>/日志产物 token 模式、prompt 关键词、字段白名单 diff、熵扫描，0 命中为通过\n4. 证据 manifest schema 随 kit 发布（AAC/AST 执行记录 + 制品 checksum + SQL 前后断言快照）；SEC-1A Attestation「测试 ID」字段直接引用其输出\n5. AgentAccessAssemblyValidator 完整版（七类八 Bean 存在性 + 条件化注解扫描 → 启动 fail-fast）\n\n禁令：kit 发布前不得以主仓 example 冒充宿主消费证据（SEC-1A NO-GO 第 1 条同源）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-11～14",
+        "testStrategy": "验收判定（Phase baseline §5/§7 FDD-AA-15）：Contract AAC-01～18 和威胁模型全部 P0 可自动执行；Kit 可由仓库外干净消费。\n\n验证步骤：\n1. AA-03 矩阵全部 test ID（AAC-01～18、AST-01～08、GV-01～07）在 kit 中全部可执行且负向断言（零业务效果）通过\n2. Threat §12 十九类安全测试全部映射并执行（矩阵 §4 映射表）\n3. kit 从安装制品（非 reactor）被消费的冒烟验证\n4. 敏感数据扫描 0 命中证据归档\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：禁 test-jar/reactor 偷渡；禁以 example 冒充宿主消费证据；manifest 缺失或 schema 不符不得通过",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      },
+      {
+        "id": "13",
+        "title": "FDD-AA-16 候选制品/clean consumer/SEC-1A Attestation",
+        "description": "Phase 1A 候选制品冻结（坐标/BOM/tag/checksum 实值）+ sample-host 内 clean consumer 干净消费证明 + SEC-1A Integration Ready Gate Attestation",
+        "status": "pending",
+        "dependencies": [
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12"
+        ],
+        "priority": "high",
+        "details": "目标（Phase baseline §7 FDD-AA-16 / AA-04 §9）：干净消费证明 + Integration Ready Gate。\n\n落点：\n1. 候选制品实值冻结：坐标/版本 0.1.0-jdk21-alpha.1/BOM/tag 候选 v0.1.0-jdk21-alpha.1/checksum（jar/pom 各 SHA-256）——补冻结 AA-04 §2.3 开放例外并解除候选制品禁引条款；tag/push/上传未经 owner 批准不执行\n2. 兼容矩阵：Phase 1A 制品 × fast-ddd-application:1.0.0-jdk21-rc1 × JDK 21 × 宿主 Spring Boot 版本\n3. clean consumer：sample-host 仓（fastddd-agent-access-sample-host）从安装制品（非 reactor）消费，产出真实宿主消费证据\n4. SEC-1A Attestation：Threat §14 SEC-1A 五项逐项（Gateway/Verifier/两段式 SPI/Descriptor/Receipt-Status 契约/typed obligations 已具备；golden vectors 与 Kit 可由干净 consumer 消费；候选制品版本/仓库/checksum/兼容范围/测试 SHA 冻结；P0 负向 Contract Test Kit 全绿；运行时 Bean 图/架构测试无旁路）+ NO-GO 十三条逐项核对\n5. D3 剩余风险强制复审（SEC-1A Attestation 签发时点）\n\n外部依赖：必须消费 V04-07 的真实 Permit carrier evidence 方可完成（Phase baseline §8 尾段原文约束）；不跨仓复制任务状态（§13.10）。\n\n代码 owner=gallop（D2）。依赖：FDD-AA-10～15",
+        "testStrategy": "验收判定（Phase baseline §5/§7 FDD-AA-16 + Threat §14 SEC-1A）：候选制品可被仓库外干净消费且全部门禁证据可校验。\n\n验证步骤：\n1. clean consumer 从安装制品构建执行，无 reactor/test-jar/example 冒充\n2. SEC-1A 清单五项 + NO-GO 十三条逐项核对，证据可定位、hash 可复算\n3. 候选制品 checksum 实值冻结并回填 Attestation；D3 剩余风险复审记录\n4. V04-07 真实 Permit carrier evidence 已消费（跨仓只引用版本/hash/证据）\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：无真实 V04-07 evidence 不得置 done；门禁未全绿不得宣称 Integration Ready；tag/push/上传未经 owner 批准不得执行",
+        "subtasks": [],
+        "updatedAt": "2026-08-16T00:00:00.000Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-08-16T00:00:00.000Z",
+      "taskCount": 13,
+      "completedCount": 6,
+      "tags": [
+        "master"
+      ],
+      "created": "2026-08-16T00:00:00.000Z",
+      "description": "FastDDD Agent Access Phase 0 (FDD-AA-00..05, done) + Phase 1A (FDD-AA-10..16, id=7..13) per FASTDDD_AGENT_ACCESS_PHASE_0_1_BASELINE.md §5/§7/§8/§13",
+      "updated": "2026-08-16T00:00:00.000Z"
+    }
+  }
+}
