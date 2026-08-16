@@ -298,12 +298,12 @@
         "id": "11",
         "title": "FDD-AA-14 幂等/Receipt/Status 与 Provider 契约",
         "description": "冻结宿主持久幂等/事务/对账语义：持久幂等 Provider SPI/Contract、(tenantId,businessOperationId,effectDigest) 去重、ReconciliationPermit、conformance fixture",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           "10"
         ],
         "priority": "high",
-        "details": "目标（Phase baseline §7 FDD-AA-14 / AA-04 §9）：冻结宿主持久幂等/事务/对账语义。\n\n落点：\n1. Provider SPI/Contract：宿主持久去重、Receipt/Status Provider（完整性证明 issuer/audience/tenant/operation/action/version/effectDigest/binding 绑定字段；AAC-16）\n2. (tenantId,businessOperationId,effectDigest) 持久唯一约束语义；FastDDD commandId 仅调查不作业务幂等键（TM-26）\n3. ReconciliationPermit 独立对账授权（STATUS_QUERY scope，绑定原 tenant/subject/actor/action/audience/binding/operation；不复用原执行 Permit）\n4. Status 查询与 UNKNOWN 收敛：无记录仍为 UNKNOWN；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功\n5. 聚合+去重+Outbox 同一 DataSource/TransactionManager（TM-14）\n6. kit conformance fixture（PostgreSQL/Testcontainers；<agg>/<dedup>/<outbox>/<audit> 表占位，与 V04-09 宿主真表同名同义）\n\n代码 owner=gallop（D2；审计投影 schema L1 固化落点含本任务，SEC-0 点名）。依赖：FDD-AA-13",
+        "details": "目标（Phase baseline §7 FDD-AA-14 / AA-04 §9）：冻结宿主持久幂等/事务/对账语义。\n\n落点：\n1. Provider SPI/Contract：宿主持久去重、Receipt/Status Provider（完整性证明 issuer/audience/tenant/operation/action/version/effectDigest/binding 绑定字段；AAC-16）\n2. (tenantId,businessOperationId,effectDigest) 持久唯一约束语义；FastDDD commandId 仅调查不作业务幂等键（TM-26）\n3. ReconciliationPermit 独立对账授权（STATUS_QUERY scope，绑定原 tenant/subject/actor/action/audience/binding/operation；不复用原执行 Permit）\n4. Status 查询与 UNKNOWN 收敛：无记录仍为 UNKNOWN；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功\n5. 聚合+去重+Outbox 同一 DataSource/TransactionManager（TM-14）\n6. kit conformance fixture（PostgreSQL/Testcontainers；<agg>/<dedup>/<outbox>/<audit> 表占位，与 V04-09 宿主真表同名同义）\n\n代码 owner=gallop（D2；审计投影 schema L1 固化落点含本任务，SEC-0 点名）。依赖：FDD-AA-13\n\n[2026-08-16 完成] FDD-AA-14 闭环：11.1~11.5 全部 done；fresh-context 对抗审查 NEEDS_FIX（2 MAJOR+2 MINOR）经 1f7d074 修复后 159+17 全绿。commit 链：caab394/bd0ea82/8917e0d/70e0032/8e0b211/1f7d074。kit conformance PostgreSQL 参考执行本机无 Docker 7 skipped（守卫生效，如实记录，不得表述为 conformance 已通过）。",
         "testStrategy": "验收判定（Phase baseline §7）：commit-response 窗口、重放、对账语义全部有负向证明；同键异摘要零第二次业务变更。\n\n验证步骤：\n1. AAC-09 + 故障注入：Outbox insert 失败 → 三表全回滚（0 净变更）\n2. AAC-10 + AST-08：commit 后响应丢失 → UNKNOWN；原键查询收敛既有结果；变更恰一次；tombstone 后不切换新 binding 收敛成功\n3. AAC-16 + AST-07：伪造/错 digest/错 binding/旧 Receipt → 保持 UNKNOWN + 安全事件；READ 四约束超限（usageLimit/时间窗/dataBudget/速率）全部拒绝\n4. AAC-17：原 Permit 过期后独立 ReconciliationPermit 对账可用且授权不放宽\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：UNKNOWN 禁止换键/换 binding 重放；禁止内存去重替代持久去重；禁止聚合先提交后补 Outbox",
         "subtasks": [
           {
@@ -335,22 +335,24 @@
           {
             "id": "11.4",
             "title": "Status 查询与 UNKNOWN 收敛 port + 参考编排",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "11.1",
               "11.3"
             ],
-            "description": "OutcomeStatusPort（宿主记录查询）。参考编排（.gateway 或 .spi 参考实现，与 DefaultAgentAccessGateway 模式一致）：ReconciliationPermit 验证先于任何记录读取；无记录仍 UNKNOWN（§5.7：无记录≠FAILED）；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功（保持 UNKNOWN）；错误 tenant/无权统一 NOT_VISIBLE 不泄露存在性。"
+            "description": "OutcomeStatusPort（宿主记录查询）。参考编排（.gateway 或 .spi 参考实现，与 DefaultAgentAccessGateway 模式一致）：ReconciliationPermit 验证先于任何记录读取；无记录仍 UNKNOWN（§5.7：无记录≠FAILED）；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功（保持 UNKNOWN）；错误 tenant/无权统一 NOT_VISIBLE 不泄露存在性。",
+            "details": "[2026-08-16 完成] commit 70e0032 + audit 1f7d074。spi OutcomeStatusPort/OutcomeRecordView(sealed 四态)/StatusQueryService/StatusQueryResult/InMemoryOutcomeStatusStore + gateway DefaultStatusQueryService：验证先于读键、验证失败统一 NOT_VISIBLE 且 0 次 find、无记录≠FAILED、Recorded 收敛 §5.7 绑定面六项完整性复验（audit 扩至 actionId/actionVersion/audience）、AST-08 tombstone 携引用。allowedProjection 经 port 签名结构性透传宿主（audit 修复）。测试 159+17 全绿。"
           },
           {
             "id": "11.5",
             "title": "kit conformance fixture（PostgreSQL/Testcontainers）+ 负向测试",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "11.2",
               "11.4"
             ],
-            "description": "conformance 抽象基类（宿主对真表运行）+ PostgreSQL Testcontainers 参考执行（@Testcontainers(disabledWithoutDocker=true) 守卫，skip 如实进报告不冒充通过）；占位表 <agg>/<dedup>/<outbox>/<audit> DDL——V04-09 未冻结真表名，显式占位表名 + javadoc 如实标注「V04-09 冻结后同名同义对齐」；纯 java.sql JDBC（test scope postgresql driver + testcontainers，kit test 依赖，主制品纯 JDK 不受影响）。断言：同键同 digest 稳定返回/异 digest IDEMPOTENCY_CONFLICT/commandId 不进幂等键/TM-14 同事务可见性（同事务内写入对去重查询可见）。AAC-16 Receipt 完整性绑定字段负向。"
+            "description": "conformance 抽象基类（宿主对真表运行）+ PostgreSQL Testcontainers 参考执行（@Testcontainers(disabledWithoutDocker=true) 守卫，skip 如实进报告不冒充通过）；占位表 <agg>/<dedup>/<outbox>/<audit> DDL——V04-09 未冻结真表名，显式占位表名 + javadoc 如实标注「V04-09 冻结后同名同义对齐」；纯 java.sql JDBC（test scope postgresql driver + testcontainers，kit test 依赖，主制品纯 JDK 不受影响）。断言：同键同 digest 稳定返回/异 digest IDEMPOTENCY_CONFLICT/commandId 不进幂等键/TM-14 同事务可见性（同事务内写入对去重查询可见）。AAC-16 Receipt 完整性绑定字段负向。",
+            "details": "[2026-08-16 完成] commit 8e0b211。kit main PersistentDedupConformanceContract（宿主对真表运行，唯一抽象 inBusinessTransaction=TM-14 核心；断言 §8.1/8.2/8.3/TM-26/TM-14 可见与回滚/并发恰一赢家/AAC-16 负向）+ kit test PostgreSqlDedupConformanceTest（postgres:16-alpine，disabledWithoutDocker 守卫；本机无 Docker 7 skipped 如实进报告不冒充通过；fddaa_conformance_* 显式占位表，javadoc 标注 V04-09 冻结后同名同义对齐；纯 java.sql JDBC + SAVEPOINT 防语句中止毒化事务）。POM：junit-jupiter-api 编译域 + testcontainers/postgres 测试域（BOM 管理版本），主制品纯 JDK 不变。"
           }
         ],
         "updatedAt": "2026-08-16T00:00:00.000Z"
