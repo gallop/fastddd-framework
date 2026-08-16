@@ -89,21 +89,57 @@
         "id": "7",
         "title": "FDD-AA-10 CallerContext 与安全上下文接缝",
         "description": "建立不可歧义的 Subject/Actor/Workload 责任链与 Agent 路径唯一 Caller 构造入口，阻断匿名 Agent 降级；含人工/SystemJob 桥接 Port 与显式装配 Validator 首版",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "6"
         ],
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-10 / AA-04 §9）：不可歧义责任链、阻断匿名 Agent 降级。\n\n落点（com.gallop.fastddd.agentaccess 命名空间，AA-04 §3.2）：\n1. .contract CallerContext/ActorChain 协议 DTO（wire schemaVersion=0.1，四轴表 AA-04 §2.2）\n2. .spi VerifiedCaller factory（Agent 路径唯一 Caller 构造入口）+ CallerIdentityBridge Port（人工/SystemJob 路径身份桥接：宿主实现，把既有安全上下文或显式注册的 SYSTEM_JOB 适配为 CallerContext；Agent 路径禁用此桥接）\n3. 人工/Agent/SystemJob 三类 adapter 分流；SYSTEM_JOB 显式注册显式使用（Contract §5.1 不变量 4）\n4. 显式装配 + AgentAccessAssemblyValidator 首版（安全关键 Bean 缺失 fail-fast；禁 @ConditionalOnMissingBean/@Primary/@Conditional 家族）\n\n兼容负向（AA-04 §5）：人工入口零依赖（移除 agent-access 全部装配后人工用例全部通过，TM-24）；Agent 路径禁匿名 system 回落（TM-02）；桥接不作 Agent Caller 来源。\n\n代码 owner=gallop（D2）。依赖：Phase 0 GO（本任务链首）",
         "testStrategy": "验收判定（Phase baseline §5/§7）：责任链三段（subject/actor/workload）不可歧义；匿名 Agent 降级被阻断。\n\n验证步骤：\n1. AST-04：移除认证 adapter 后发起 Agent WRITE → 启动 fail-fast（缺安全 Bean）或调用拒绝；<audit> 无 system 归因兜底行；业务表 0 变更\n2. AST-04 补充负向：Agent 请求经 CallerIdentityBridge 取得人工归因 → 拒绝（ArchUnit 装配规则禁止 Agent adapter 装配点引用桥接）\n3. 兼容测试：移除 agent-access 全部装配后人工用例全部通过（AA-04 §5.1 锚点）\n4. fresh-context 对抗审查（Phase baseline §13.7）\n\n负向要求：不得出现任何匿名兜底 principal；不得让桥接成为 Agent 路径 Caller 来源；未认证上下文直调 Gateway 必须拒绝",
-        "subtasks": [],
-        "updatedAt": "2026-08-16T00:00:00.000Z"
+        "subtasks": [
+          {
+            "id": "7.1",
+            "title": "agent-access 独立 reactor 骨架",
+            "description": "aggregator + 主制品 + kit 三 POM；字面量版本 0.1.0-jdk21-alpha.1（不用主线 revision 机制）；spring-boot-dependencies 3.5.16 BOM import；Enforcer banned-dependencies（FastAgent/FastPolicy 坐标族/fast-ddd-starter/LLM/MCP/Spring AI）；JUnit5 冒烟测试；mvn -f agent-access/pom.xml clean test 通过并启用 verifyCommand",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": "7.2",
+            "title": ".contract 协议 DTO：CallerContext 与版本常量",
+            "description": "AgentAccessProtocolVersions（wire schemaVersion=\"0.1\"、digestSchemaVersion=1——四轴表值，不写契约文档版本）；SubjectType/ActorType 枚举；CallerContext record（九必选 + delegatedBy/identityEvidenceRef 可选 + 紧致校验 fail-fast，Contract §5.1 权威，不引入 ActorChain wire 类型——委托以 delegatedBy 最小引用承载，ActorChain 审计投影归 FDD-AA-13/14）；ExecutionPermitCarrier 最小载体接口（仅 caller 访问器，完整 Permit DTO 归 FDD-AA-11）",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": "7.3",
+            "title": ".spi 安全上下文接缝：VerifiedCaller factory 与 CallerIdentityBridge Port",
+            "description": "VerifiedCaller factory 接口（Agent 路径唯一 Caller 构造入口，从已验证许可/安全上下文取 CallerContext，禁止 payload 自报）；CallerIdentityBridge Port（人工/SystemJob 桥接，宿主实现；Agent 路径禁用）；CallerKind 分流语义（HUMAN/SYSTEM_JOB/AGENT）；未认证拒绝 + 安全事件异常类型（禁止 system 匿名回落，Contract §5.1 不变量 3/4）",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": "7.4",
+            "title": "kit：AgentAccessAssemblyValidator 首版",
+            "description": "SmartInitializingSingleton：必需 Bean 清单可配置（首版=VerifiedCaller factory + CallerIdentityBridge，后续任务扩充）、缺失启动 fail-fast、Bean 声明类条件化注解扫描（@ConditionalOnMissingBean/@Primary/@Conditional 家族）违例启动失败并指名",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": "7.5",
+            "title": "AST-04 负向测试与兼容负向",
+            "description": "未认证上下文构造 Agent Caller → 拒绝（无 system 兜底行）；Agent 请求经 CallerIdentityBridge 取得人工归因 → 拒绝（桥接不作 Agent Caller 来源）；CallerContext 必选字段缺失 → fail-fast；SYSTEM_JOB 显式注册语义；Validator 缺 Bean/条件化注解 → 启动失败测试；人工路径零依赖兼容测试（kit 装配缺席时主制品类型可独立编译使用）",
+            "status": "done",
+            "dependencies": []
+          }
+        ],
+        "updatedAt": "2026-08-16T04:13:52.000Z"
       },
       {
         "id": "8",
         "title": "FDD-AA-11 Permit 验证与两段式授权 SPI",
         "description": "实现双端 PEP 的 FastDDD 执行点与 Permit fail-closed 全字段验证，关闭 TOCTOU：Permit carrier/Verifier、两段式授权 Port、EntitlementRevision、typed Decision/Obligation",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           "7"
         ],
@@ -111,7 +147,7 @@
         "details": "目标（Phase baseline §7 FDD-AA-11 / AA-04 §9）：双端 PEP 的 FastDDD 执行点、关闭 TOCTOU。\n\n落点：\n1. .permit Permit carrier 默认实现（package-private 构造）+ 受控 PermitIssuer（唯一实现，Validator 唯一性校验；owner gallop，SEC-0 点名）\n2. .spi ExecutionPermitVerifier 显式安全 Bean：fail-closed 全字段（版本/字段/时间窗/issuer/audience/sender + Envelope 全字段绑定比对；clock skew 可配置上界，TM-20 关联）\n3. .spi TargetAdmissionAuthorizationPort + ResourceAuthorizationPort 两段式授权（事务外准入预检 + 事务内资源终检；deny-overrides；INDETERMINATE 拒绝；事务内终检不调远程 PDP——TM-19）\n4. EntitlementRevision CAS 断言（事务内）；typed Decision/Obligation（允许集合求交、必做义务求并、数值上限取更严格值、未知类型 fail-closed）\n5. PDP 失效策略：唯一允许降级=仍在适用窗口内的已验证本地决定（policyVersion/decisionDigest 一致 + TTL 未过 + revision 未漂移三要素缺一不可）\n\n代码 owner=gallop（D2，SEC-0 issuer/verifier/两段式均点名）。依赖：FDD-AA-10",
         "testStrategy": "验收判定（Phase baseline §7）：无 Permit 不放行；PDP/Verifier 故障 fail-closed；准入后撤销 ACL 终检拒绝。\n\n验证步骤：\n1. AAC-01/18：FastAgent ALLOW + FastDDD DENY 象限 → 业务表 0 变更\n2. AAC-02：无 Permit 调用 → 拒绝；AAC-03/04 + AST-01：forged/expired/wrong-audience Permit、Verifier Bean 缺失、PDP 超时/INDETERMINATE → 全部 fail-closed 拒绝\n3. AAC-15：预检后撤 ACL/改归属 → 终检拒绝 + revision 漂移记录\n4. fresh-context 对抗审查（§13.7）\n\n负向要求：禁止任何默认 allow、无限期缓存、跨 policyVersion 复用缓存决定；缺 Verifier Bean 不得静默降级",
         "subtasks": [],
-        "updatedAt": "2026-08-16T00:00:00.000Z"
+        "updatedAt": "2026-08-16T04:13:52.000Z"
       },
       {
         "id": "9",
@@ -197,7 +233,7 @@
       "version": "1.0.0",
       "lastModified": "2026-08-16T00:00:00.000Z",
       "taskCount": 13,
-      "completedCount": 6,
+      "completedCount": 7,
       "tags": [
         "master"
       ],
