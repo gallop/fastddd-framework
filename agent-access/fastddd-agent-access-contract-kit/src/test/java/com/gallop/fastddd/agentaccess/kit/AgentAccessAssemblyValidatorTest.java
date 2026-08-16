@@ -4,8 +4,13 @@ import com.gallop.fastddd.agentaccess.contract.ActorType;
 import com.gallop.fastddd.agentaccess.contract.AgentAccessProtocolVersions;
 import com.gallop.fastddd.agentaccess.contract.CallerContext;
 import com.gallop.fastddd.agentaccess.contract.SubjectType;
+import com.gallop.fastddd.agentaccess.permit.DefaultExecutionPermitVerifier;
+import com.gallop.fastddd.agentaccess.permit.LocalPermitIssuer;
 import com.gallop.fastddd.agentaccess.spi.CallerAuthenticationException;
 import com.gallop.fastddd.agentaccess.spi.CallerIdentityBridge;
+import com.gallop.fastddd.agentaccess.spi.ExecutionPermitVerifier;
+import com.gallop.fastddd.agentaccess.spi.PermitIssuer;
+import com.gallop.fastddd.agentaccess.spi.PermitVerifierConfig;
 import com.gallop.fastddd.agentaccess.spi.PermitBackedVerifiedCaller;
 import com.gallop.fastddd.agentaccess.spi.VerifiedCaller;
 import org.junit.jupiter.api.Test;
@@ -42,7 +47,7 @@ class AgentAccessAssemblyValidatorTest {
                 null, AUTH_TIME, null);
     }
 
-    /** 显式完整装配：两个必需 Bean + 校验器 → 启动成功。 */
+    /** 显式完整装配：必需 Bean + 唯一性 Bean + 校验器 → 启动成功。 */
     @Configuration
     static class FullAssembly {
         @Bean
@@ -53,6 +58,21 @@ class AgentAccessAssemblyValidatorTest {
         @Bean
         CallerIdentityBridge callerIdentityBridge() {
             return () -> { throw new CallerAuthenticationException("宿主未提供已验证上下文"); };
+        }
+
+        @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
         }
 
         @Bean
@@ -70,12 +90,66 @@ class AgentAccessAssemblyValidatorTest {
         }
 
         @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
+        }
+
+        @Bean
         AgentAccessAssemblyValidator agentAccessAssemblyValidator(org.springframework.beans.factory.config.ConfigurableListableBeanFactory bf) {
             return new AgentAccessAssemblyValidator(bf);
         }
     }
 
-    /** 必需 Bean 以 @Conditional 家族声明（条件为真，Bean 存在）→ 启动 fail-fast 并指名。 */
+    /** 双 PermitIssuer 实现 → 启动 fail-fast（受控入口禁止第二实现）。 */
+    @Configuration
+    static class DuplicateIssuer {
+        @Bean
+        VerifiedCaller verifiedCaller() {
+            return new PermitBackedVerifiedCaller();
+        }
+
+        @Bean
+        CallerIdentityBridge callerIdentityBridge() {
+            return () -> humanCaller();
+        }
+
+        @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
+        }
+
+        @Bean
+        PermitIssuer rogueSecondIssuer() {
+            return permit -> null;
+        }
+
+        @Bean
+        AgentAccessAssemblyValidator agentAccessAssemblyValidator(org.springframework.beans.factory.config.ConfigurableListableBeanFactory bf) {
+            return new AgentAccessAssemblyValidator(bf);
+        }
+    }
+
+    /** 忺需 Bean 以 @Conditional 家族声明（条件为真，Bean 存在）→ 启动 fail-fast 并指名。 */
     @Configuration
     static class ConditionalDeclaration {
         @Bean
@@ -90,12 +164,27 @@ class AgentAccessAssemblyValidatorTest {
         }
 
         @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
+        }
+
+        @Bean
         AgentAccessAssemblyValidator agentAccessAssemblyValidator(org.springframework.beans.factory.config.ConfigurableListableBeanFactory bf) {
             return new AgentAccessAssemblyValidator(bf);
         }
     }
 
-    /** 必需 Bean 以 @Primary 声明 → 启动 fail-fast 并指名。 */
+    /** 忺需 Bean 以 @Primary 声明 → 启动 fail-fast 并指名。 */
     @Configuration
     static class PrimaryDeclaration {
         @Bean
@@ -110,6 +199,21 @@ class AgentAccessAssemblyValidatorTest {
         }
 
         @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
+        }
+
+        @Bean
         AgentAccessAssemblyValidator agentAccessAssemblyValidator(org.springframework.beans.factory.config.ConfigurableListableBeanFactory bf) {
             return new AgentAccessAssemblyValidator(bf);
         }
@@ -120,7 +224,18 @@ class AgentAccessAssemblyValidatorTest {
         try (var ctx = new AnnotationConfigApplicationContext(FullAssembly.class)) {
             assertThat(ctx.getBean(VerifiedCaller.class)).isInstanceOf(PermitBackedVerifiedCaller.class);
             assertThat(ctx.getBean(CallerIdentityBridge.class)).isNotNull();
+            assertThat(ctx.getBean(ExecutionPermitVerifier.class))
+                    .isInstanceOf(DefaultExecutionPermitVerifier.class);
+            assertThat(ctx.getBeansOfType(PermitIssuer.class)).hasSize(1);
         }
+    }
+
+    @Test
+    void duplicatePermitIssuerFailsFast() {
+        assertThatThrownBy(() -> new AnnotationConfigApplicationContext(DuplicateIssuer.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(PermitIssuer.class.getName())
+                .hasMessageContaining("禁止宿主自造第二实现");
     }
 
     @Test
@@ -187,6 +302,21 @@ class AgentAccessAssemblyValidatorTest {
         @Bean
         CallerIdentityBridge callerIdentityBridge() {
             return () -> humanCaller();
+        }
+
+        @Bean
+        ExecutionPermitVerifier executionPermitVerifier() {
+            return new DefaultExecutionPermitVerifier(new PermitVerifierConfig(
+                    java.time.Clock.systemUTC(),
+                    java.util.Set.of("issuer-fastagent-kernel"),
+                    "audience-fastddd-ar",
+                    java.time.Duration.ofSeconds(30),
+                    false));
+        }
+
+        @Bean
+        PermitIssuer permitIssuer() {
+            return new LocalPermitIssuer();
         }
 
         @Bean
