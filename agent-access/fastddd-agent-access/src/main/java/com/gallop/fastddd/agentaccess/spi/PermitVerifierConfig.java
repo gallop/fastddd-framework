@@ -2,7 +2,6 @@ package com.gallop.fastddd.agentaccess.spi;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -30,7 +29,9 @@ public record PermitVerifierConfig(
     public static final Duration MAX_ALLOWED_CLOCK_SKEW = Duration.ofMinutes(5);
 
     public PermitVerifierConfig {
-        Objects.requireNonNull(clock, "clock 必选：禁止隐式系统时钟");
+        if (clock == null) {
+            throw new IllegalArgumentException("clock 必选：禁止隐式系统时钟");
+        }
         if (trustedIssuers == null || trustedIssuers.isEmpty()) {
             throw new IllegalArgumentException("trustedIssuers 必选且不得为空：无受信发行方即无从验证");
         }
@@ -38,7 +39,9 @@ public record PermitVerifierConfig(
         if (expectedAudience == null || expectedAudience.isBlank()) {
             throw new IllegalArgumentException("expectedAudience 必选且不得为空白");
         }
-        Objects.requireNonNull(maxClockSkew, "maxClockSkew 必选");
+        if (maxClockSkew == null) {
+            throw new IllegalArgumentException("maxClockSkew 必选");
+        }
         if (maxClockSkew.isNegative() || maxClockSkew.isZero()) {
             throw new IllegalArgumentException("maxClockSkew 必须为正数");
         }

@@ -96,6 +96,23 @@ class LocalDecisionCacheTest {
     }
 
     @Test
+    void entryVersionMustMatchEmbeddedDecisionVersion() {
+        // 禁止「决定属于 pv-9、条目登记 pv-1」的错位缓存：三要素校验只比对条目级
+        // 字段，错位登记会弱化跨版本禁用契约
+        AuthorizationDecision foreignPolicyVersion = new AuthorizationDecision(
+                DecisionKind.PERMIT, "pv-9", "digest-1", Set.of("ar.dunning.send"), List.of(), null);
+        AuthorizationDecision foreignDigest = new AuthorizationDecision(
+                DecisionKind.PERMIT, "pv-1", "digest-9", Set.of("ar.dunning.send"), List.of(), null);
+        assertAll("决定自带版本/摘要与条目级字段不一致即拒绝",
+                () -> assertThrows(IllegalArgumentException.class, () -> new LocalDecisionCache.CachedDecision(
+                        foreignPolicyVersion, "pv-1", "digest-1", new EntitlementRevision(7),
+                        NOW, Duration.ofMinutes(5))),
+                () -> assertThrows(IllegalArgumentException.class, () -> new LocalDecisionCache.CachedDecision(
+                        foreignDigest, "pv-1", "digest-1", new EntitlementRevision(7),
+                        NOW, Duration.ofMinutes(5))));
+    }
+
+    @Test
     void putGetRoundtripAndMissingKey() {
         LocalDecisionCache cache = new LocalDecisionCache();
         LocalDecisionCache.CachedDecision entry = cached(new EntitlementRevision(7));

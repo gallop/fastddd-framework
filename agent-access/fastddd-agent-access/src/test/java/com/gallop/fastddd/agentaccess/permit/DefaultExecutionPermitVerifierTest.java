@@ -302,6 +302,10 @@ class DefaultExecutionPermitVerifierTest {
                         Clock.fixed(NOW, ZoneOffset.UTC), Set.of(), AUDIENCE, SKEW, false)),
                 () -> assertThrows(IllegalArgumentException.class, () -> new PermitVerifierConfig(
                         Clock.fixed(NOW, ZoneOffset.UTC), Set.of(TRUSTED_ISSUER), " ", SKEW, false)),
+                () -> assertThrows(IllegalArgumentException.class, () -> new PermitVerifierConfig(
+                        null, Set.of(TRUSTED_ISSUER), AUDIENCE, SKEW, false)),
+                () -> assertThrows(IllegalArgumentException.class, () -> new PermitVerifierConfig(
+                        Clock.fixed(NOW, ZoneOffset.UTC), Set.of(TRUSTED_ISSUER), AUDIENCE, null, false)),
                 () -> assertTrue(PermitVerifierConfig.MAX_ALLOWED_CLOCK_SKEW.equals(Duration.ofMinutes(5))));
     }
 

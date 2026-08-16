@@ -55,6 +55,16 @@ public final class LocalDecisionCache {
             if (ttl.isNegative() || ttl.isZero()) {
                 throw new IllegalArgumentException("ttl 必须为正数");
             }
+            // 决定自带版本/摘要与条目级字段必须一致：禁止「决定属于 pv-9、
+            // 条目登记 pv-1」的错位缓存弱化跨版本禁用三要素
+            if (decision.policyVersion() != null && !decision.policyVersion().equals(policyVersion)) {
+                throw new IllegalArgumentException(
+                        "decision.policyVersion 与条目 policyVersion 不一致：" + decision.policyVersion());
+            }
+            if (decision.decisionDigest() != null && !decision.decisionDigest().equals(decisionDigest)) {
+                throw new IllegalArgumentException(
+                        "decision.decisionDigest 与条目 decisionDigest 不一致");
+            }
         }
     }
 

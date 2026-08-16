@@ -43,6 +43,11 @@ public record AuthorizationDecision(
         if (kind == null) {
             throw new IllegalArgumentException("kind 必选");
         }
+        if (kind == DecisionKind.PERMIT && (permittedActions == null || permittedActions.isEmpty())) {
+            // 与 combine()「允许集合交集为空 → DENY」同一 fail-closed 语义：
+            // PERMIT 必须携带非空允许集合，否则等于无范围放行
+            throw new IllegalArgumentException("PERMIT 决定的 permittedActions 必选且不得为空");
+        }
         permittedActions = permittedActions == null ? Set.of() : Set.copyOf(permittedActions);
         obligations = obligations == null ? List.of() : List.copyOf(obligations);
     }

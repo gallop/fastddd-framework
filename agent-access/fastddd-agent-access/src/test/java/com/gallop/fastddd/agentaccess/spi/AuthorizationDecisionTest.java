@@ -157,13 +157,21 @@ class AuthorizationDecisionTest {
     }
 
     @Test
-    void compactConstructorNormalizesNullCollections() {
-        AuthorizationDecision bare = new AuthorizationDecision(DecisionKind.PERMIT, null, null, null, null, null);
-        assertEquals(Set.of(), bare.permittedActions());
-        assertEquals(List.of(), bare.obligations());
-        assertNull(bare.reason());
-        assertAll("kind 必选 + 空 kind 拒绝",
+    void compactConstructorRejectsScopelessPermitButNormalizesDeny() {
+        // PERMIT 必须携带非空允许集合：空集合/null 的 PERMIT 等于无范围放行，
+        // 与 combine() 交空→DENY 同一 fail-closed 语义
+        assertAll("无范围 PERMIT 拒绝",
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new AuthorizationDecision(null, "pv", null, null, null, null)));
+                        () -> new AuthorizationDecision(DecisionKind.PERMIT, "pv", null, null, null, null)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new AuthorizationDecision(DecisionKind.PERMIT, "pv", null, Set.of(), null, null)));
+        // DENY/INDETERMINATE 不放行，允许集合归一化为空集
+        AuthorizationDecision denied = new AuthorizationDecision(DecisionKind.DENY, null, null, null, null, null);
+        assertEquals(Set.of(), denied.permittedActions());
+        assertEquals(List.of(), denied.obligations());
+        assertNull(denied.reason());
+        assertAll("kind 必选",
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new AuthorizationDecision(null, "pv", null, Set.of("a"), null, null)));
     }
 }

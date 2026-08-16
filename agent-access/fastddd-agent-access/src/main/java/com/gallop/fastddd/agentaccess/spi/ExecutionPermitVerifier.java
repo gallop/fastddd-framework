@@ -8,7 +8,9 @@ import com.gallop.fastddd.agentaccess.contract.ExecutionPermit;
  *
  * <p>验证清单（缺一即 {@link PermitVerificationException}，无任何默认放行）：</p>
  * <ol>
- *   <li>结构与版本：许可本体结构由 record 紧致校验保证，验证器复核 schemaVersion；</li>
+ *   <li>结构与版本：许可本体结构与 wire schemaVersion 由 {@link ExecutionPermit}
+ *       record 紧致校验在构造时保证（不受支持版本无法构造实例）；验证器不重复
+ *       该结构检查，只负责下述运行时事实；</li>
  *   <li>时间窗：当前时刻 ∈ [notBefore − skew, expiresAt + skew]，skew 有上界
  *       （{@link PermitVerifierConfig#MAX_ALLOWED_CLOCK_SKEW}，TM-20）；</li>
  *   <li>issuer ∈ 受信发行方集合；audience = 本资源服务器期望值；</li>
