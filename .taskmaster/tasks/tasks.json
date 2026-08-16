@@ -298,14 +298,61 @@
         "id": "11",
         "title": "FDD-AA-14 幂等/Receipt/Status 与 Provider 契约",
         "description": "冻结宿主持久幂等/事务/对账语义：持久幂等 Provider SPI/Contract、(tenantId,businessOperationId,effectDigest) 去重、ReconciliationPermit、conformance fixture",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           "10"
         ],
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-14 / AA-04 §9）：冻结宿主持久幂等/事务/对账语义。\n\n落点：\n1. Provider SPI/Contract：宿主持久去重、Receipt/Status Provider（完整性证明 issuer/audience/tenant/operation/action/version/effectDigest/binding 绑定字段；AAC-16）\n2. (tenantId,businessOperationId,effectDigest) 持久唯一约束语义；FastDDD commandId 仅调查不作业务幂等键（TM-26）\n3. ReconciliationPermit 独立对账授权（STATUS_QUERY scope，绑定原 tenant/subject/actor/action/audience/binding/operation；不复用原执行 Permit）\n4. Status 查询与 UNKNOWN 收敛：无记录仍为 UNKNOWN；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功\n5. 聚合+去重+Outbox 同一 DataSource/TransactionManager（TM-14）\n6. kit conformance fixture（PostgreSQL/Testcontainers；<agg>/<dedup>/<outbox>/<audit> 表占位，与 V04-09 宿主真表同名同义）\n\n代码 owner=gallop（D2；审计投影 schema L1 固化落点含本任务，SEC-0 点名）。依赖：FDD-AA-13",
         "testStrategy": "验收判定（Phase baseline §7）：commit-response 窗口、重放、对账语义全部有负向证明；同键异摘要零第二次业务变更。\n\n验证步骤：\n1. AAC-09 + 故障注入：Outbox insert 失败 → 三表全回滚（0 净变更）\n2. AAC-10 + AST-08：commit 后响应丢失 → UNKNOWN；原键查询收敛既有结果；变更恰一次；tombstone 后不切换新 binding 收敛成功\n3. AAC-16 + AST-07：伪造/错 digest/错 binding/旧 Receipt → 保持 UNKNOWN + 安全事件；READ 四约束超限（usageLimit/时间窗/dataBudget/速率）全部拒绝\n4. AAC-17：原 Permit 过期后独立 ReconciliationPermit 对账可用且授权不放宽\n5. fresh-context 对抗审查（§13.7）\n\n负向要求：UNKNOWN 禁止换键/换 binding 重放；禁止内存去重替代持久去重；禁止聚合先提交后补 Outbox",
-        "subtasks": [],
+        "subtasks": [
+          {
+            "id": "11.1",
+            "title": ".contract BusinessActionReceipt 与 Status 响应类型",
+            "status": "done",
+            "dependencies": [],
+            "description": "§5.6 十七字段：schemaVersion/tenantId/businessOperationId/actionId+actionVersion/effectDigest/issuer+audience/bindingRef（原 binding 不解析最新）/integrityProof（跨信任边界必选）/outcomeCode/retryDisposition 枚举（DO_NOT_RETRY/RETRY_SAME_ATTEMPT/QUERY_FIRST）/traceId 必选；businessCommandRef/aggregateRootRef/committedAt 成功提交时、resourceVersionAfter 适用时、responseProjection 可选。跨字段校验保守子集：COMPLETED 必选三提交字段；javadoc 冻结「FastDDD 业务事实响应，不是 FastAgent 权威 ActionReceipt」。§5.7 五态 OutcomeVisibility（COMPLETED/FAILED_FINAL/IN_PROGRESS/UNKNOWN/NOT_VISIBLE）+ BusinessActionStatus（sealed 携带最小投影，NOT_VISIBLE 不带存在性信息）。",
+            "details": "[2026-08-16 完成] commit caab394。contract 新增 RetryDisposition/OutcomeVisibility/BusinessActionReceipt(18 组件，仅 ALREADY_COMPLETED 携 businessCommandRef/aggregateRootRef/committedAt 三提交字段，§9「业务提交」列权威)/BusinessActionStatus(sealed 五态)。测试 122+17 全绿（+10）。"
+          },
+          {
+            "id": "11.2",
+            "title": ".spi 持久幂等 Provider SPI（§8）+ 内存参考实现",
+            "status": "done",
+            "dependencies": [
+              "11.1"
+            ],
+            "description": "PersistentDedupPort：reserve-or-load 语义。契约 §8 权威口径——(tenantId,businessOperationId) 二元键持久唯一约束；同键同 effectDigest 返回既有稳定结果不重复修改聚合；同键异 effectDigest → IDEMPOTENCY_CONFLICT + 完整性事件（任务 details 三键写法按 §8 原文校正为：二元唯一 + digest 一致性比对）。TM-26：FastDDD commandId 仅调查不作业务幂等键（javadoc 冻结 + 负向：commandId 不同不影响幂等判定）。TM-14：聚合+去重+Outbox 同一 DataSource/TransactionManager 由宿主持久实现保证（port javadoc 契约声明，conformance fixture 断言）。InMemoryDedupStore 参考实现（conformance/测试基底）。",
+            "details": "[2026-08-16 完成] commit bd0ea82。spi 新增 DedupKey(二元键，TM-26 结构级不含 commandId)/DedupCheck(sealed)/DedupCompletion(AAC-16 完整性绑定)/PersistentDedupPort/IdempotencyConflictException/InMemoryDedupStore(compute 原子占位，如实标注非 durable)。§8 权威口径：二元键唯一 + effectDigest 比对。测试 127+17 全绿（+5）。"
+          },
+          {
+            "id": "11.3",
+            "title": ".contract ReconciliationPermit + .spi 验证接缝",
+            "status": "done",
+            "dependencies": [],
+            "description": "§5.7：独立对账授权 record，STATUS_QUERY scope，绑定当前已认证 recovery Workload、原 subject/actor、tenant、action/version、binding/audience、businessOperationId、允许返回数据投影。javadoc 冻结：不复用原执行 Permit；原 Permit 过期不扩大查询权限；无记录不等价 FAILED、不得授权换新 businessOperationId 盲重放。ReconciliationPermitVerifier SPI（时间窗/issuer/audience/recovery workload 绑定逐项 fail-closed）。",
+            "details": "[2026-08-16 完成] commit 8917e0d。contract ReconciliationScope(单值 STATUS_QUERY)/ReconciliationPermit(16 组件，§5.7 绑定面)；spi ReconciliationPermitVerifier + ReconciliationPermitVerificationException(与 PermitVerificationException 分离——对账失败编排层统一映射 NOT_VISIBLE 防存在性泄露)；permit DefaultReconciliationPermitVerifier 复用 PermitVerifierConfig，recovery workload 绑定恒定强制不受 requireSenderConfirmation 放宽。测试 141+17 全绿（+14）。"
+          },
+          {
+            "id": "11.4",
+            "title": "Status 查询与 UNKNOWN 收敛 port + 参考编排",
+            "status": "pending",
+            "dependencies": [
+              "11.1",
+              "11.3"
+            ],
+            "description": "OutcomeStatusPort（宿主记录查询）。参考编排（.gateway 或 .spi 参考实现，与 DefaultAgentAccessGateway 模式一致）：ReconciliationPermit 验证先于任何记录读取；无记录仍 UNKNOWN（§5.7：无记录≠FAILED）；tombstone 后按原 binding 审计（AST-08）；原 binding 不可证明时不切换新 binding 收敛成功（保持 UNKNOWN）；错误 tenant/无权统一 NOT_VISIBLE 不泄露存在性。"
+          },
+          {
+            "id": "11.5",
+            "title": "kit conformance fixture（PostgreSQL/Testcontainers）+ 负向测试",
+            "status": "pending",
+            "dependencies": [
+              "11.2",
+              "11.4"
+            ],
+            "description": "conformance 抽象基类（宿主对真表运行）+ PostgreSQL Testcontainers 参考执行（@Testcontainers(disabledWithoutDocker=true) 守卫，skip 如实进报告不冒充通过）；占位表 <agg>/<dedup>/<outbox>/<audit> DDL——V04-09 未冻结真表名，显式占位表名 + javadoc 如实标注「V04-09 冻结后同名同义对齐」；纯 java.sql JDBC（test scope postgresql driver + testcontainers，kit test 依赖，主制品纯 JDK 不受影响）。断言：同键同 digest 稳定返回/异 digest IDEMPOTENCY_CONFLICT/commandId 不进幂等键/TM-14 同事务可见性（同事务内写入对去重查询可见）。AAC-16 Receipt 完整性绑定字段负向。"
+          }
+        ],
         "updatedAt": "2026-08-16T00:00:00.000Z"
       },
       {
