@@ -261,8 +261,10 @@ class DefaultAgentAccessGatewayTest {
 
     @Test
     void nullRequestIsProgrammingError() {
+        // 显式转型消歧：Envelope 重载加入后裸 null 不再唯一解析到 AgentActionRequest
         assertThrows(IllegalArgumentException.class,
-                () -> gateway(registryWithReferenceAction(), permittingPort()).admitAgentAction(null));
+                () -> gateway(registryWithReferenceAction(), permittingPort())
+                        .admitAgentAction((AgentActionRequest) null));
     }
 
     private static ExecutionPermit unregisteredActionPermit() {

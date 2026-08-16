@@ -2,11 +2,13 @@ package com.gallop.fastddd.agentaccess.gateway;
 
 import com.gallop.fastddd.agentaccess.contract.ActionOutcomeCode;
 import com.gallop.fastddd.agentaccess.contract.BusinessActionDescriptor;
+import com.gallop.fastddd.agentaccess.contract.BusinessActionEnvelope;
 import com.gallop.fastddd.agentaccess.contract.ExecutionPermit;
 import com.gallop.fastddd.agentaccess.contract.InternalReason;
 import com.gallop.fastddd.agentaccess.spi.ActionNotExposedException;
 import com.gallop.fastddd.agentaccess.spi.AgentAccessGateway;
 import com.gallop.fastddd.agentaccess.spi.AgentActionRequest;
+import com.gallop.fastddd.agentaccess.spi.EnvelopeBindingProjector;
 import com.gallop.fastddd.agentaccess.spi.AuthorizationDecision;
 import com.gallop.fastddd.agentaccess.spi.AuditProjection;
 import com.gallop.fastddd.agentaccess.spi.DecisionKind;
@@ -73,6 +75,41 @@ public final class DefaultAgentAccessGateway implements AgentAccessGateway {
         this.permitVerifier = permitVerifier;
         this.descriptorRegistry = descriptorRegistry;
         this.admissionPort = admissionPort;
+    }
+
+    /**
+     * Envelope 入口（§7 步骤 1-6 完整骨架，FDD-AA-13 编排充实落点）：
+     * 步骤 1-2 解析与校验随 {@link BusinessActionEnvelope} record 紧致校验完成；
+     * 步骤 3-6 复用 {@link #admitAgentAction(AgentActionRequest)}——许可验证
+     * <b>先于任何业务读取</b>（verify → resolve descriptor → 事务外准入预检），
+     * 信封治理字段经 {@link EnvelopeBindingProjector} 投影后与许可逐项比对。
+     *
+     * <p><b>permitRef 路径与未知载体形态骨架期显式失败</b>（fail-closed，AAC-02
+     * 「无 Permit 不放行」）：permitRef 是合法 wire 形态（§5.5），但骨架期既无
+     * 解引用通道，也无许可本体承载的审计责任链来源（{@code AuditProjection}
+     * 白名单字段取自许可本体）——无法验证即无法产出可审计拒绝。同理，
+     * {@code permit} 组件的静态类型是 {@code ExecutionPermitCarrier}，骨架期
+     * 唯一已知载体形态是许可本体（{@code ExecutionPermit} 直接实现该接口）；
+     * 其他 carrier 形态（引用解引用、远程 token）无法验证即拒绝。两者均归
+     * FastAgent V04-04 真实 carrier + 契约勘误冻结后落地；在此之前以
+     * {@code IllegalArgumentException} 显式失败，优于不可审计的静默拒绝。</p>
+     */
+    public GatewayOutcome admitAgentAction(BusinessActionEnvelope envelope) {
+        if (envelope == null) {
+            throw new IllegalArgumentException("envelope 必选");
+        }
+        if (envelope.permit() == null) {
+            throw new IllegalArgumentException(
+                    "permitRef 路径骨架期不支持：无许可载体即无法验证（AAC-02 fail-closed），"
+                            + "解引用通道与审计责任链承载归 V04-04 真实 carrier（显式失败优于不可审计拒绝）");
+        }
+        if (!(envelope.permit() instanceof ExecutionPermit permit)) {
+            throw new IllegalArgumentException(
+                    "未知 permit 载体形态骨架期不支持：仅接受许可本体承载（ExecutionPermit），"
+                            + "其他 carrier 归 V04-04 真实 carrier 冻结后接入（显式失败优于不可审计拒绝）");
+        }
+        return admitAgentAction(new AgentActionRequest(
+                permit, EnvelopeBindingProjector.project(envelope)));
     }
 
     @Override
