@@ -196,8 +196,44 @@
         "priority": "high",
         "details": "目标（Phase baseline §7 FDD-AA-12 / AA-04 §9）：只允许显式发布动作进入。\n\n落点：\n1. .spi DescriptorRegistry read-only resolver（显式注册，禁自动扫描——TM-10）+ reference fixture（无业务语义）\n2. .gateway AgentAccessGateway 编排实现：Agent 路径唯一入口、异常→十二结果码映射、审计白名单投影（AA-04 §3.2；编排步骤在 AA-13/14 充实）；各包与业务代码禁依赖 .gateway 实现类，唯一豁免=宿主装配 @Configuration\n3. .arch ArchUnit 规则导出（B1/B2 阻断点 + 「不依赖 FastAgent 权威类型」规则 AST-06 同源）\n4. BusinessActionDescriptor 与 FastAgent ActionDefinition 所有权分离（actionId+actionVersion 引用、版本漂移 fail-closed）\n\n代码 owner=gallop（D2）。依赖：FDD-AA-10（与 FDD-AA-11 并行可行，baseline §8）",
         "testStrategy": "验收判定（Phase baseline §7）：未发布/禁用/版本错 action 不进入；无旁路入口。\n\n验证步骤：\n1. AST-05：未注册 actionId、已 disabled、actionVersion 高于/低于已发布版本 → 三种输入均 ACTION_NOT_EXPOSED 拒绝；registry 行数=显式发布数（无扫描增量）\n2. AAC-05 + B6：运行时真实 Bean 图测试无替代入口；ArchUnit 违例=构建失败（B1）\n3. fresh-context 对抗审查（§13.7）\n\n负向要求：禁止自动扫描 CommandHandler/MCP tool 冒充发布；.gateway 实现类不得进入公共接缝（除宿主装配豁免）",
-        "subtasks": [],
-        "updatedAt": "2026-08-16T00:00:00.000Z"
+        "subtasks": [
+          {
+            "id": "9.1",
+            "title": ".contract BusinessActionDescriptor + 十二结果码 + 内部 reason 承载",
+            "status": "pending",
+            "dependencies": [],
+            "description": "BusinessActionDescriptor record 按 §5.3 表：actionId/actionVersion/effect/resourceTypes(非空)/inputSchemaRef/outputSchemaRef/requiredPurposes(非空)/dataClassification/timeoutClass 必选；IdempotencyMode(REQUIRED/NOT_APPLICABLE) 与 ReconciliationMode(QUERYABLE/MANUAL_ONLY/NOT_SUPPORTED) 在 WRITE/TASK 时必选（跨字段校验）；PreconditionMode(REQUIRED/OPTIONAL/NOT_APPLICABLE) 必选；enabled 必选。紧致校验统一 IAE。ActionOutcomeCode 枚举恰十二值（§9 表逐字）；InternalReason（小写点分 code + 唯一映射 outcome，AA-02 冻结：多内→一外、反向唯一）。与 FastAgent ActionDefinition 所有权分离：仅 actionId+actionVersion 引用，javadoc 表达（类型级禁依赖由 Enforcer/ArchUnit 兜底）"
+          },
+          {
+            "id": "9.2",
+            "title": ".spi DescriptorRegistry/resolver + 受控静态实现 + reference fixture",
+            "status": "pending",
+            "dependencies": [],
+            "description": "DescriptorRegistry 接口（resolve(actionId, actionVersion) 精确版本匹配；publishedCount() 供无扫描增量断言）+ ActionNotExposedException（携带内部 reason）。StaticDescriptorRegistry：builder 显式注册（TM-10 禁自动扫描——无扫描入口可写），重复 (actionId, actionVersion) 注册拒绝（禁覆盖式 put），resolve 未注册/disabled/版本漂移 → ACTION_NOT_EXPOSED 语义拒绝；fail-closed。reference fixture（测试源）：无业务语义的 reference action 样板（ar.reference.* 命名，避免伪装业务语义）"
+          },
+          {
+            "id": "9.3",
+            "title": ".spi AgentAccessGateway 接口 + .gateway 编排实现骨架（AA-13/14 充实点如实标注）",
+            "status": "pending",
+            "dependencies": [],
+            "description": "AgentAccessGateway 接口（.spi 公共接缝）+ AgentActionRequest/GatewayOutcome/AuditProjection 骨架协议 record（放 .spi——需引用 PermitBindingView，.contract 不得反向依赖 .spi；permit + binding 投影入参，outcome+reason+resolvedDescriptor+审计投影出参——完整 Envelope/Receipt wire DTO 归 FDD-AA-13，javadoc 如实标注）。.gateway DefaultAgentAccessGateway 编排（标准执行顺序骨架子集 3-6：验证 permit → 比对绑定 → resolve descriptor（ACTION_NOT_EXPOSED）→ 事务外准入预检（TargetAdmissionAuthorizationPort）；事务内 7-13 步 AA-14 充实）：异常→结果码映射（CallerAuthenticationException→TARGET_AUTHENTICATION_FAILED、PermitVerificationException→PERMIT_INVALID_OR_EXPIRED/PERMIT_BINDING_MISMATCH、not-exposed→ACTION_NOT_EXPOSED、admission DENY/INDETERMINATE→TARGET_AUTHORIZATION_DENIED）；审计白名单投影（§10 字段：tenant/businessOperationId/action/subject/actor/workload/permitId/traceId/outcomeCode，零 payload）。实现类公共（宿主 @Configuration 装配唯一豁免，javadoc 表达 B2 编译期包边界如实口径）"
+          },
+          {
+            "id": "9.4",
+            "title": "kit Validator 扩充（gateway 唯一入口）+ .arch ArchUnit 规则导出（kit 模块承载）",
+            "status": "pending",
+            "dependencies": [],
+            "description": "kit DEFAULT_UNIQUE_BEAN_TYPES 扩充 AgentAccessGateway（恰 1 Bean=无替代入口，AAC-05/B6 运行时 Bean 图防线）。.arch 包物理落 kit 模块（com.gallop.fastddd.agentaccess.arch；ArchUnit 依赖由 kit POM 管理——AA-04 §3.2 允许依赖 .contract 只读元数据级，AA-15 落点 1 同源；主制品保持纯 JDK）：AgentAccessArchitecture 导出 B1 规则（.contract 不依赖 agentaccess 其他包/.spi 只依赖 .contract/.gateway 依赖 .spi+.contract/各包禁依赖 .gateway 实现）+ AST-06 同源规则（主制品代码不依赖 com.gallop.fastagent.**，与 Enforcer banned 构建期双保险）+ 宿主侧参数化规则工厂（宿主包名 → web/event/schedule/普通 bean 禁依赖 agentaccess 受保护入口，骨架期导出工厂供宿主复用）"
+          },
+          {
+            "id": "9.5",
+            "title": "AST-05/AAC-05/B6 负向测试",
+            "status": "pending",
+            "dependencies": [],
+            "description": "DescriptorRegistry 测试：未注册 actionId/disabled/版本高于与低于已发布 → 四种输入均 ACTION_NOT_EXPOSED 拒绝（AST-05）；publishedCount=显式注册数（无扫描增量）；重复注册拒绝。Gateway 编排测试：无 permit→PERMIT_INVALID_OR_EXPIRED（AAC-02 入口级）、not-exposed→ACTION_NOT_EXPOSED、admission DENY 与 INDETERMINATE→TARGET_AUTHORIZATION_DENIED、成功路径 outcome+审计投影白名单字段齐全且零 payload（骨架期入口级语义；事务级验收归 AA-14）。kit ArchUnit 测试：规则在 agent-access 自身代码全通过 + kit 内违例样例类触发规则失败（B1 构建失败即断言）。kit Validator gateway 唯一性正负向"
+          }
+        ],
+        "updatedAt": "2026-08-16T04:50:00.000Z"
       },
       {
         "id": "10",
