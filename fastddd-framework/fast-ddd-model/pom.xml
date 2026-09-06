@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>com.gallop.fastddd</groupId>
-        <artifactId>fastddd</artifactId>
+        <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -24,10 +24,13 @@
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
         
-        <!-- MyBatis Plus -->
+        <!-- ECO-006C4：模块仅用 MP 注解（@TableField/@Version/@TableLogic/FieldFill），
+             改传最小注解构件（同 ECO-006C2 security-starter 模式）。model 是 crud/web 的
+             底层依赖，此处保留全量 starter 会经 spring-boot-starter-jdbc→HikariCP
+             把数据库强制链穿透到所有上层消费者。 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus-annotation</artifactId>
         </dependency>
         
         <!-- Spring Boot Configuration Processor -->

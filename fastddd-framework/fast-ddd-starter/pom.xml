@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>com.gallop.fastddd</groupId>
-        <artifactId>fastddd</artifactId>
+        <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -42,6 +42,13 @@
         <dependency>
             <groupId>com.gallop.fastddd</groupId>
             <artifactId>fast-ddd-web</artifactId>
+        </dependency>
+
+        <!-- ECO-006C4：聚合入口"引入即含默认池"语义显式化——crud 的 Druid 已改 optional，
+             此处显式携带保住存量 starter 消费者默认池不变（仍 Druid）。 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid-spring-boot-3-starter</artifactId>
         </dependency>
 
         <dependency>

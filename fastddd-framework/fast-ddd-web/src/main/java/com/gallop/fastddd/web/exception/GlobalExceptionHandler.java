@@ -7,6 +7,8 @@ import com.gallop.fastddd.web.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
@@ -187,5 +189,20 @@ public class GlobalExceptionHandler {
         log.error("Unexpected exception occurred at {}: {}", request.getRequestURI(), e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.failure(500, Messages.get("web.error.internal")));
+    }
+
+    /**
+     * 安全异常透传（ECO-006B 修复）。
+     *
+     * <p>方法安全拒绝（{@code @PreAuthorize} 抛出的 {@link AccessDeniedException}，是
+     * RuntimeException 子类）与认证异常若被本 advice 的 RuntimeException/Exception 兜底捕获，
+     * 会先于 Spring Security 的 {@code ExceptionTranslationFilter} 被吞成 500，
+     * 安全模块配置的 {@code AccessDeniedHandler/AuthenticationEntryPoint}（403/401 信封）
+     * 对该路径成为死代码。此处按 Spring Security 官方指引原样重抛，
+     * 交还过滤链统一产出 403/401。必须保持最精确匹配（精确类型优先于兜底）。</p>
+     */
+    @ExceptionHandler({AccessDeniedException.class, AuthenticationException.class})
+    public void rethrowSecurityExceptions(Exception e) throws Exception {
+        throw e;
     }
 }

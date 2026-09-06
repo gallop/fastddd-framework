@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>com.gallop.fastddd</groupId>
-        <artifactId>fastddd</artifactId>
+        <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -28,6 +28,20 @@
         <dependency>
             <groupId>com.gallop.fastddd</groupId>
             <artifactId>fast-ddd-crud</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ECO-006C4：SQL 后端直接引用 MP core（QueryWrapper/BaseMapper）与
+             extension（Page）类型，此前零声明、仅靠 crud 传递的偶然性编译。
+             与 crud 同为 optional——SQL 后端不在场时 MP 类型不进入消费者。 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-extension</artifactId>
             <optional>true</optional>
         </dependency>
 

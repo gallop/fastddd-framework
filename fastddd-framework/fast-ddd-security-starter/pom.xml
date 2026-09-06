@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>com.gallop.fastddd</groupId>
-        <artifactId>fastddd</artifactId>
+        <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -63,10 +63,18 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- MyBatis Plus for Audit Log -->
+        <!-- 审计持久化最小依赖（ECO-006C2 依赖边界整改）：
+             模块对 MyBatis-Plus 的使用仅为 AuditLogEntity 的实体注解（运行时走 JdbcTemplate 手写 INSERT），
+             以 mybatis-plus-annotation 保留注解可见，不再传递完整 starter（其 spring-boot-starter-jdbc/HikariCP
+             链使无数据库消费者被迫建池、启动失败）；spring-jdbc 提供 Bean 方法签名所需 JdbcTemplate/DataSource 类型，
+             无池实现且无内嵌库时 Boot 原生 DataSource 自动配置条件不满足 → 无 DataSource Bean，审计退回 SLF4J 输出。 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus-annotation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
         </dependency>
 
         <!-- Lombok -->
@@ -92,6 +100,40 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 全量自动配置上下文需要数据源：crud 的连接池 starter 经 ECO-006C4 改为 optional
+             不再传递，无 URL 时走 Boot 内嵌数据源路径（H2）。真实最小消费者（security-minimal）
+             同样提供 H2，此处镜像该契约。 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 审计日志 MySQL 专项验证（ECO-006C3 专项 / ECO-006C4 收编入仓）：
+             默认经 -Dfastddd.test.docker 门控休眠，与 fast-ddd-event 的
+             OutboxEventMysqlTestcontainersTest 同一机制；版本由 Boot BOM 管理。
+             连接池由测试显式提供（spring-boot-starter-jdbc→Hikari），复刻 security-with-database
+             消费者契约——模块自身经 C2/C4 整改后不传递任何池实现，URL 在场而无池时
+             DataSource 自动配置会静默退让（无 DataSource/JdbcTemplate Bean）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

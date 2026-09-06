@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ECO-006C4：Web 无数据库消费者（无 H2、无 spring.datasource.*、无任何自动配置排除）。
+     依赖仅 fast-ddd-web（+ 显式 fast-ddd-application 供 CqrsExceptionAdvice 可解析，同 web-minimal）。
+     验证依赖边界整改后：纯 Web 消费者不再被 crud/web/model 的 MP starter→spring-boot-starter-jdbc→HikariCP
+     传递链强制建池——上下文零 DataSource/JdbcTemplate Bean，真实响应（默认不包装）与
+     全局异常处理（BusinessException 信封、@Valid 400 信封）行为正常。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>web-nodb</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Web No-Database</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-web</artifactId>
+    </dependency>
+    <!-- web 的 optional 依赖：GlobalExceptionHandler/CqrsExceptionAdvice 引用的异常类型可解析 -->
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-application</artifactId>
+    </dependency>
+    <!-- 刻意不引入 H2 / spring-boot-starter-jdbc / 连接池 / 数据源配置：本场景就是"纯 Web 无库"契约本身 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,7 @@
+# ECO-006C2 Security 无数据库消费者：仅安全配置（ADR-004：HMAC 密钥 ≥64 字节硬门禁）。
+# 刻意不提供任何 spring.datasource.* —— 无库启动即本场景的验收目标。
+fastddd:
+  security:
+    jwt:
+      # 测试密钥（≥64 字节，仅消费者 harness 使用）
+      secret: "fastddd-consumer-nodb-test-secret-please-not-use-in-production-000000000000"

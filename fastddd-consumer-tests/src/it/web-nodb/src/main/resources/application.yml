@@ -1,0 +1,8 @@
+# ECO-006C4 纯 Web 无库消费者配置：刻意不提供任何 spring.datasource.* 与 sql.init。
+# 关闭非必要 Web 表面，缩小启动失败面（同 web-minimal）。
+fastddd:
+  web:
+    openapi:
+      enabled: false
+    knife4j:
+      enabled: false

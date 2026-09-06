@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- FRM-002 预置场景（ungated）：Security 模块空消费者。
-     状态待 SEC-001/M1 刻画（审计 P0-7：jwt.enabled=false 仍装配 bean）。 -->
+<!-- FRM-002：Security 模块最小消费者（H2 + 默认启用 JWT，无 fast-ddd-web）。
+     装配断言（默认链唯一、认证端点不越界）+ MockMvc 真实链行为断言（401/200/无效 token）。 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">

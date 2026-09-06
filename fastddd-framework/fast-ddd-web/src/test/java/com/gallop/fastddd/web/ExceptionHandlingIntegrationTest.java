@@ -90,8 +90,9 @@ public class ExceptionHandlingIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(400);
-        assertThat(response.getBody().getMessage()).contains(
-                Messages.get("web.error.param-validation", "名称不能为空; 年龄不能为空"));
+        // Bean Validation 不承诺多个字段错误的返回顺序，只校验完整语义。
+        assertThat(response.getBody().getMessage())
+                .contains("参数校验失败", "名称不能为空", "年龄不能为空");
         assertThat(response.getBody().getData()).isNull();
         assertThat(response.getBody().getTimestamp()).isNotNull();
     }

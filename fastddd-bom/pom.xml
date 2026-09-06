@@ -11,8 +11,8 @@
 
         设计：本 BOM 为【独立 POM】（不继承根 pom 作为 parent），自行声明 depMgmt 所需的
         版本属性，确保【发布 BOM 完全自洽】——不泄漏根 pom 的 profile/数据库/Redis 等环境属性。
-        自模块版本统一使用 ${revision}（CI-friendly），发布时由 flatten-maven-plugin (bom 模式)
-        保留 properties + depMgmt、移除 parent，产出字面量可解析的发布 BOM。
+        自模块版本统一使用 ${project.version}，避免消费方自己的 revision 属性覆盖 BOM 内版本；
+        发布时由 flatten-maven-plugin (bom 模式) 保留 depMgmt、移除 parent。
         （reactor 内 27 个模块仍用根 pom 的 resolveCiFriendliesOnly，仅 BOM 例外。）
     -->
     <groupId>com.gallop.fastddd</groupId>
@@ -21,8 +21,23 @@
     <packaging>pom</packaging>
     <name>FastDDD BOM</name>
     <description>FastDDD 统一依赖契约入口：聚合 framework 全部模块版本，业务项目 import 此 BOM 即获得一致依赖版本</description>
-    <url>https://github.com/gallop/fastddd</url>
-
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <organization>
+        <name>gallop-group</name>
+    </organization>
+    <developers>
+        <developer>
+            <id>gallop</id>
+            <name>Gallop</name>
+            <email>39100782@qq.com</email>
+        </developer>
+    </developers>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- CI-friendly 版本（与根 pom 一致；发布可用 -Drevision=1.0.0 覆盖） -->
@@ -64,82 +79,113 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- ============ FastDDD 自模块（版本随 ${revision} 统一） ============ -->
+            <!-- ============ FastDDD 自模块（始终随 BOM 自身 project.version） ============ -->
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-common</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-config</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-model</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-crud</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-web</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-application</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-cache</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-event</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-search</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-monitor</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-starter</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-analyzer-spring-boot-starter</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-security-starter</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
-                <version>${revision}</version>
+                <version>${project.version}</version>
             </dependency>
             <!-- ============ 第三方受管依赖（与根 pom dependencyManagement 对齐） ============ -->
             <!-- Database -->
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <!-- ECO-006C4：Web/CRUD 依赖边界整改——web-nodb 需要 MP 能力但不强制 JDBC 池。
+                 starter（含 spring-boot-starter-jdbc→HikariCP）拆解为以下构件，供模块按需声明：
+                 bundle（core+extension+spring+mybatis）、core/extension（签名级引用）、
+                 autoconfigure（MybatisPlusAutoConfiguration，无池实现时按 @ConditionalOnSingleCandidate(DataSource) 退让）。
+                 注意：mybatis-spring 在 bundle 内为 optional，使用方须显式声明（BOM 已受管 3.0.4）。 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-core</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-extension</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot-autoconfigure</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <!-- ECO-006C2：security-starter 审计实体仅用 MP 注解，改传递最小注解构件（不引入自动配置/JDBC 池链） -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-annotation</artifactId>
                 <version>${mybatis-plus.version}</version>
             </dependency>
             <dependency>

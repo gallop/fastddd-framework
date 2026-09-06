@@ -1,5 +1,5 @@
 # FRM-002 web-minimal 消费者配置：最小可启动。
-# MyBatis-Plus 是 web/crud 的硬传递依赖，须提供 DataSource。
+# 聚合 starter 显式含 Druid（ECO-006C4）；crud 传递 MP 能力，有库路径需提供 DataSource。
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE

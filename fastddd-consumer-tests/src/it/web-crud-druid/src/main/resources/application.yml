@@ -1,0 +1,22 @@
+# ECO-006C4 Web/CRUD + 显式 Druid 消费者配置。
+spring:
+  datasource:
+    url: jdbc:h2:mem:c4cruddb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+
+fastddd:
+  web:
+    openapi:
+      enabled: false
+    knife4j:
+      enabled: false
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: assign_id

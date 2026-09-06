@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ECO-006C 场景：fast-ddd-application 公开契约的最小消费者。
+  消费者仅依赖 fast-ddd-application（经 fastddd-bom），不引入 web/crud/数据库——
+  验证 Command/Query 基类、CommandHandler/QueryHandler 契约、CommandResult 信封、
+  CommandValidationException 与 @ApplicationService 原型在真实 Spring 上下文中的行为。
+  application 模块不含总线/调度器，本场景不虚构自动发现——处理器由消费者自身包扫描注册。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>application-minimal</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Application CQRS Contract Minimal</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-application</artifactId>
+    </dependency>
+    <!-- 消费者自选 Lombok（框架侧为 optional，不传递） -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

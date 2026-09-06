@@ -8,5 +8,5 @@ spring:
 fastddd:
   security:
     jwt:
-      # 预设占位密钥（≥64 字节，仅供 harness 启动；SEC-001 将移除默认凭据相关项）
+      # 测试密钥（≥64 字节，仅消费者 harness 使用；enabled=false 无需 secret 的契约由 JwtEnableConditionWiringTest 覆盖）
       secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"

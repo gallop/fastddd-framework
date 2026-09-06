@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>com.gallop.fastddd</groupId>
-        <artifactId>fastddd</artifactId>
+        <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -29,10 +29,30 @@
             <artifactId>fast-ddd-model</artifactId>
         </dependency>
         
-        <!-- MyBatis Plus -->
+        <!-- ECO-006C4：Web/CRUD 依赖边界整改——原 mybatis-plus-spring-boot3-starter 携带
+             spring-boot-starter-jdbc（→HikariCP），使无库 Web 消费者被强制建池。拆解为：
+             · mybatis-plus（core+extension+mybatis-plus-spring+mybatis 本体）
+             · mybatis-spring（bundle 内为 optional，不显式声明则 MybatisPlusAutoConfiguration
+               的条件类 SqlSessionFactoryBean 缺失，@Mapper/@MapperScan 装配失效）
+             · mybatis-plus-spring-boot-autoconfigure（MP 自动配置；无池实现且无内嵌库时
+               无 DataSource Bean，按 @ConditionalOnSingleCandidate(DataSource) 整体退让）
+             · spring-jdbc（事务管理器/JdbcTemplate 基础，不含池实现）
+             有库消费者按 C4 迁移说明显式选池（Druid 或 spring-boot-starter-jdbc）。 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
         </dependency>
 
         <!-- MyBatis Plus 分页插件（3.5.9+ 拆分为独立模块） -->
@@ -53,9 +73,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- ECO-006C4：Druid 改 optional——池选择权上移给消费者与聚合 starter
+             （fast-ddd-starter 显式携带 Druid 保持"引入即含默认池"语义）。
+             仅引 web/crud 且依赖数据库的消费者须显式声明本依赖或 spring-boot-starter-jdbc。 -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid-spring-boot-3-starter</artifactId>
+            <optional>true</optional>
         </dependency>
         
         <!-- Spring Boot Configuration Processor -->

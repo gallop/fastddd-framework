@@ -46,7 +46,8 @@
       <groupId>com.gallop.fastddd</groupId>
       <artifactId>fast-ddd-application</artifactId>
     </dependency>
-    <!-- MyBatis-Plus 是 web/crud 的硬传递依赖，须提供 DataSource；用 H2 内存库 -->
+    <!-- 聚合 starter 显式含 Druid（ECO-006C4）；crud 传递 MP bundle/mybatis-spring/autoconfigure，
+         有库路径（含安全审计落库）需 DataSource，用 H2 内存库 -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ECO-006C2：Security 有数据库消费者。security-starter 不再传递连接池/JDBC starter 后，
+     需要审计落库的消费者显式提供数据库依赖与配置（本场景：spring-boot-starter-jdbc(Hikari) + H2，
+     属 D 盘嵌入式兼容回归——不是新的真实 MySQL 证据）。验证真实 @AuditLog 入口（HTTP→切面→
+     AuditLogService→JdbcTemplate INSERT）产出的记录确实落入 sys_audit_log 表，而非仅验证 Bean/启动。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>security-with-database</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Security With Database (H2 compatibility regression)</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-security-starter</artifactId>
+    </dependency>
+    <!-- 消费者显式提供 JDBC/池（security-starter 自 1.0 起只传 spring-jdbc，不再带池实现） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

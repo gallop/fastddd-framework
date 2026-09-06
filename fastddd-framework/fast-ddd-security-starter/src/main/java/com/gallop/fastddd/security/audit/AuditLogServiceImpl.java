@@ -60,7 +60,8 @@ public class AuditLogServiceImpl implements AuditLogService {
                         auditLog.getSuccess(),
                         auditLog.getErrorMessage());
             } catch (Exception e) {
-                log.warn("审计日志入库失败，fallback到日志输出: {}", e.getMessage());
+                // ECO-006C3：附带堆栈——此前仅打印 getMessage()，语法/截断类根因曾被吞掉
+                log.warn("审计日志入库失败，fallback到日志输出: {}", e.getMessage(), e);
                 logToSlf4j(auditLog);
             }
         } else {
@@ -100,11 +101,19 @@ public class AuditLogServiceImpl implements AuditLogService {
                 ? DatabaseDialect.detect(dataSource)
                 : new com.gallop.fastddd.common.database.MySqlDialect();
         return "CREATE TABLE IF NOT EXISTS sys_audit_log (" +
-                dialect.getPkDefinition() + ", " +
+                // ECO-006C3：方言 getPkDefinition() 只返回类型与约束（无列名），直接拼接曾生成
+                // "(BIGINT PRIMARY KEY AUTO_INCREMENT, ..." 的非法 DDL——自动建表在任何数据库上
+                // 都会语法失败（异常被 ensureTableExists 吞为 debug）。此处补齐列名 id（与
+                // AuditLogEntity @TableId 字段一致），不改变方言 SPI 语义。
+                "id " + dialect.getPkDefinition() + ", " +
                 "username VARCHAR(50), " +
                 "operation VARCHAR(200), " +
                 "operation_type VARCHAR(50), " +
-                "method VARCHAR(10), " +
+                // ECO-006C3：切面写入 "SimpleClassName.methodName"（见 AuditLogAspect），
+                // VARCHAR(10) 在 MySQL 8 严格模式等强制列宽的库上必然溢出并回退 SLF4J；
+                // 容量对齐 operation 列（200），不截断方法标识。存量窄列表的扩宽迁移见
+                // docs/security/AUDIT_LOG_TABLE_MIGRATION.md（CREATE TABLE IF NOT EXISTS 不会修改已有列）。
+                "method VARCHAR(200), " +
                 "request_url VARCHAR(500), " +
                 "request_params " + dialect.getClobType() + ", " +
                 "result " + dialect.getClobType() + ", " +
