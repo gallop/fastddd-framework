@@ -300,4 +300,4 @@ public SqlMonitoringExecutionRecorder customRecorder(SqlMetricsCollector collect
 
 - 作者: gallop
 - 邮箱: [your-email@example.com]
-- 项目地址: [https://github.com/your-repo/fastddd]
+- 项目地址：将在 Community 公开仓库创建后随发布说明公布

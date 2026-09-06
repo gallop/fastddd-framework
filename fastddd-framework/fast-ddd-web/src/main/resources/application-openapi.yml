@@ -9,7 +9,6 @@ fastddd:
       contact:
         name: "FastDDD Team"
         email: "support@fastddd.com"
-        url: "https://github.com/gallop/fastddd"
       license:
         name: "Apache 2.0"
         url: "https://www.apache.org/licenses/LICENSE-2.0"
@@ -30,7 +29,7 @@ fastddd:
         enable-search: true
         enable-footer: false
         enable-footer-custom: true
-        footer-custom-content: "Copyright © 2025 FastDDD Framework"
+        footer-custom-content: "Copyright © 2026 FastDDD Contributors · Apache-2.0"
         enable-dynamic-parameter: true
         enable-debug: true
         enable-open-api: true
@@ -77,7 +76,7 @@ knife4j:
     enable-search: true
     enable-footer: false
     enable-footer-custom: true
-    footer-custom-content: Copyright © 2025 FastDDD Framework
+    footer-custom-content: Copyright © 2026 FastDDD Contributors · Apache-2.0
     enable-dynamic-parameter: true
     enable-debug: true
     enable-open-api: false

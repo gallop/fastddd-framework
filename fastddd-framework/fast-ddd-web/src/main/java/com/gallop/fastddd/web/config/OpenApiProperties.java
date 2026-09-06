@@ -111,7 +111,7 @@ public class OpenApiProperties {
     public static class Contact {
         private String name = "FastDDD Team";
         private String email = "support@fastddd.com";
-        private String url = "https://github.com/gallop/fastddd";
+        private String url;
 
         public String getName() {
             return name;

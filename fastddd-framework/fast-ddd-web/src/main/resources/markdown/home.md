@@ -47,9 +47,9 @@ FastDDD 是一个基于 Spring Boot 的快速开发框架，遵循领域驱动�
 ### 1. 添加依赖
 ```xml
 <dependency>
-    <groupId>com.gallop</groupId>
+    <groupId>com.gallop.fastddd</groupId>
     <artifactId>fast-ddd-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-jdk21-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -76,10 +76,9 @@ fastddd:
 
 ## 联系我们
 
-- **GitHub**: https://github.com/gallop/fastddd
 - **Email**: support@fastddd.com
-- **文档**: https://fastddd.com/docs
+- **源码仓库**: 公开地址将在 Community 仓库创建后随发布说明公布
 
 ---
 
-*Copyright © 2025 FastDDD Framework. All rights reserved.*
+*Copyright © 2026 FastDDD Contributors · Licensed under Apache-2.0.*

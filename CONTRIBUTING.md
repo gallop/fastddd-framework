@@ -15,4 +15,4 @@
 
 ## Reporting security issues
 
-Do not report unpatched vulnerabilities in public issues. A private reporting channel has not yet been established, so this repository is not ready for public release. The project owner must publish `SECURITY.md` with a private reporting channel before any public release.
+Do not report unpatched vulnerabilities in public issues. Follow [`SECURITY.md`](SECURITY.md) and use its private reporting channel.

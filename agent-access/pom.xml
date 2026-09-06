@@ -21,6 +21,23 @@
 
   <name>FastDDD Agent Access (experimental line)</name>
   <description>FastDDD Agent Access Phase 1A — governed agent entry seam (ADR-006/ADR-007, Contract fastddd-agent-access/0.1)</description>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <organization>
+    <name>gallop-group</name>
+  </organization>
+  <developers>
+    <developer>
+      <id>gallop</id>
+      <name>Gallop</name>
+      <email>39100782@qq.com</email>
+    </developer>
+  </developers>
 
   <modules>
     <module>fastddd-agent-access</module>
@@ -62,6 +79,7 @@
     <!-- 与 FastDDD 主线对齐（根 POM spring-boot.version=3.5.16） -->
     <spring-boot.version>3.5.16</spring-boot.version>
     <maven-enforcer-plugin.version>3.4.1</maven-enforcer-plugin.version>
+    <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
     <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
   </properties>
 
@@ -93,6 +111,33 @@
       </plugins>
     </pluginManagement>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>${maven-resources-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>include-community-legal-files</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/META-INF</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${maven.multiModuleProjectDirectory}/agent-access</directory>
+                  <filtering>false</filtering>
+                  <includes>
+                    <include>LICENSE</include>
+                    <include>NOTICE</include>
+                  </includes>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- AA-04 §3.3 禁止依赖清单的构建期断言（骨架期关键集；完整清单 FDD-AA-15 扩充） -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
