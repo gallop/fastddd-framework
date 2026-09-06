@@ -2,12 +2,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.gallop.fastddd</groupId>
-  <artifactId>fastddd</artifactId>
+  <artifactId>fastddd-framework-parent</artifactId>
   <version>${revision}</version>
   <packaging>pom</packaging>
   <name>FastDDD Framework</name>
   <description>A comprehensive DDD framework based on Spring Boot Starters for rapid development</description>
-  <url>ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</url>
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
@@ -25,11 +24,10 @@
       <email>39100782@qq.com</email>
     </developer>
   </developers>
-  <scm>
-    <connection>scm:git:ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</connection>
-    <developerConnection>scm:git:ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</developerConnection>
-    <url>ssh://git@192.168.0.160:222/gallop-group/fastddd-framework.git</url>
-  </scm>
+  <!--
+    Community 发布物不得泄漏内网 SCM 地址。公开 project URL / SCM 将在公开仓库
+    创建后补入；ECO-004 执行记录将其保留为发布前唯一 Owner 输入项。
+  -->
   <properties>
     <!-- CI-friendly 版本：reactor 唯一版本入口，发布时由 flatten-maven-plugin 解析为字面量 -->
     <revision>1.0.0-jdk21-SNAPSHOT</revision>
@@ -338,6 +336,32 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>include-community-legal-files</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/META-INF</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${maven.multiModuleProjectDirectory}</directory>
+                  <filtering>false</filtering>
+                  <includes>
+                    <include>LICENSE</include>
+                    <include>NOTICE</include>
+                  </includes>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
       <plugin>
@@ -397,6 +421,21 @@
                      默认 ban LATEST/RELEASE/时间戳版本，允许 SNAPSHOT；插件版本须显式或经 pluginManagement 提供。 -->
                 <requirePluginVersions/>
                 <banDuplicatePomDependencyVersions/>
+                <bannedDependencies>
+                  <searchTransitive>false</searchTransitive>
+                  <excludes>
+                    <exclude>com.gallop.fastddd:fastddd-tooling-api</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-templates</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-fastdoc-*</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-code-generator</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-doc-generator</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-*-maven-plugin</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-project-archetype</exclude>
+                    <exclude>com.gallop.fastddd:fastddd-studio*</exclude>
+                    <exclude>com.gallop.fastagent:*</exclude>
+                  </excludes>
+                  <message>Framework Community 主 reactor 禁止依赖 Tooling、Studio Pro 或 FastAgent；Agent Access 仅在独立 reactor 中验证。</message>
+                </bannedDependencies>
               </rules>
               <fail>true</fail>
             </configuration>
