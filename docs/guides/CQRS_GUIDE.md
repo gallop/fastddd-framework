@@ -432,6 +432,6 @@ public class CreateOrderCommandHandler implements CommandHandler<CreateOrderComm
 
 ## 参考资料
 
-- [架构指南](./ARCHITECTURE.md)
+- [架构指南](../architecture/ARCHITECTURE.md)
 - [快速开始](./QUICK_START.md)
-- [API 参考](./API_REFERENCE.md)
+- [API 参考](../api/API_REFERENCE.md)

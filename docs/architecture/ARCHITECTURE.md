@@ -292,6 +292,6 @@ FastDDD 保证完全向后兼容：
 
 ## 参考资料
 
-- [CQRS 指南](./CQRS_GUIDE.md)
+- [CQRS 指南](../guides/CQRS_GUIDE.md)
 - [迁移指南](./MIGRATION_GUIDE.md)
-- [API 参考](./API_REFERENCE.md)
+- [API 参考](../api/API_REFERENCE.md)

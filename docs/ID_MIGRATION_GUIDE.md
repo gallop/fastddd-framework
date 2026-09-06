@@ -31,7 +31,7 @@ public interface UserService extends IService<User, Long> {}
 ## 验证
 
 ```powershell
-$env:JAVA_HOME='D:\usr\local\jdk\jdk-21.0.3'
+$env:JAVA_HOME='<JAVA_21_HOME>'
 ./mvnw.cmd -B -pl <affected-module> test
 ```
 

@@ -452,5 +452,5 @@ public interface OrderQueryMapper {
 ## 参考资料
 
 - [架构指南](./ARCHITECTURE.md)
-- [CQRS 指南](./CQRS_GUIDE.md)
-- [快速开始](./QUICK_START.md)
+- [CQRS 指南](../guides/CQRS_GUIDE.md)
+- [快速开始](../guides/QUICK_START.md)

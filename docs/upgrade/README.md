@@ -14,8 +14,7 @@
 
 **不要默认阅读**下列文档：
 
-- `architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md`：Framework 自身改造的历史任务，不是消费者升级手册。
-- `architecture/BUSINESS_SYSTEM_UPGRADE_EXECUTION_STEPS.md`：DataChat 首个试点的执行记录，含项目特定风险与步骤。
+- Framework 自身拆仓前整改任务和具体业务试点记录已迁出 Community 现行文档，不是消费者升级手册。
 - `RC1_RELEASE_EVIDENCE.md`、`QA_*.md`、`OSS_*.md`：发布证据/审计记录，不是操作步骤。
 - `FASTDDD_REFERENCE.md`：完整 API 参考；仅在代码确实需要查询某个 API 时按需检索。
 
@@ -29,7 +28,7 @@
 | 事务事件、Outbox、RocketMQ | [Outbox 运维指南](../devops/OUTBOX_OPS_GUIDE.md) |
 | CQRS | [CQRS 指南](../guides/CQRS_GUIDE.md) |
 | Elasticsearch/OpenSearch | [搜索指南](../guides/SEARCH_GUIDE.md) |
-| 多外部依赖、灰度/UAT、复杂系统 | [业务升级方案](../architecture/BUSINESS_SYSTEM_UPGRADE_PLAN.md) 的第 3、4、7、8 节 |
+| 多外部依赖、灰度/UAT、复杂系统 | 本指南 + 业务项目自己的私有灰度/UAT 方案 |
 
 ## Claude Code 执行约束
 

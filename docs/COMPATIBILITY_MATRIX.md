@@ -35,7 +35,8 @@
 ## 跨产品兼容矩阵（Studio → Tooling → Framework）
 
 > 本节是 FastDDD **三产品（Studio / Tooling / Framework）版本组合**的人类可读镜像。
-> **机器可读规范源**：[Tooling 私有仓的 `fastddd-compatibility-matrix.yaml`](ssh://git@192.168.0.160:222/gallop-group/fastddd-tooling.git)。
+> **机器可读规范源**：Tooling Community 发布物 `fastddd-tooling-api` 中的
+> `fastddd-compatibility-matrix.yaml`。公开仓地址确定后再补充源码链接，不在 Community 文档中暴露内网 SCM。
 
 三个产品已完成物理拆仓；当前候选仍使用同一 `${revision}`，以便先验证锁步发布顺序。
 ADR-005 §3.2 已确立：三产品**版本独立分号是拆仓后事项**。VER-001 以**机器可读矩阵 + 构建期校验**作为承载机制：新增差异化元组即可表达独立发版节奏，

@@ -396,4 +396,4 @@ public class JacksonDebugRunner implements ApplicationRunner {
 
 - [Spring Boot 官方文档 - Jackson](https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.spring-mvc.customize-jackson-objectmapper)
 - [Spring Framework - Jackson2ObjectMapperBuilderCustomizer](https://docs.spring.io/spring-boot/docs/current/api/org/springframework/boot/autoconfigure/jackson/Jackson2ObjectMapperBuilderCustomizer.html)
-- [FastDDD Jackson 配置方案](./jacksonConfig方案.md)
+- [FastDDD Jackson 排查清单](./JACKSON_CHECKLIST.md)

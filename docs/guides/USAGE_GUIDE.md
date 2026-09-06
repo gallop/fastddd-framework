@@ -1188,9 +1188,9 @@ public void processOrder(Order order) {
 
 ### 技术支持
 
-- GitHub Issues: [提交问题](https://github.com/your-repo/issues)
-- 文档站点: [在线文档](https://docs.fastddd.com)
-- 社区论坛: [讨论区](https://community.fastddd.com)
+- Issue Tracker：随 Framework Community 公开仓一并公布
+- 文档站点：当前以本仓 `docs/README.md` 为入口
+- 社区讨论区：公开渠道确定后补充
 
 ---
 

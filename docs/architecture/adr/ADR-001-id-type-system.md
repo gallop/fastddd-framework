@@ -20,7 +20,7 @@ FastDDD 的 ID 契约当前是"`Serializable` 染色"模型，且在文档、模
 - `SerializableTypeHandler`（`fast-ddd-crud/.../handler/SerializableTypeHandler.java:21-31`）：`@MappedTypes(Serializable.class)`，在 `FastDddCrudAutoConfiguration.java:67-74` 全局注册——**极宽捕获**，仅为补偿 `BasePO.id` 的 `Serializable` 类型。
 - **反证（框架自身都不信这套契约）**：`OutboxEvent.java:32-33`、`AuditLogEntity.java:23`、`TableDesignVersion.java:27` 都是显式 `Long` + `IdType.AUTO`，不走 `BasePO`。
 - `IdCodec`、`Identifiable<ID>`、`DomainEntity<ID>`：**代码中不存在**，仅是整改方案 ID-002/ID-005 的提案。
-- 整改方案编号只到 **ID-006**（`FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md:670-821`）；**ID-007/ID-008 不存在**（方案验收 §6 行 356 写的"ID-002～ID-008"是方案自身笔误，已登记为待修）。
+- 拆仓前整改方案编号只到 **ID-006**；**ID-007/ID-008 不存在**。原始方案已归入私有 pre-split 历史档案。
 
 ## 2. 决策
 
@@ -80,6 +80,6 @@ FastDDD 的 ID 契约当前是"`Serializable` 染色"模型，且在文档、模
 
 ## 7. 参考
 
-- 研究证据：`docs/FASTDDD_FRAMEWORK_ARCHITECTURE_AUDIT.md` P1-7（行 297-305）、P1-10（行 328）
+- 研究证据：拆仓前架构审计 P1-7/P1-10（已归入私有 pre-split 历史档案）
 - 消费者实证：`docs/architecture/fastddd-consumers.yaml`
 - 关联 ADR：ADR-002（自动配置，涉 `SerializableTypeHandler` 注册与 `SecurityFilterChain` back-off 无关但同属契约冻结）、ADR-004（安全，涉 `JwtProperties` 不受 ID 影响）
