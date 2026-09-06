@@ -3,6 +3,8 @@ image: maven:3.9.9-eclipse-temurin-21
 stages:
   - validate
   - verify
+  - contract
+  - publish
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Xmx2048m"
@@ -20,7 +22,6 @@ cache:
 validate:
   stage: validate
   script:
-    - powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-framework-bom.ps1
     - ./mvnw $MAVEN_CLI_OPTS validate
 
 verify:
@@ -35,3 +36,25 @@ verify:
       - "**/target/surefire-reports/"
       - "**/target/site/jacoco/"
     expire_in: 30 days
+
+framework-consumer-contract:
+  stage: contract
+  script:
+    - rm -rf "$CI_PROJECT_DIR/.m2/repository/com/gallop/fastddd"
+    - ./mvnw $MAVEN_CLI_OPTS clean install -DskipTests
+    - ./mvnw $MAVEN_CLI_OPTS verify -pl fastddd-consumer-tests -Pconsumer-tests
+  artifacts:
+    when: always
+    paths:
+      - "fastddd-consumer-tests/target/its/**/build.log"
+      - "fastddd-consumer-tests/target/invoker-reports/"
+    expire_in: 30 days
+
+publish-framework-candidate:
+  stage: publish
+  needs: ["verify", "framework-consumer-contract"]
+  rules:
+    - if: '$FASTDDD_MAVEN_REPOSITORY_URL && $FASTDDD_MAVEN_REPOSITORY_USERNAME && $FASTDDD_MAVEN_REPOSITORY_PASSWORD && $FASTDDD_FRAMEWORK_VERSION'
+    - when: never
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS -s ci-settings.xml -Drevision=$FASTDDD_FRAMEWORK_VERSION clean deploy -DskipTests -DaltDeploymentRepository=fastddd-candidates::$FASTDDD_MAVEN_REPOSITORY_URL

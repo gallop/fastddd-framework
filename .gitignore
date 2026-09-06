@@ -41,3 +41,7 @@ current-state
 login-page
 sse-*
 test-*.json
+
+# Task files
+# tasks.json
+# tasks/ 
