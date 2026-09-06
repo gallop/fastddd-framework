@@ -1,7 +1,7 @@
 # FastDDD 1.0 AI 开发契约
 
 > 面向 AI 与开发者的最小执行契约。实现前先阅读本文件；详细理由和迁移证据见
-> [架构整改方案](architecture/FASTDDD_1_0_FRAMEWORK_REMEDIATION_PLAN.md)。
+> 拆仓前整改方案已归入私有 pre-split 历史档案；本文件是 Community 仓的现行 AI 契约。
 
 ## 1. 模型与 ID
 

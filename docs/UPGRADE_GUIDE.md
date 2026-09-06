@@ -5,7 +5,7 @@
 >
 > 本文是 JDK/Boot/BOM 的基础操作指引，不能替代完整的业务升级验收。使用 Framework 1.0 强类型 ID、CRUD、
 > Security、Event、缓存或外部基础设施的业务系统，应按[业务系统升级入口](upgrade/README.md)的能力映射表加载
-> 专题指南；多外部依赖或需要灰度/UAT 的复杂系统，再阅读[业务系统升级与试点实施方案](architecture/BUSINESS_SYSTEM_UPGRADE_PLAN.md)。
+> 本文是 Community 通用升级指南；业务项目特定的灰度/UAT 计划应在各自私有仓库维护。
 >
 > 开始新业务系统升级时，先读 [业务系统升级入口](upgrade/README.md)；它明确了最小必读集、按功能追加阅读规则与验收门禁。
 > 兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)；发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
@@ -135,6 +135,34 @@ cd <fastddd-source>
 + </dependency>
 ```
 
+### Web/CRUD 依赖边界（连接池选型显式化，适用于包含 ECO-006C4 整改的版本线）
+
+`fast-ddd-crud` 不再传递连接池与 MyBatis-Plus 官方 starter（连带 `spring-boot-starter-jdbc`/HikariCP 链），
+改为传递 MyBatis-Plus 运行能力本身（`mybatis-plus` bundle + `mybatis-spring` + MyBatis-Plus 自动配置 + `spring-jdbc`）；
+`druid-spring-boot-3-starter` 在 crud 变为 optional。聚合 `fast-ddd-starter` 显式携带 Druid
+（"引入即含默认池"语义不变）。按消费形态自查：
+
+| 消费形态 | 影响 | 所需动作 |
+|---|---|---|
+| 聚合 `fast-ddd-starter` | 默认池仍为 Druid | 无 |
+| 仅 `fast-ddd-web`/`fast-ddd-crud`，**有数据库** | classpath 不再有传递连接池 | **显式选池**：`druid-spring-boot-3-starter`（保持 Druid）或 `spring-boot-starter-jdbc`（Hikari），二选一 |
+| 仅 `fast-ddd-web`，**无数据库** | 从"必须配数据源才能启动"变为"正常启动"（收益） | 无 |
+| 仅 `fast-ddd-model` | 只携带 `mybatis-plus-annotation`（注解） | 无 |
+
+> **⚠️ 无池时的隐蔽失败模式**：已配 `spring.datasource.url` 但 classpath 无任何连接池时，
+> DataSource 自动配置会**静默退让**——应用照常启动、无报错，但容器内**没有 DataSource/JdbcTemplate/Mapper Bean**，
+> 首次使用数据访问才暴露（`NoSuchBeanDefinitionException`）。升级后务必核对启动日志中的连接池初始化行
+> （Druid `{dataSource-1} inited` 或 `HikariPool-1 - Start completed`）。
+
+核查命令：
+
+```bash
+./mvnw dependency:tree -Dincludes=com.alibaba:druid-spring-boot-3-starter,com.zaxxer:HikariCP,org.springframework.boot:spring-boot-starter-jdbc
+```
+
+若项目同时自带 `mybatis-plus-spring-boot3-starter` 且此前依赖 crud 传递的 Druid，升级后池型会变为 Hikari
+（功能正常、池型翻转）；要保持 Druid 按上表显式补 `druid-spring-boot-3-starter`。
+
 ---
 
 ## 4. 配置审查（Boot 3.5 严格解析）
@@ -200,6 +228,16 @@ A: `application*.yml` 有重复顶层键，按第 4 节合并。
 
 **Q: 找不到 `druid-spring-boot-starter` 自动配置 / Druid 连接池未生效？**
 A: 仍用了 Boot 2 坐标 `druid-spring-boot-starter`，按第 3 节迁移到 `druid-spring-boot-3-starter`。
+
+**Q: 升级后应用能正常启动，但 Mapper/`JdbcTemplate` 注入报 `NoSuchBeanDefinitionException`？**
+A: ECO-006C4 起 `fast-ddd-crud` 不再传递连接池。仅引 web/crud 且需要数据库的项目必须显式选池
+（`druid-spring-boot-3-starter` 或 `spring-boot-starter-jdbc`），见第 3 节"Web/CRUD 依赖边界"——
+无池时 DataSource 自动配置静默退让，启动不报错。
+
+**Q: 升级后连接池从 Druid 变成了 Hikari（日志出现 `HikariPool`）？**
+A: 项目自带 `mybatis-plus-spring-boot3-starter`（自带 Hikari 链），而此前 Druid 来自 crud 的传递依赖。
+该传递已移除，双池并存时"Druid 胜出"的旧默认不复存在；要保持 Druid 池型与既有
+`spring.datasource.druid.*` 配置，显式补 `druid-spring-boot-3-starter`。
 
 **Q: `com.mysql:mysql-connector-j` 解析不到？**
 A: 旧坐标 `mysql:mysql-connector-java` 已废弃，按第 3 节迁移；版本交 Spring Boot BOM 管理。
