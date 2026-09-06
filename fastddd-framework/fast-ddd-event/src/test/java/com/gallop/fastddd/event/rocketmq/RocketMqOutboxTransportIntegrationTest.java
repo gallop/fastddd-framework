@@ -21,6 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * <p>仅在 {@code -Dfastddd.test.rocketmq=true} 时运行。测试通过框架自动装配的
  * {@link RocketMqOutboxTransport} 向真实 Broker 同步发送一条带事件 ID 的消息；测试后可使用
  * RocketMQ 的 {@code queryMsgByKey} 按该 ID 审计投递结果。</p>
+ *
+ * <p>连接与隔离参数经系统属性传入（均有保持现状的默认值）：{@code fastddd.test.rocketmq.name-server}、
+ * {@code fastddd.test.rocketmq.topic}、{@code fastddd.test.rocketmq.producer-group}、
+ * {@code fastddd.test.rocketmq.event-id}——共享 Broker 上执行时应全部覆盖为本次运行唯一值。</p>
  */
 @SpringBootTest(classes = RocketMqOutboxTransportIntegrationTest.TestApp.class, properties = {
         "rocketmq.enabled=true",
@@ -34,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
         disabledReason = "需真实 RocketMQ（-Dfastddd.test.rocketmq=true 显式开启）")
 class RocketMqOutboxTransportIntegrationTest {
 
-    static final String EVENT_ID = "fastddd-rc1-rocketmq-gate-20260813";
+    static final String EVENT_ID = System.getProperty(
+            "fastddd.test.rocketmq.event-id", "fastddd-rc1-rocketmq-gate-20260813");
 
     @Autowired
     OutboxTransport outboxTransport;
@@ -43,6 +48,10 @@ class RocketMqOutboxTransportIntegrationTest {
     static void rocketMqProperties(DynamicPropertyRegistry registry) {
         registry.add("rocketmq.name-server",
                 () -> System.getProperty("fastddd.test.rocketmq.name-server", "127.0.0.1:9876"));
+        registry.add("rocketmq.producer.group",
+                () -> System.getProperty("fastddd.test.rocketmq.producer-group", "fastddd-rc-gate-producer"));
+        registry.add("rocketmq.publisher.default-topic",
+                () -> System.getProperty("fastddd.test.rocketmq.topic", "fastddd_rc_framework_gate"));
     }
 
     @Test
