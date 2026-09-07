@@ -44,6 +44,12 @@
         <revision>1.0.0-jdk21-SNAPSHOT</revision>
         <!-- 仅声明 depMgmt 所需版本属性（与根 pom 对齐），不继承根 pom 的环境/profile 属性 -->
         <spring-boot.version>3.5.16</spring-boot.version>
+        <!-- ECO-RELEASE-04 (A1)：Tomcat 安全修复覆盖（Boot 3.5.16 受管 10.1.55 → 10.1.59）。
+             依据：Apache 官方安全页 CVE-2026-65905(Low)/65182(Important)/68525(Low) 均 Fixed in 10.1.59；
+             10.1.58 从未发布（Maven Central 无该版本）。Boot 3.5.x 无携带修复版的补丁版（最新即 3.5.16），
+             故以 BOM 显式条目覆盖（直接声明条目优先于 import 引入的受管项，与声明顺序无关）。
+             仅覆盖消费者实际解析的 embed 三件套；tomcat-jdbc/jsp-api/jasper 不在传递面，保留 Boot 受管值。 -->
+        <tomcat-embed.version>10.1.59</tomcat-embed.version>
         <spring-ai.version>1.1.8</spring-ai.version>
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
         <mybatis-spring.version>3.0.4</mybatis-spring.version>
@@ -63,6 +69,28 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- ============ Tomcat 安全修复覆盖（ECO-RELEASE-04/A1） ============
+                 直接声明的受管条目优先于 import 引入的受管项（与声明顺序无关，实测
+                 framework/tooling 两 reactor 与 import 形态消费者均解析 10.1.59）；
+                 属性覆盖对 import 的 BOM 无效（其 ${tomcat.version} 已在 Boot 自身模型解析为字面量 10.1.55），
+                 故以显式受管条目钉版本。注意：parent=spring-boot-starter-parent 的消费者，其继承 dm
+                 优先于本 BOM 的 import 条目——此类消费者须自行声明 <tomcat.version> 属性（见
+                 consumer-tests 各场景 pom 与 REMEDIATION 文档迁移说明）。 -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
             <!-- ============ 上游 BOM（优先级最高，置于最前） ============ -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>

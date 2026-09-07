@@ -22,6 +22,9 @@
   <properties>
     <java.version>21</java.version>
     <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+    <!-- ECO-RELEASE-04/S3 安全覆盖：tomcat-embed CVE-2026-65905/65182/68525（3×CRITICAL，10.1.x 线 fix 实际发布 10.1.59）。 -->
+    <!-- 本工程 parent=spring-boot-starter-parent：import fastddd-bom 无法覆盖从 parent 继承的 Boot dependencyManagement（import 只填空、不覆盖继承），须走 Boot 官方版本属性通道；Boot 自带管理版 ≥10.1.59 后本行可移除。 -->
+    <tomcat.version>10.1.59</tomcat.version>
   </properties>
 
   <dependencyManagement>
