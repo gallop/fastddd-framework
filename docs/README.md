@@ -11,7 +11,7 @@
 | DDD 架构 | [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md)、[`architecture/DDD_LAYERING_BEST_PRACTICES.md`](architecture/DDD_LAYERING_BEST_PRACTICES.md) |
 | 安全、缓存、搜索与事件 | [`security/INTEGRATION_GUIDE.md`](security/INTEGRATION_GUIDE.md)、[`security/AUDIT_LOG_TABLE_MIGRATION.md`](security/AUDIT_LOG_TABLE_MIGRATION.md)、[`guides/CACHE_GUIDE.md`](guides/CACHE_GUIDE.md)、[`guides/SEARCH_GUIDE.md`](guides/SEARCH_GUIDE.md)、[`devops/OUTBOX_OPS_GUIDE.md`](devops/OUTBOX_OPS_GUIDE.md) |
 | 兼容与升级 | [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md)、[`UPGRADE_GUIDE.md`](UPGRADE_GUIDE.md)、[`ID_MIGRATION_GUIDE.md`](ID_MIGRATION_GUIDE.md) |
-| 发布门禁 | [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)、[`OSS_001_READINESS_RECORD.md`](OSS_001_READINESS_RECORD.md)、[`QA_001_CONSUMER_MATRIX.md`](QA_001_CONSUMER_MATRIX.md) |
+| 发布门禁 | [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)、[`OSS_001_READINESS_RECORD.md`](OSS_001_READINESS_RECORD.md)、[`QA_001_CONSUMER_MATRIX.md`](QA_001_CONSUMER_MATRIX.md)、[`RC1_RELEASE_EVIDENCE.md`](RC1_RELEASE_EVIDENCE.md)（历史 RC 记录，附 ECO-006D1 纠偏注记）、[`QA_002_VALIDATION_RECORD.md`](QA_002_VALIDATION_RECORD.md)（历史验证记录） |
 | Agent Access（Experimental） | [`../agent-access/README.md`](../agent-access/README.md) |
 | Community/Studio 产品边界 | [`PRODUCT_BOUNDARIES.md`](PRODUCT_BOUNDARIES.md) |
 
@@ -26,4 +26,4 @@
 
 拆仓前审计、整改计划和已经被 ADR/执行记录替代的材料属于 `historical / superseded`。历史材料可以用于追溯背景，不能覆盖现行 POM、公共 API、ADR 和发布检查清单。
 
-> Canonical owner：FastDDD Framework Community。最后更新：2026-08-30。
+> Canonical owner：FastDDD Framework Community。最后更新：2026-09-07（ECO-006D1 补发布门禁文档入口）。

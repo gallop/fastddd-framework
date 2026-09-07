@@ -821,6 +821,32 @@ public class OrderEventHandler {
 }
 ```
 
+### 依赖形态（ECO-006C6 池中立化后）
+
+`fast-ddd-event` 传递 MyBatis-Plus 运行能力四件套（`mybatis-plus` + `mybatis-spring` +
+MyBatis-Plus 自动配置 + `spring-jdbc`）但**不传递任何连接池**（池中立）：
+
+```xml
+<!-- local 模式（默认）：仅此一条，无库、无数据源配置、无排除即可启动 -->
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-event</artifactId>
+</dependency>
+
+<!-- outbox 模式：消费者显式选池（二选一，Boot BOM 受管）+ 自备 outbox_events DDL -->
+<dependency>
+    <groupId>com.gallop.fastddd</groupId>
+    <artifactId>fast-ddd-event</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>  <!-- 或 druid-spring-boot-3-starter -->
+</dependency>
+```
+
+非 web 的 outbox 消费者另需自备 `ObjectMapper`（建议 `findAndRegisterModules()`）并显式依赖
+`jackson-datatype-jsr310`（`DomainEvent.createdAt` 为 `Instant`）；web 消费者经 starter-json 自动获得，无需处理。
+
 ### Outbox 事务性事件
 
 创建 `outbox_events` 表并注册 `OutboxEventRepository` Bean 即可启用。

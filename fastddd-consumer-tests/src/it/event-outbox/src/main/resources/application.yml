@@ -1,0 +1,11 @@
+# ECO-006C6 outbox 消费者：显式选择 outbox 模式（默认 local 不建库，C6 无库契约的前提是显式选择）。
+# 数据源由消费者提供（本场景测试域用 H2 MySQL 兼容模式，见测试类 properties）；
+# outbox_events 表由消费者自备 DDL 创建（src/test/resources/sql/outbox_events_h2.sql）。
+fastddd:
+  event:
+    mode: outbox
+    outbox:
+      dispatcher:
+        # 状态断言确定性：本场景不启用后台投递调度器（PENDING→PROCESSING→PUBLISHED 由测试显式驱动）。
+        # 生产消费者通常保持默认 enabled=true，由 dispatcher 经 transport 异步投递。
+        enabled: false

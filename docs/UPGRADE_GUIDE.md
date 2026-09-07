@@ -163,6 +163,28 @@ cd <fastddd-source>
 若项目同时自带 `mybatis-plus-spring-boot3-starter` 且此前依赖 crud 传递的 Druid，升级后池型会变为 Hikari
 （功能正常、池型翻转）；要保持 Druid 按上表显式补 `druid-spring-boot-3-starter`。
 
+### Event 依赖边界（池中立化，适用于包含 ECO-006C6 整改的版本线）
+
+`fast-ddd-event` 不再直依 `mybatis-plus-spring-boot3-starter`（连带 `spring-boot-starter-jdbc`/HikariCP 链），
+改为传递 Outbox 实际必需的 MyBatis-Plus 运行能力四件套（`mybatis-plus` bundle + `mybatis-spring` +
+MyBatis-Plus 自动配置 + `spring-jdbc`，均为池中立）。默认 local 模式（无库、无配置、无排除）开箱即用；
+outbox 模式由消费者显式提供连接池。按消费形态自查：
+
+| 消费形态 | 影响 | 所需动作 |
+|---|---|---|
+| 仅 `fast-ddd-event`，local 模式（默认） | 从"必须配数据源/排除自动配置才能启动"变为"正常启动"（收益） | 无（既有 `spring.autoconfigure.exclude` 排除配置可保留，不冲突） |
+| `fast-ddd-event`，outbox 模式 | classpath 不再有传递连接池 | **显式选池**：`spring-boot-starter-jdbc`（Hikari）或 `druid-spring-boot-3-starter`，并自备 `outbox_events` DDL |
+| `fast-ddd-event`，outbox 模式且**非 web** | `JacksonAutoConfiguration` 的 `ObjectMapper` 依赖 spring-web 的 builder，不在场 | 消费者自备 `ObjectMapper`（建议 `findAndRegisterModules()`），并显式依赖 `jackson-datatype-jsr310`（`DomainEvent.createdAt` 为 `Instant`；web 消费者经 starter-json 自动获得，无需处理） |
+
+> **⚠️ 池静默退让与上节同型**：已配 `spring.datasource.*` 但无任何池实现时 outbox 装配整体退让
+> （`@ConditionalOnSingleCandidate(DataSource)` 不成立），启动不报错但无 outbox Bean——核对启动日志连接池初始化行。
+
+核查命令（确认 event 不再传递池与官方 starter）：
+
+```bash
+./mvnw dependency:tree -Dincludes=com.zaxxer:HikariCP,com.alibaba:druid-spring-boot-3-starter,com.baomidou:mybatis-plus-spring-boot3-starter
+```
+
 ---
 
 ## 4. 配置审查（Boot 3.5 严格解析）

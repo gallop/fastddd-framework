@@ -1,9 +1,11 @@
 # EVT-001 验收消费者：local 模式，无 DataSource、无 MyBatis 活跃。
 #
-# 说明：fast-ddd-event 当前以硬依赖传递 mybatis-plus-spring-boot3-starter（EVT-002/依赖边界
-# 议题），其 MybatisPlusAutoConfiguration 会强制要求 DataSource。为刻画"无数据库的本地事件"
-# 消费者，显式排除 DataSource 与 MybatisPlus 自动配置；fast-ddd-event 自身的 local 事件链路
-# （SpringEventPublisher）不依赖二者。
+# 历史前提（EVT-002 时期）：fast-ddd-event 硬依赖传递 mybatis-plus-spring-boot3-starter，
+# 其 MybatisPlusAutoConfiguration 强制要求 DataSource，无库消费者须显式排除
+# DataSource 与 MybatisPlus 自动配置才能启动。
+# ECO-006C6（2026-09-06）后该前提不再必要：event 拆解为池中立四件套，无排除、无配置的
+# 开箱默认即 local 无库形态（见 event-nodb 场景）。本场景保留原"显式排除 + 显式 mode"
+# 形态作为兼容回归：存量消费者的既有排除配置在 C6 后依然工作（排除目标类仍在类路径上）。
 spring:
   autoconfigure:
     exclude:

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ECO-006C6 验收消费者：fast-ddd-event outbox 模式——消费者显式提供连接池。
+     C6 依赖最小化后 fast-ddd-event 不再传递任何池实现（池中立），outbox 消费者显式携带
+     spring-boot-starter-jdbc（Boot parent 受管，引入 HikariCP）+ 测试域 H2（MySQL 兼容模式）
+     + 消费者自备 outbox_events DDL（真实消费者拥有自己的 schema）。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>event-outbox</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Event Outbox (explicit pool)</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-jdk21-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-event</artifactId>
+    </dependency>
+    <!-- 消费者显式提供连接池（C6 后 event 池中立）：starter-jdbc → HikariCP，版本经 Boot parent 受管 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <!-- 测试域嵌入式库（MySQL 兼容模式）：消费者自备 DDL 建表，非框架内置 H2 掩盖 -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- 非 web outbox 消费者契约（ECO-006C6 实证）：TransactionalEventPublisher 序列化
+         DomainEvent（createdAt 为 Instant）需 JSR310 模块。web 消费者经 spring-boot-starter-json
+         自动获得；本消费者无 web，event 的 jackson-databind 直依不含 jsr310（模块内经
+         optional 的 rocketmq-spring-boot-starter 可见但不向消费者传递），须显式自备。
+         版本经 Boot parent 受管。 -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

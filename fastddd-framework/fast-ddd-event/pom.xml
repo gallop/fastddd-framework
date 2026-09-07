@@ -62,11 +62,35 @@
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
         
-        <!-- MyBatis-Plus for Outbox pattern -->
+        <!-- ECO-006C6：Event 默认 local 无库契约修复（C5 F1，方案 A）——原 mybatis-plus-spring-boot3-starter
+             携带 spring-boot-starter-jdbc（→HikariCP），默认 local 模式（无库、无排除、无显式 mode）的消费者
+             被 DataSourceConfiguration$Hikari 急切建池拖垮。逐项核实 event 的真实使用面后拆解为（非复制 CRUD 清单）：
+             · mybatis-plus（annotation：OutboxEvent 实体注解；core：BaseMapper/IPage；extension：
+               MybatisPlusInterceptor/乐观锁/分页拦截器/Page/JdbcUtils 方言探测）
+             · mybatis-spring（OutboxEventConfiguration 编译期 @MapperScan 引用；且 SqlSessionFactoryBean 为
+               MP 自动配置条件类，bundle 内为 optional，缺失则 outbox 模式装配整体失效）
+             · mybatis-plus-spring-boot-autoconfigure（outbox 模式 SqlSessionFactory 装配；无 DataSource Bean 时
+               按 @ConditionalOnSingleCandidate(DataSource) 整体退让，不强制建池）
+             · spring-jdbc（outbox @Transactional 的 DataSourceTransactionManager 运行期基础，不含池实现=池中立）
+             默认 local 行为、Outbox 契约与自定义 EventPublisher 退让均保持；outbox 消费者显式提供连接池。 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+
+        <!-- MyBatis Plus 分页插件（3.5.9+ 拆分为独立模块；OutboxEventConfiguration 分页拦截器运行期） -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-jsqlparser</artifactId>
