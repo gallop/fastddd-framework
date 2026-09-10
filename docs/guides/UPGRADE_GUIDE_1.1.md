@@ -387,11 +387,11 @@ public class OrderController extends BaseController<OrderService, OrderPO> {
 ```xml
 <!-- pom.xml 中同时引入即可 -->
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-crud</artifactId>
 </dependency>
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-security-starter</artifactId>
 </dependency>
 ```

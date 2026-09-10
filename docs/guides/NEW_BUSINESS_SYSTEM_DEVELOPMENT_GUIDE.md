@@ -29,7 +29,7 @@
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-bom</artifactId>
       <version>1.0.0-jdk21-rc1</version>
       <type>pom</type>
@@ -40,7 +40,7 @@
 
 <dependencies>
   <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-starter</artifactId>
   </dependency>
 </dependencies>

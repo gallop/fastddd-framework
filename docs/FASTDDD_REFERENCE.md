@@ -7,7 +7,7 @@
 
 FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
 
-**当前候选坐标**: `com.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（业务项目通过 import
+**当前候选坐标**: `io.github.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（业务项目通过 import
 [`fastddd-bom`](UPGRADE_GUIDE.md#2-升级-fastddd-依赖import-fastddd-bom) 统一管理版本）
 **Java 版本**: 21+
 **Spring Boot 版本**: 3.5.16
@@ -19,7 +19,7 @@ FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准�
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-bom</artifactId>
       <version>1.0.0-jdk21-rc1</version>
       <type>pom</type>
@@ -424,11 +424,11 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-starter</artifactId>
 </dependency>
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-security-starter</artifactId>
 </dependency>
 ```
@@ -829,13 +829,13 @@ MyBatis-Plus 自动配置 + `spring-jdbc`）但**不传递任何连接池**（�
 ```xml
 <!-- local 模式（默认）：仅此一条，无库、无数据源配置、无排除即可启动 -->
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-event</artifactId>
 </dependency>
 
 <!-- outbox 模式：消费者显式选池（二选一，Boot BOM 受管）+ 自备 outbox_events DDL -->
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-event</artifactId>
 </dependency>
 <dependency>
@@ -912,7 +912,7 @@ ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_version
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-cache</artifactId>
 </dependency>
 ```
@@ -1012,7 +1012,7 @@ MyBatis-Plus `BaseMapper`，Meilisearch 模式必须显式提供 SDK，业务代
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-search</artifactId>
     <!-- version 由 fastddd-bom 管理 -->
 </dependency>
@@ -1093,7 +1093,7 @@ fastddd:
 
 ```bash
 # 单表代码生成
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password="$CODEGEN_DB_PASSWORD" \
@@ -1101,7 +1101,7 @@ mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
   -Dcodegen.tablePrefix=t_
 
 # 项目初始化
-mvn com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:init-project \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=my-app \
   -Dinit.modelType=RICH \

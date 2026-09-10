@@ -40,7 +40,7 @@ Phase 1 可以硬编码返回（如 admin 返回 `*` 全部权限），Phase 2 �
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-security-starter</artifactId>
     <version>${fastddd.version}</version>
 </dependency>

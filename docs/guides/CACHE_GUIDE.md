@@ -6,7 +6,7 @@
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-cache</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>

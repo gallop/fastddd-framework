@@ -2,7 +2,7 @@
 
 > **用途**：这是升级既有业务系统到 FastDDD 1.0 的唯一入口。不要先遍历整个 `docs/`，也不要把 Framework 的整改记录当作业务系统的执行手册。
 >
-> **当前候选版本**：`com.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（JDK 21、Spring Boot 3.5.16）。它已是固定 RC 坐标；不得把业务系统改回 `1.0.0-jdk21-SNAPSHOT`。
+> **当前候选版本**：`io.github.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（JDK 21、Spring Boot 3.5.16）。它已是固定 RC 坐标；不得把业务系统改回 `1.0.0-jdk21-SNAPSHOT`。
 
 ## 先读这 3 份文档
 
@@ -43,7 +43,7 @@
 3. <fastddd-framework>/docs/COMPATIBILITY_MATRIX.md
 
 目标版本：JDK 21、Spring Boot 3.5.16、
-com.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1。
+io.github.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1。
 
 工作规则：
 - 在业务仓库创建独立升级分支；先记录当前分支/提交、模块结构、启动模块、数据库与外部依赖。

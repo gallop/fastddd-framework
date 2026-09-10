@@ -15,7 +15,7 @@ Spring Boot 自动配置启动器，提供 FastDDD 框架的 LLM 基础设施。
 
 ```xml
 <dependency>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>

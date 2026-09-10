@@ -38,7 +38,7 @@ FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-bom</artifactId>
       <version>${fastddd.version}</version>
       <type>pom</type>
@@ -50,7 +50,7 @@ FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行
 
 ```xml
 <dependency>
-  <groupId>com.gallop.fastddd</groupId>
+  <groupId>io.github.gallop.fastddd</groupId>
   <artifactId>fast-ddd-starter</artifactId>
 </dependency>
 ```
