@@ -69,7 +69,7 @@ java -version   # 复核
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>1.0.0-jdk21-rc1</version>   <!-- GA 后改 1.0.0 -->
         <type>pom</type>
@@ -81,7 +81,7 @@ java -version   # 复核
   <dependencies>
     <!-- 版本由 BOM 统一管理，删除所有 fast-ddd-* 上的 <version> -->
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-starter</artifactId>
       <!-- 无 <version> -->
     </dependency>
@@ -101,6 +101,35 @@ cd <fastddd-source>
 业务项目 **不要** 显式声明/覆盖 Spring Boot、Spring、Jackson、Micrometer 等版本——它们经 FastDDD
 与上游 BOM 联调验证。覆盖会引入版本分裂（升级前快照就曾因 `micrometer-registry-prometheus` 被 pin
 到旧版而分裂）。统一交给 `spring-boot-starter-parent` + `fastddd-bom`。
+
+### Tomcat 版本属性（仅 parent=spring-boot-starter-parent 的消费者）
+
+fastddd-bom 已显式受管 `tomcat-embed-{core,el,websocket}` **10.1.59**（S3 安全整改：10.1.55 的
+CVE-2026-65905/65182/68525 修复线）。是否需要你自行声明，取决于消费形态——**不是所有消费者都要配**：
+
+| 消费形态 | 实际生效版本 | 所需动作 |
+|---|---|---|
+| 仅 `import` fastddd-bom（无 Boot parent） | 10.1.59（BOM 显式受管条目胜出） | 无 |
+| parent = `spring-boot-starter-parent` | 默认仍是 Boot 3.5.16 管理的 10.1.55——**import 只填空，不覆盖从 parent 继承的 dependencyManagement** | 显式声明版本属性（1 行，下例） |
+
+最小示例（W1 试点实测：baby-growth-claude 缺此行时 tomcat 停留 10.1.55，补 1 行即恢复 10.1.59；
+import-only 的 xia-go 无需任何配置）：
+
+```xml
+<properties>
+  <!-- 仅 parent=spring-boot-starter-parent 时需要；Boot 官方管理版本 ≥10.1.59 后本行可移除 -->
+  <tomcat.version>10.1.59</tomcat.version>
+</properties>
+```
+
+核查命令（确认实际解析到的 tomcat 版本）：
+
+```bash
+./mvnw dependency:tree -Dincludes=org.apache.tomcat.embed:tomcat-embed-core
+```
+
+> `<tomcat.version>` 是本指南"禁止覆盖上游版本"的**唯一既定例外**：它走 Boot 官方版本属性通道
+> （不是自定版本号），仅用于安全修复跟随。
 
 ---
 
@@ -185,6 +214,28 @@ outbox 模式由消费者显式提供连接池。按消费形态自查：
 ./mvnw dependency:tree -Dincludes=com.zaxxer:HikariCP,com.alibaba:druid-spring-boot-3-starter,com.baomidou:mybatis-plus-spring-boot3-starter
 ```
 
+### Security 依赖边界（审计持久化最小化，适用于包含 ECO-006C2 整改的版本线）
+
+`fast-ddd-security-starter` 不再传递 MyBatis-Plus 官方 starter 及其连接池链（`spring-boot-starter-jdbc`/HikariCP）：
+模块对 MyBatis-Plus 的使用仅为审计实体的注解（以 `mybatis-plus-annotation` 保留可见），审计写入走
+`JdbcTemplate` 手写 INSERT（`spring-jdbc` 仅提供类型签名）。按消费形态自查：
+
+| 消费形态 | 影响 | 所需动作 |
+|---|---|---|
+| 仅 security-starter，**无数据库** | 无 DataSource Bean 也不启动失败：审计自动退回 SLF4J 输出（无库审计回退） | 无 |
+| security-starter + 数据库审计 | 需要 DataSource/JdbcTemplate Bean | **显式选池**（与 Web/CRUD、Event 同规则）：`druid-spring-boot-3-starter` 或 `spring-boot-starter-jdbc`，二选一 |
+| 项目自带 Security 组件 | 框架 `@ConditionalOnMissingBean` 退让族（PasswordEncoder、SecurityFilterChain 等）让位产品装配 | 无（产品 Bean 胜出，jwt 两态均可启动） |
+
+> **审计表列宽与存量迁移**：审计持久化的 `method` 列已由 `VARCHAR(10)` 扩至 `VARCHAR(200)`，表结构由
+> 框架自动建表 DDL 创建；**框架不会自动 ALTER 已有用户库**——存量窄列表的迁移路径见
+> [security/AUDIT_LOG_TABLE_MIGRATION.md](security/AUDIT_LOG_TABLE_MIGRATION.md)。
+
+核查命令（确认 security 不再传递官方 starter 与池）：
+
+```bash
+./mvnw dependency:tree -Dincludes=com.baomidou:mybatis-plus-spring-boot3-starter,com.zaxxer:HikariCP,org.springframework.boot:spring-boot-starter-jdbc
+```
+
 ---
 
 ## 4. 配置审查（Boot 3.5 严格解析）
@@ -235,7 +286,7 @@ FastDDD 1.0 默认 HMAC JWT 使用 HS512。`JWT_SECRET` 必须至少 64 个 UTF-
 - [ ] API 文档端点可达（SpringDoc 2.8.17 / Knife4j 4.5.0：`/v3/api-docs`、`/doc.html`）。
 - [ ] 安全认证（JWT / 验证码）链路正常（fast-ddd-security-starter）。
 - [ ] 监控指标（`/actuator/prometheus`，Micrometer 1.15.12）正常输出。
-- [ ] 代码生成插件可用（仅项目实际使用时）：`./mvnw com.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:help`。
+- [ ] 代码生成插件可用（仅项目实际使用时）：`./mvnw io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:help`。
 - [ ] 自身业务核心用例全量回归（业务侧主导）。
 
 ---
