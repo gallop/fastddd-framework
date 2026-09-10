@@ -29,7 +29,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${fastddd.version}</version>
         <type>pom</type><scope>import</scope>
@@ -39,7 +39,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-security-starter</artifactId>
     </dependency>
     <!-- 消费者显式提供 JDBC/池（security-starter 自 1.0 起只传 spring-jdbc，不再带池实现） -->

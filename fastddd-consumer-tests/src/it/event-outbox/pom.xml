@@ -26,7 +26,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${fastddd.version}</version>
         <type>pom</type><scope>import</scope>
@@ -36,7 +36,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-event</artifactId>
     </dependency>
     <!-- 消费者显式提供连接池（C6 后 event 池中立）：starter-jdbc → HikariCP，版本经 Boot parent 受管 -->

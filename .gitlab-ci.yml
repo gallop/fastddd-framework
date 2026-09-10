@@ -40,7 +40,7 @@ verify:
 framework-consumer-contract:
   stage: contract
   script:
-    - rm -rf "$CI_PROJECT_DIR/.m2/repository/com/gallop/fastddd"
+    - rm -rf "$CI_PROJECT_DIR/.m2/repository/io/github/gallop/fastddd"
     - ./mvnw $MAVEN_CLI_OPTS clean install -DskipTests
     - ./mvnw $MAVEN_CLI_OPTS verify -pl fastddd-consumer-tests -Pconsumer-tests
   artifacts:

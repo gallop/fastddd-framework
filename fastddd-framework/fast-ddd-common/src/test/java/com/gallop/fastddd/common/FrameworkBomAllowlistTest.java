@@ -49,7 +49,7 @@ class FrameworkBomAllowlistTest {
                 "http://maven.apache.org/POM/4.0.0", "dependency");
         for (int i = 0; i < dependencies.getLength(); i++) {
             Element dependency = (Element) dependencies.item(i);
-            if ("com.gallop.fastddd".equals(childText(dependency, "groupId"))) {
+            if ("io.github.gallop.fastddd".equals(childText(dependency, "groupId"))) {
                 actual.add(childText(dependency, "artifactId"));
             }
         }

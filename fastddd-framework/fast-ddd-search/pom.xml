@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -20,13 +20,13 @@
     <dependencies>
         <!-- FastDDD Common (SearchQuery, SearchResult, PageResult etc.) -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
         <!-- FastDDD CRUD (optional — SQL backend requires BaseMapper/QueryWrapper) -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-crud</artifactId>
             <optional>true</optional>
         </dependency>
@@ -47,7 +47,7 @@
 
         <!-- FastDDD Model (optional — BasePO for SQL backend entity scanning) -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-model</artifactId>
             <optional>true</optional>
         </dependency>

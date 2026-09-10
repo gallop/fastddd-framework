@@ -15,7 +15,7 @@
         发布时由 flatten-maven-plugin (bom 模式) 保留 depMgmt、移除 parent。
         （reactor 内 27 个模块仍用根 pom 的 resolveCiFriendliesOnly，仅 BOM 例外。）
     -->
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fastddd-bom</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
@@ -109,72 +109,72 @@
 
             <!-- ============ FastDDD 自模块（始终随 BOM 自身 project.version） ============ -->
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-config</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-model</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-crud</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-application</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-cache</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-event</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-search</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-monitor</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-analyzer-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-security-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.gallop.fastddd</groupId>
+                <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>

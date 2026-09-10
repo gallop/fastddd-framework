@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.gallop.fastddd</groupId>
+  <groupId>io.github.gallop.fastddd</groupId>
   <artifactId>fastddd-framework-parent</artifactId>
   <version>${revision}</version>
   <packaging>pom</packaging>
@@ -114,7 +114,7 @@
         校验见 VersionGovernanceContractTest（revision 同步 + BOM 完整性 + 元组成员）。
       -->
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${revision}</version>
         <type>pom</type>
@@ -424,13 +424,13 @@
                 <bannedDependencies>
                   <searchTransitive>false</searchTransitive>
                   <excludes>
-                    <exclude>com.gallop.fastddd:fastddd-tooling-api</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-templates</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-fastdoc-*</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-code-generator</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-doc-generator</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-*-maven-plugin</exclude>
-                    <exclude>com.gallop.fastddd:fastddd-project-archetype</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-tooling-api</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-templates</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-fastdoc-*</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-code-generator</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-doc-generator</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-*-maven-plugin</exclude>
+                    <exclude>io.github.gallop.fastddd:fastddd-project-archetype</exclude>
                     <exclude>com.gallop.fastddd:fastddd-studio*</exclude>
                     <exclude>com.gallop.fastagent:*</exclude>
                   </excludes>

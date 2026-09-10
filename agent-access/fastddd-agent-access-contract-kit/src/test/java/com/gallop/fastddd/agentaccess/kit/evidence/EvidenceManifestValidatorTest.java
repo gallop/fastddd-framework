@@ -24,7 +24,7 @@ class EvidenceManifestValidatorTest {
     private static EvidenceManifest manifest(Map<String, TestOutcome> testResults,
                                              Set<String> registeredOnly) {
         return new EvidenceManifest(1,
-                "com.gallop.fastddd:fastddd-agent-access:0.1.0-jdk21-alpha.1",
+                "io.github.gallop.fastddd:fastddd-agent-access:0.1.0-jdk21-alpha.1",
                 "sha256:" + "a".repeat(64),
                 testResults, registeredOnly,
                 List.of("surefire-conformance-snapshot.json"),

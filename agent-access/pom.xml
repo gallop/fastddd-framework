@@ -14,7 +14,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.gallop.fastddd</groupId>
+  <groupId>io.github.gallop.fastddd</groupId>
   <artifactId>fastddd-agent-access-parent</artifactId>
   <version>0.1.0-jdk21-alpha.1</version>
   <packaging>pom</packaging>
@@ -93,7 +93,7 @@
         <scope>import</scope>
       </dependency>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-agent-access</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -156,7 +156,7 @@
                     <!-- L3 边界：两侧 core 互不依赖（ADR-007） -->
                     <exclude>com.gallop.fastagent:*</exclude>
                     <!-- MC-4：禁 fast-ddd-starter（自动配置/主线装配语义） -->
-                    <exclude>com.gallop.fastddd:fast-ddd-starter</exclude>
+                    <exclude>io.github.gallop.fastddd:fast-ddd-starter</exclude>
                     <!-- MC-4：禁 LLM SDK / MCP / Spring AI -->
                     <exclude>dev.langchain4j:*</exclude>
                     <exclude>io.modelcontextprotocol:*</exclude>

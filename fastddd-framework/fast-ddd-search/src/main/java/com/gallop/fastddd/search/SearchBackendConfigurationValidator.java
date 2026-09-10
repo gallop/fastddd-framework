@@ -35,7 +35,7 @@ final class SearchBackendConfigurationValidator {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if (!ClassUtils.isPresent(BASE_MAPPER, classLoader)) {
             throw new IllegalStateException("fastddd.search.backend=sql requires MyBatis-Plus and at least one "
-                    + "BaseMapper bean. Add com.gallop.fastddd:fast-ddd-crud and register a mapper, "
+                    + "BaseMapper bean. Add io.github.gallop.fastddd:fast-ddd-crud and register a mapper, "
                     + "or set fastddd.search.backend=disabled.");
         }
         try {

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -20,7 +20,7 @@
     <dependencies>
         <!-- FastDDD Common -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
@@ -29,19 +29,19 @@
 
         <!-- FastDDD Model -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-model</artifactId>
         </dependency>
         
         <!-- FastDDD CRUD -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-crud</artifactId>
         </dependency>
 
         <!-- FastDDD Application (optional, for CQRS) -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-application</artifactId>
             <optional>true</optional>
         </dependency>

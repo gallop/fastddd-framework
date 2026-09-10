@@ -23,7 +23,7 @@ $allowed = @(
 
 $frameworkArtifacts = @(
     $pom.SelectNodes('/m:project/m:dependencyManagement/m:dependencies/m:dependency', $ns) |
-        Where-Object { $_.groupId -eq 'com.gallop.fastddd' } |
+        Where-Object { $_.groupId -eq 'io.github.gallop.fastddd' } |
         ForEach-Object { $_.artifactId }
 )
 

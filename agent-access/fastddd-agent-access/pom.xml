@@ -13,7 +13,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fastddd-agent-access-parent</artifactId>
     <version>0.1.0-jdk21-alpha.1</version>
   </parent>

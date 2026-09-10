@@ -17,7 +17,7 @@ import java.util.Set;
  * {@code registeredOnlyTestIds} 显式区分（跨仓/宿主归属场景不冒充执行）。</p>
  *
  * @param schemaVersion            manifest schema 版本（kit 自有轴，当前 1；与 wire/digest/制品版本轴互不推导）
- * @param artifactCoordinates      被证明的 Maven 制品坐标（如 {@code com.gallop.fastddd:fastddd-agent-access:0.1.0-jdk21-alpha.1}）
+ * @param artifactCoordinates      被证明的 Maven 制品坐标（如 {@code io.github.gallop.fastddd:fastddd-agent-access:0.1.0-jdk21-alpha.1}）
  * @param artifactChecksum         制品 checksum（{@code sha256:} + 64 位小写 hex）
  * @param testResults              test ID → 执行结果（ID 必须出自 {@link TestIdCatalog} 全集）
  * @param registeredOnlyTestIds    只登记未执行的 test ID（归属宿主/跨仓，与 {@code testResults} 键不相交）

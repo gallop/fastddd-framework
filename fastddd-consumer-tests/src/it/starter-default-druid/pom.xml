@@ -30,7 +30,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${fastddd.version}</version>
         <type>pom</type>
@@ -42,12 +42,12 @@
   <dependencies>
     <!-- 聚合 starter：显式含 druid-spring-boot-3-starter（ECO-006C4），不另行选池 -->
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-starter</artifactId>
     </dependency>
     <!-- 显式引入 web 的 optional 依赖，使 GlobalExceptionHandler 引用的 CommandValidationException 可解析 -->
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-application</artifactId>
     </dependency>
     <dependency>

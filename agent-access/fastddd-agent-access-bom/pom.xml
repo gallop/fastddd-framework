@@ -20,7 +20,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fastddd-agent-access-parent</artifactId>
     <version>0.1.0-jdk21-alpha.1</version>
   </parent>
@@ -34,12 +34,12 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-agent-access</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-agent-access-contract-kit</artifactId>
         <version>${project.version}</version>
       </dependency>

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
@@ -18,13 +18,13 @@
     <dependencies>
         <!-- FastDDD Common -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
 
         <!-- FastDDD Web (ApiResponse, optional) -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-web</artifactId>
             <optional>true</optional>
         </dependency>

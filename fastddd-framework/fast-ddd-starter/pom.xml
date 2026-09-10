@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-framework-parent</artifactId>
         <version>${revision}</version>
     <relativePath>../../pom.xml</relativePath>
@@ -20,27 +20,27 @@
     <dependencies>
         <!-- FastDDD Modules -->
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-common</artifactId>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-config</artifactId>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-model</artifactId>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-crud</artifactId>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-web</artifactId>
         </dependency>
 
@@ -52,31 +52,31 @@
         </dependency>
 
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-application</artifactId>
             <optional>true</optional>
         </dependency>
 
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-cache</artifactId>
             <optional>true</optional>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-event</artifactId>
             <optional>true</optional>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-search</artifactId>
             <optional>true</optional>
         </dependency>
         
         <dependency>
-            <groupId>com.gallop.fastddd</groupId>
+            <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-monitor</artifactId>
             <optional>true</optional>
         </dependency>

@@ -33,7 +33,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${fastddd.version}</version>
         <type>pom</type>
@@ -44,7 +44,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-starter</artifactId>
     </dependency>
     <!-- 故意不引入 fast-ddd-application：复现 GlobalExceptionHandler 对 optional 类的硬引用 -->

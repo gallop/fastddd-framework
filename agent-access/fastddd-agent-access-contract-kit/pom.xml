@@ -13,7 +13,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fastddd-agent-access-parent</artifactId>
     <version>0.1.0-jdk21-alpha.1</version>
   </parent>
@@ -26,7 +26,7 @@
   <dependencies>
     <!-- .kit → 主制品全部包（AA-04 §3.2） -->
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-agent-access</artifactId>
     </dependency>
     <!-- AgentAccessAssemblyValidator 需要（SmartInitializingSingleton/BeanFactory API） -->

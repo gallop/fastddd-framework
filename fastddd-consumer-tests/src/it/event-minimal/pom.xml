@@ -23,7 +23,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.gallop.fastddd</groupId>
+        <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
         <version>${fastddd.version}</version>
         <type>pom</type><scope>import</scope>
@@ -33,7 +33,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fast-ddd-event</artifactId>
     </dependency>
     <!-- 故意不引入 H2/DataSource：EVT-001 验收 local 模式无数据库可启动 -->

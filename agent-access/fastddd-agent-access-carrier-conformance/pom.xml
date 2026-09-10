@@ -26,7 +26,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>com.gallop.fastddd</groupId>
+    <groupId>io.github.gallop.fastddd</groupId>
     <artifactId>fastddd-agent-access-parent</artifactId>
     <version>0.1.0-jdk21-alpha.1</version>
   </parent>
@@ -45,7 +45,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.gallop.fastddd</groupId>
+      <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-agent-access</artifactId>
     </dependency>
     <!-- FastAgent Artifact A：升级后 GatewayEgressCommand 真实载体（test-only 消费；
