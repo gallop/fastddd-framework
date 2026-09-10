@@ -20,7 +20,7 @@
 | Security | `security-minimal`、`security-with-custom-config` |
 | Cache | `cache-minimal`、`cache-with-custom-manager` |
 | Search | `search-minimal` |
-| Event | `event-minimal` |
+| Event | `event-minimal`、`event-nodb`、`event-outbox`、`event-rocketmq-e2e`（显式门控 `-Dfastddd.test.rocketmq=true`，默认跳过，需真实 Broker） |
 | Monitor | `monitor-minimal` |
 
 ECO-005 已将 `fastdoc-minimal` 移交给 `fastddd-tooling-consumer-tests`，并删除失效的 Studio 相对路径 profile。Framework 的消费者门禁只验证 Framework Community 制品。
