@@ -7,7 +7,7 @@
 
 FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
 
-**当前候选坐标**: `io.github.gallop.fastddd:fastddd-bom:1.0.0-jdk21-rc1`（业务项目通过 import
+**当前坐标**: `io.github.gallop.fastddd:fastddd-bom:1.0.0`（内部 v1.0，2026-09-10 发布，tag `v1.0.0`；业务项目通过 import
 [`fastddd-bom`](UPGRADE_GUIDE.md#2-升级-fastddd-依赖import-fastddd-bom) 统一管理版本）
 **Java 版本**: 21+
 **Spring Boot 版本**: 3.5.16
@@ -21,7 +21,7 @@ FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准�
     <dependency>
       <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-bom</artifactId>
-      <version>1.0.0-jdk21-rc1</version>
+      <version>1.0.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -1093,7 +1093,7 @@ fastddd:
 
 ```bash
 # 单表代码生成
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password="$CODEGEN_DB_PASSWORD" \
@@ -1101,7 +1101,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code 
   -Dcodegen.tablePrefix=t_
 
 # 项目初始化
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:init-project \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=my-app \
   -Dinit.modelType=RICH \

@@ -1,14 +1,19 @@
 # 升级指南（Upgrade Guide）
 
 > 本指南指导业务系统从旧基线（JDK 17 / Spring Boot 3.4.5 / FastDDD `1.0.0-SNAPSHOT`）升级到
-> **JDK 21 / Spring Boot 3.5.16 / FastDDD `1.0.0-jdk21-rc1`**。
+> **JDK 21 / Spring Boot 3.5.16 / FastDDD `io.github.gallop.fastddd:1.0.0`**。
 >
-> 本文是 JDK/Boot/BOM 的基础操作指引，不能替代完整的业务升级验收。使用 Framework 1.0 强类型 ID、CRUD、
-> Security、Event、缓存或外部基础设施的业务系统，应按[业务系统升级入口](upgrade/README.md)的能力映射表加载
-> 本文是 Community 通用升级指南；业务项目特定的灰度/UAT 计划应在各自私有仓库维护。
+> 已在 `1.0.0-jdk21-rc1`（旧坐标 `com.gallop.fastddd`）上的项目，升级到 1.0.0 只需完成
+> [第 3 节 Maven 坐标迁移](#3-fastddd-maven-坐标迁移100-ga)，源码零改动。
+>
+> 本文是 Community 通用升级指南：覆盖 JDK/Boot/BOM 基础操作（第 1/2 节）与 1.0.0 Maven 坐标迁移（第 3 节），
+> 但不能替代完整的业务升级验收。使用 Framework 1.0 强类型 ID、CRUD、Security、Event、缓存或外部基础设施的
+> 业务系统，应按[业务系统升级入口](upgrade/README.md)的能力映射表加载对应补充指南；业务项目特定的灰度/UAT
+> 计划应在各自私有仓库维护。
 >
 > 开始新业务系统升级时，先读 [业务系统升级入口](upgrade/README.md)；它明确了最小必读集、按功能追加阅读规则与验收门禁。
-> 兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)；发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
+> 兼容线见 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md)（矩阵 `current` 为框架开发线 SNAPSHOT 口径，
+> 消费者升级版本以本文 §0/§3 的 `1.0.0` 为准）；发布历史见 [../CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -18,7 +23,8 @@
 |----|--------|--------|
 | Java | 17 | **21** |
 | Spring Boot | 3.4.5 | **3.5.16** |
-| FastDDD | `1.0.0-SNAPSHOT` | **`1.0.0-jdk21-rc1`**（当前固定 RC；GA 后为 `1.0.0`） |
+| FastDDD 版本 | `1.0.0-SNAPSHOT`（或 `1.0.0-jdk21-rc1`） | **`1.0.0`** |
+| FastDDD groupId | `com.gallop.fastddd` | **`io.github.gallop.fastddd`**（见第 3 节） |
 | MySQL 驱动坐标 | `mysql:mysql-connector-java` | **`com.mysql:mysql-connector-j`** 9.7.0 |
 | Druid 坐标 | `druid-spring-boot-starter` | **`druid-spring-boot-3-starter`** |
 
@@ -50,6 +56,10 @@ java -version   # 复核
 
 ## 2. 升级 FastDDD 依赖：import fastddd-bom
 
+> **parent 策略**：1.0 起推荐 `parent = spring-boot-starter-parent` + `import fastddd-bom`（下例）。
+> 若项目当前 parent 是旧 `com.gallop.fastddd:fastddd-framework-parent` 且想保留该继承，只需把 parent 块的
+> `<groupId>` 换成 `io.github.gallop.fastddd`（第 3.3 节 sed 已覆盖）；两条路径二选一，不要混用。
+
 推荐做法：业务项目 `import` `fastddd-bom`，FastDDD 全模块与推荐第三方依赖版本由 BOM 统一管理，
 **无需逐个声明版本**。
 
@@ -71,7 +81,7 @@ java -version   # 复核
       <dependency>
         <groupId>io.github.gallop.fastddd</groupId>
         <artifactId>fastddd-bom</artifactId>
-        <version>1.0.0-jdk21-rc1</version>   <!-- GA 后改 1.0.0 -->
+        <version>1.0.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -93,7 +103,7 @@ java -version   # 复核
 ```bash
 export JAVA_HOME=<path-to-jdk-21>; export PATH="$JAVA_HOME/bin:$PATH"
 cd <fastddd-source>
-./mvnw -B -Drevision=1.0.0-jdk21-rc1 clean install -DskipTests   # 安装含 fastddd-bom 在内的全部模块
+./mvnw -B -Drevision=1.0.0 clean install -DskipTests   # 安装含 fastddd-bom 在内的全部模块
 ```
 
 ### 禁止覆盖上游版本
@@ -133,7 +143,262 @@ import-only 的 xia-go 无需任何配置）：
 
 ---
 
-## 3. 迁移变更的依赖坐标
+## 3. FastDDD Maven 坐标迁移（1.0.0 GA）
+
+Framework / Tooling 自 1.0.0 起迁移 Maven groupId：`com.gallop.fastddd` → `io.github.gallop.fastddd`。
+本节是 1.0.0 升级的**必做步骤**，与 JDK/Boot 基线抬升相互独立。
+
+### 3.1 坐标三分法：什么变，什么不变
+
+| 维度 | 状态 | 说明 |
+|---|---|---|
+| Maven groupId | **变**：`com.gallop.fastddd` → `io.github.gallop.fastddd` | 全部 28 个发布制品（含 parent/BOM/插件） |
+| artifactId | **不变** | `fast-ddd-*`（模块）、`fastddd-*`（聚合/BOM/Tooling） |
+| Java 包名 | **不变**：`com.gallop.fastddd.*` | **业务源码与 import 零改动**；classpath 上的类路径仍是 `com/gallop/fastddd/**` |
+| 版本号 | **变**：`1.0.0-jdk21-rc1` → `1.0.0`（RC1 消费者）；`1.0.0-SNAPSHOT` 消费者见第 0 节契约收紧评估 | 与 groupId 迁移是同一次发布 |
+
+> **特殊保留坐标**：`com.gallop.fastddd:fastddd-studio*`（Studio 私有制品，如 `fastddd-studio-server`）
+> **不在本次迁移范围**——它们仍使用旧 groupId，属于设计性保留。业务项目不消费这些制品；
+> 这也是第 3.5 节门禁**不能**笼统禁止整个旧 groupId 的原因。
+
+### 3.2 新旧坐标映射表（全部 28 个发布制品）
+
+升级 = 把下表制品的 `<groupId>` 与 `<version>` 替换为新值，`<artifactId>` 原样保留。
+
+**Framework 侧（17）**
+
+| 类别 | artifactId | 旧坐标（rc1 及更早） | 新坐标（1.0.0） |
+|---|---|---|---|
+| parent POM | `fastddd-framework-parent` | `com.gallop.fastddd:fastddd-framework-parent` | `io.github.gallop.fastddd:fastddd-framework-parent:1.0.0` |
+| BOM | `fastddd-bom` | `com.gallop.fastddd:fastddd-bom` | `io.github.gallop.fastddd:fastddd-bom:1.0.0` |
+| 聚合（源码构建入口，非依赖） | `fastddd-framework` | `com.gallop.fastddd:fastddd-framework` | `io.github.gallop.fastddd:fastddd-framework:1.0.0` |
+| 聚合 starter | `fast-ddd-starter` | `com.gallop.fastddd:fast-ddd-starter` | `io.github.gallop.fastddd:fast-ddd-starter:1.0.0` |
+| 模块 | `fast-ddd-common` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-common:1.0.0` |
+| 模块 | `fast-ddd-config` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-config:1.0.0` |
+| 模块 | `fast-ddd-model` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-model:1.0.0` |
+| 模块 | `fast-ddd-crud` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-crud:1.0.0` |
+| 模块 | `fast-ddd-web` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-web:1.0.0` |
+| 模块 | `fast-ddd-application` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-application:1.0.0` |
+| 模块 | `fast-ddd-cache` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-cache:1.0.0` |
+| 模块 | `fast-ddd-event` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-event:1.0.0` |
+| 模块 | `fast-ddd-search` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-search:1.0.0` |
+| 模块 | `fast-ddd-monitor` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-monitor:1.0.0` |
+| 模块 | `fast-ddd-security-starter` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-security-starter:1.0.0` |
+| 模块（Incubating） | `fast-ddd-ai-spring-boot-starter` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-ai-spring-boot-starter:1.0.0` |
+| 模块（Incubating） | `fast-ddd-analyzer-spring-boot-starter` | 同上规律 | `io.github.gallop.fastddd:fast-ddd-analyzer-spring-boot-starter:1.0.0` |
+
+**Tooling 侧（11）**
+
+| 类别 | artifactId | 旧坐标（rc1 及更早） | 新坐标（1.0.0） |
+|---|---|---|---|
+| parent POM | `fastddd-tooling-parent` | `com.gallop.fastddd:fastddd-tooling-parent` | `io.github.gallop.fastddd:fastddd-tooling-parent:1.0.0` |
+| 聚合（源码构建入口） | `fastddd-tooling` | `com.gallop.fastddd:fastddd-tooling` | `io.github.gallop.fastddd:fastddd-tooling:1.0.0` |
+| 稳定契约层 | `fastddd-tooling-api` | `com.gallop.fastddd:fastddd-tooling-api` | `io.github.gallop.fastddd:fastddd-tooling-api:1.0.0` |
+| 代码生成 | `fastddd-code-generator` | `com.gallop.fastddd:fastddd-code-generator` | `io.github.gallop.fastddd:fastddd-code-generator:1.0.0` |
+| 代码生成模板 | `fastddd-templates` | `com.gallop.fastddd:fastddd-templates` | `io.github.gallop.fastddd:fastddd-templates:1.0.0` |
+| 脚手架（Deprecated，保留兼容） | `fastddd-project-archetype` | `com.gallop.fastddd:fastddd-project-archetype` | `io.github.gallop.fastddd:fastddd-project-archetype:1.0.0` |
+| Maven 插件（`fastddd:` 前缀） | `fastddd-maven-plugin` | `com.gallop.fastddd:fastddd-maven-plugin` | `io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0` |
+| 文档生成 | `fastddd-doc-generator` | `com.gallop.fastddd:fastddd-doc-generator` | `io.github.gallop.fastddd:fastddd-doc-generator:1.0.0` |
+| Maven 插件（`fastdoc:` 前缀） | `fastddd-doc-maven-plugin` | `com.gallop.fastddd:fastddd-doc-maven-plugin` | `io.github.gallop.fastddd:fastddd-doc-maven-plugin:1.0.0` |
+| FastDoc 核心 | `fastddd-fastdoc-core` | `com.gallop.fastddd:fastddd-fastdoc-core` | `io.github.gallop.fastddd:fastddd-fastdoc-core:1.0.0` |
+| FastDoc 运行期集成 | `fastddd-fastdoc-spring-boot-starter` | `com.gallop.fastddd:fastddd-fastdoc-spring-boot-starter` | `io.github.gallop.fastddd:fastddd-fastdoc-spring-boot-starter:1.0.0` |
+
+> 版本轴独立：Framework 与 Tooling 各自发布 1.0.0（首个认证元组两者恰好同版本，不代表锁步）。
+> 历史旧单体制品（如 `fast-ddd-code-generator` 等不在上表的旧 artifactId）**不在 1.0 迁移清单内**，
+> 仍在使用旧单体制品的项目应先迁移到 RC1/GA 坐标系。
+
+### 3.3 POM 修改（RC1 → 1.0.0 最小模式）
+
+RC1 消费者经 W1 双项目实测，升级仅 POM 层三类替换（源码、配置零改动）：
+
+| 修改点 | 前 | 后 |
+|---|---|---|
+| 版本属性/字面量 | `1.0.0-jdk21-rc1` | `1.0.0` |
+| BOM import groupId（根 pom） | `com.gallop.fastddd` | `io.github.gallop.fastddd` |
+| 依赖 groupId（各子模块 pom） | `com.gallop.fastddd` | `io.github.gallop.fastddd` |
+
+等价批量替换（对全部 pom.xml；注意只匹配 `<groupId>` 整行，不伤业务自身 groupId 如 `com.gallop.xiago`）：
+
+```bash
+find . -name pom.xml -exec sed -i \
+  's|<fastddd\.version>1\.0\.0-jdk21-rc1</fastddd\.version>|<fastddd.version>1.0.0</fastddd.version>|; \
+   s|<version>1\.0\.0-jdk21-rc1</version>|<version>1.0.0</version>|; \
+   s|<groupId>com\.gallop\.fastddd</groupId>|<groupId>io.github.gallop.fastddd</groupId>|g' {} +
+```
+
+**不要**全局替换 `com.gallop.fastddd` 字符串：Java 源码与 import（`com.gallop.fastddd.*` 包名）必须保留；
+`com.gallop.fastddd:fastddd-studio*`（若某工具链引用）也保留。替换后复核零残留：
+`grep -rn -E "1\.0\.0-jdk21-rc1|<groupId>com\.gallop\.fastddd</groupId>" --include=pom.xml .`
+（`fastddd-studio*` 相关行除外）。
+
+### 3.4 制品获取渠道（内部 release 仓）
+
+1.0.0 为**内部发布**：制品存在于内部 release 仓与已同步的开发机本地 Maven 仓，公开渠道
+（Maven Central 等）暂不可用。按可达形态三选一：
+
+**形态 A——已同步本地仓的机器**：无需任何配置，直接构建（本地仓为只读复制，正常解析）。
+
+**形态 B——经 settings.xml 指向内部仓**（file:// 协议，`<snapshots>` 关闭）：
+
+```xml
+<settings>
+  <profiles>
+    <profile>
+      <id>fastddd-internal</id>
+      <repositories>
+        <repository>
+          <id>fastddd-release</id>
+          <url>${env.FASTDDD_INTERNAL_REPO}</url>   <!-- 环境变量注入，勿硬编码个人绝对路径 -->
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>fastddd-release-plugin</id>
+          <url>${env.FASTDDD_INTERNAL_REPO}</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+  <activeProfiles><activeProfile>fastddd-internal</activeProfile></activeProfiles>
+</settings>
+```
+
+```bash
+export FASTDDD_INTERNAL_REPO=file:///D:/usr/workspace_2026/.fastddd-releases/internal-v1.0.0/repository
+mvn -B -s <上述 settings 路径> clean test
+```
+
+**形态 C——一次性显式指定**：`mvn -s <内部仓 settings 文件> clean test`（内部仓随发布附带
+`settings-release.xml`）。**注意**：该随附文件为作者本机示例，`<url>` 已写死作者机器绝对路径；非作者机器
+使用前须将其 `<url>` 改写为 `${env.FASTDDD_INTERNAL_REPO}`（同形态 B）或本机实际 file:// 路径，否则解析不到制品。
+
+公开发布（Maven Central）落地后，本节自动失效，消费者按公开坐标直接解析；届时只需移除内部仓
+profile，坐标与版本不变。
+
+### 3.5 防混装门禁（Maven Enforcer bannedDependencies）
+
+坐标迁移的最大风险是**新旧混装**：旧 `com.gallop.fastddd` 制品与新 `io.github.gallop.fastddd` 制品
+在 classpath 并存——两者类路径完全相同（`com/gallop/fastddd/**`），jar 会互相遮蔽，产生难排查的
+运行期行为异常。且**本地仓中旧组同 artifactId 存在 `1.0.0` 版本目录**，"版本号一致"检查
+拦不住旧组解析，门禁必须按**坐标存在性**判定。
+
+在业务项目根 pom（或父 POM）加入：
+
+```xml
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-enforcer-plugin</artifactId>
+      <version>3.5.0</version>
+      <executions>
+        <execution>
+          <id>ban-legacy-fastddd</id>
+          <goals><goal>enforce</goal></goals>
+          <configuration>
+            <rules>
+              <bannedDependencies>
+                <searchTransitive>true</searchTransitive><!-- 覆盖传递依赖，默认即 true，显式声明以自明 -->
+                <excludes>
+                  <!-- Framework 侧（17） -->
+                  <exclude>com.gallop.fastddd:fastddd-framework-parent</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-bom</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-framework</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-starter</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-common</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-config</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-model</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-crud</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-web</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-application</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-cache</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-event</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-search</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-monitor</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-security-starter</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-ai-spring-boot-starter</exclude>
+                  <exclude>com.gallop.fastddd:fast-ddd-analyzer-spring-boot-starter</exclude>
+                  <!-- Tooling 侧（11） -->
+                  <exclude>com.gallop.fastddd:fastddd-tooling-parent</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-tooling</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-tooling-api</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-code-generator</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-templates</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-project-archetype</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-maven-plugin</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-doc-generator</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-doc-maven-plugin</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-fastdoc-core</exclude>
+                  <exclude>com.gallop.fastddd:fastddd-fastdoc-spring-boot-starter</exclude>
+                </excludes>
+                <message>检出旧 FastDDD Community 坐标（com.gallop.fastddd）与 1.0.0 新坐标混装：请将直接依赖与传递依赖统一迁移到 io.github.gallop.fastddd（UPGRADE_GUIDE 第 3 节）。fastddd-studio* 为 Studio 保留坐标，不在禁用清单。</message>
+              </bannedDependencies>
+            </rules>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
+```
+
+语义要点：
+
+- **按坐标禁用而非按版本**：exclude 不带版本段 = 该 artifactId 在旧组下**任何版本**都不允许出现
+  （含旧组 `1.0.0`——本地仓确实存在，版本一致性检查会漏）。
+- **禁止写成 `<exclude>com.gallop.fastddd</exclude>` 或 `<exclude>com.gallop.fastddd:*</exclude>`**：
+  会误伤 `fastddd-studio*`（Studio 保留坐标）及业务自有 `com.gallop.*` groupId。
+- `searchTransitive=true` 使规则覆盖**传递依赖**——最常见的混装源是某个依赖库还停在旧坐标。
+
+**清单边界**：上述 28 条 = **已迁移模块**的 artifactId（artifactId 在迁移中保持不变的制品）。旧组
+`com.gallop.fastddd` 下另有**改名/拆分/退役**坐标不在本清单：旧根聚合器 `fastddd`（迁移中改名为
+`fastddd-framework-parent`/`fastddd-tooling-parent`，旧 artifactId 已废弃）、退役旧单体制品
+`fast-ddd-examples`、`fastddd-consumer-tests`、`fast-ddd-core`、`fast-ddd-demo-app`、`fast-ddd-code-generator` 等。
+这些坐标不作为运行时模块依赖被消费者引用：旧根 `fastddd` 若被引用仅会出现在 `<parent>`（由下方第 1 处
+effective-pom 人工核查覆盖），退役 jar 若混入由第 3 处最终包检查覆盖。因此 28 条不覆盖旧组**全部**历史
+发布面，而是覆盖"迁移后仍以同 artifactId 存在、会进依赖树"的制品——这正是"不能笼统禁整个旧 groupId"的另一面。
+
+**死条目提示**：清单中 `fastddd-framework-parent`/`fastddd-bom`/`fastddd-framework`/`fastddd-tooling-parent`/
+`fastddd-tooling`/`fastddd-project-archetype`/`fastddd-maven-plugin`/`fastddd-doc-maven-plugin` 属 parent/BOM/
+聚合/插件坐标，**不会出现在依赖树**，bannedDependencies 不会命中它们（列入仅为 28 制品清单完整性占位）；
+这三类由下方 effective-pom/插件引用人工核查覆盖，勿以"Enforcer 通过"推断 parent/BOM/插件也已干净。
+
+Enforcer 之外的三处人工/脚本核查（bannedDependencies 管不到的位置）：
+
+1. **parent 引用**：`effective-pom` 的 `<parent>` 无 `com.gallop.fastddd`（Enforcer 不校验 parent 链）：
+   ```bash
+   ./mvn -B help:effective-pom -Doutput=effective.xml
+   grep -n "com.gallop.fastddd" effective.xml   # 期望仅 fastddd-studio* 或 0 命中
+   ```
+2. **BOM import 与插件引用**：`<dependencyManagement>` import、`<build><plugins>` 的 Tooling 插件
+   （`fastddd-maven-plugin`/`fastddd-doc-maven-plugin`）坐标均已切换（effective-pom 一并覆盖）。
+3. **最终包制品面**：boot jar 内 `BOOT-INF/lib` 的 fastddd jar 逐一核对内嵌 `pom.properties` 的
+   `groupId=`（新旧组同 artifactId 同版本**文件名完全相同**，只能核 jar 内元数据）：
+   ```bash
+   unzip -l target/*.jar | grep -E "BOOT-INF/lib/fast-?ddd.*\.jar"    # 清点 fastddd 制品
+   unzip -p target/*.jar BOOT-INF/lib/fast-ddd-common-1.0.0.jar > /tmp/fdc.jar
+   unzip -p /tmp/fdc.jar "META-INF/maven/*/fast-ddd-common/pom.properties" | grep groupId
+   # 期望输出 groupId=io.github.gallop.fastddd；出现 com.gallop.fastddd 即混装（fastddd-studio* 除外）
+   ```
+
+### 3.6 升级验收四层检查
+
+1. **依赖树**：`./mvnw -B dependency:tree` → fastddd 制品全部 `io.github.gallop.fastddd:*:jar:1.0.0`，
+   旧组 0 命中、SNAPSHOT 0 命中（Enforcer 已自动化此层，tree 用于出具证据）；
+2. **effective-pom**：parent/BOM import/插件三处无旧组引用（第 3.5 节核查命令）；
+3. **最终包**：boot jar `BOOT-INF/lib` 无旧组 fastddd jar、`pom.properties` groupId 正确；
+4. **业务冒烟**：按第 6 节回归清单执行（连接池初始化行、`/actuator/health` UP、核心用例）。
+
+W1 两个真实项目的四层证据（6 模块 SUCCESS + 15 测试 + 树零混装）见发布证据
+`internal-v1.0.0/evidence/UPGRADE-VERIFY-w1.md`。
+
+---
+
+## 4. 迁移变更的依赖坐标
 
 ### MySQL 驱动
 
@@ -238,7 +503,7 @@ outbox 模式由消费者显式提供连接池。按消费形态自查：
 
 ---
 
-## 4. 配置审查（Boot 3.5 严格解析）
+## 5. 配置审查（Boot 3.5 严格解析）
 
 Boot 3.5 的 SnakeYAML 对**重复 YAML 顶层键**由宽容改为严格拒绝。升级前自查 `application*.yml`：
 
@@ -258,7 +523,7 @@ FastDDD 1.0 默认 HMAC JWT 使用 HS512。`JWT_SECRET` 必须至少 64 个 UTF-
 
 ---
 
-## 5. 构建与回归
+## 6. 构建与回归
 
 ```bash
 # 1. 全量编译
@@ -286,25 +551,25 @@ FastDDD 1.0 默认 HMAC JWT 使用 HS512。`JWT_SECRET` 必须至少 64 个 UTF-
 - [ ] API 文档端点可达（SpringDoc 2.8.17 / Knife4j 4.5.0：`/v3/api-docs`、`/doc.html`）。
 - [ ] 安全认证（JWT / 验证码）链路正常（fast-ddd-security-starter）。
 - [ ] 监控指标（`/actuator/prometheus`，Micrometer 1.15.12）正常输出。
-- [ ] 代码生成插件可用（仅项目实际使用时）：`./mvnw io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:help`。
+- [ ] 代码生成插件可用（仅项目实际使用时）：`./mvnw io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:help`。
 - [ ] 自身业务核心用例全量回归（业务侧主导）。
 
 ---
 
-## 6. 常见问题
+## 7. 常见问题
 
 **Q: 构建报"不支持的发行版本 21"？**
 A: 构建用的 JDK 不是 21。按第 1 节显式切换 `JAVA_HOME` 到 JDK 21（CI runner 同理）。
 
 **Q: 启动报 `while scanning a simple key` / 重复键解析错误？**
-A: `application*.yml` 有重复顶层键，按第 4 节合并。
+A: `application*.yml` 有重复顶层键，按第 5 节合并。
 
 **Q: 找不到 `druid-spring-boot-starter` 自动配置 / Druid 连接池未生效？**
-A: 仍用了 Boot 2 坐标 `druid-spring-boot-starter`，按第 3 节迁移到 `druid-spring-boot-3-starter`。
+A: 仍用了 Boot 2 坐标 `druid-spring-boot-starter`，按第 4 节迁移到 `druid-spring-boot-3-starter`。
 
 **Q: 升级后应用能正常启动，但 Mapper/`JdbcTemplate` 注入报 `NoSuchBeanDefinitionException`？**
 A: ECO-006C4 起 `fast-ddd-crud` 不再传递连接池。仅引 web/crud 且需要数据库的项目必须显式选池
-（`druid-spring-boot-3-starter` 或 `spring-boot-starter-jdbc`），见第 3 节"Web/CRUD 依赖边界"——
+（`druid-spring-boot-3-starter` 或 `spring-boot-starter-jdbc`），见第 4 节"Web/CRUD 依赖边界"——
 无池时 DataSource 自动配置静默退让，启动不报错。
 
 **Q: 升级后连接池从 Druid 变成了 Hikari（日志出现 `HikariPool`）？**
@@ -313,7 +578,7 @@ A: 项目自带 `mybatis-plus-spring-boot3-starter`（自带 Hikari 链），而
 `spring.datasource.druid.*` 配置，显式补 `druid-spring-boot-3-starter`。
 
 **Q: `com.mysql:mysql-connector-j` 解析不到？**
-A: 旧坐标 `mysql:mysql-connector-java` 已废弃，按第 3 节迁移；版本交 Spring Boot BOM 管理。
+A: 旧坐标 `mysql:mysql-connector-java` 已废弃，按第 4 节迁移；版本交 Spring Boot BOM 管理。
 
 **Q: 是否只改依赖就够了？**
 A: 只使用 Starter 且 `clean compile`、测试、启动和关键链路均通过的项目，可能只需依赖与配置迁移；不能预先假设如此。若出现 `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 的泛型/ID 编译错误，按[升级入口](upgrade/README.md)加载 ID 迁移清单完成业务侧适配。不要为保留旧调用而修改 Framework 契约。
@@ -327,9 +592,33 @@ A: 检查 `.env` 是否把 `${LLM_API_KEY:...}` 这类旧 YAML 嵌套占位符�
 **Q: `spring-boot:run` 提示找不到 main class 或单模块编译出现旧接口？**
 A: 前者通常是从聚合根而非启动模块执行；后者通常是单模块解析到过期本地业务 JAR。先执行全 Reactor `install`，再从包含主类的模块运行。
 
+**Q: Enforcer 报 bannedDependencies 检出 `com.gallop.fastddd:*`？**
+A: 某个直接依赖或传递依赖还停在旧坐标。用 `./mvnw dependency:tree -Dincludes=com.gallop.fastddd`
+定位引入来源，把该依赖升级到已迁移版本；无法立即升级的第三方库依赖可在 `dependencyManagement`
+中将旧坐标强制替换为新坐标等价物。注意检出 `fastddd-studio*` 属 Studio 保留坐标，不在禁用清单，不会触发此报错。
+
+**Q: 为什么本地仓有 `com.gallop.fastddd:fast-ddd-common:1.0.0`，版本号一样还算混装？**
+A: 算。坐标迁移后 groupId 即身份——旧组 `1.0.0` 与新组 `1.0.0` 是两个不同制品，类路径相同的 jar
+会互相遮蔽。门禁按坐标存在性判定（不带版本段），正是为此。
+
 ---
 
-## 7. 回退
+## 8. 回退
 
 升级以**单分支**进行，出问题可回退到升级前分支/tag。FastDDD 源码侧不使用 `git reset --hard`，
 单文件用 `git restore <file>` 回退；业务系统侧按各自版本控制策略回退依赖版本。
+
+### 8.1 坐标迁移的回退操作
+
+回退 1.0.0 → RC1 = 撤销第 3.3 节三类 POM 替换（属性/字面量、BOM groupId、依赖 groupId），
+源码无需动。该通道经 W1 双项目演练验证（回退后版本、池型、行为全数回归基线）。
+
+### 8.2 回退边界与已知风险（重要）
+
+- **不建议生产环境回退**到 RC1 / 旧 SNAPSHOT：旧版本线默认解析的 Tomcat 10.1.55
+  含已知漏洞（1.0.0 已通过 BOM 显式受管 + Boot 属性双通道收敛到 10.1.59 修复线），
+  旧 SNAPSHOT 线不受任何支持。回退演练证明的是**降级通道可用**，不是回退建议。
+- 1.0.0 包含的传递依赖面治理（crud/event/security 连接池显式化，见第 4 节）在回退后
+  会回到旧的"传递携带"行为——回退不是纯版本号变化，须按第 4 节重新核对池配置与启动日志。
+- 发布后发现产品问题，官方路径是**新补丁版本（1.0.1+）前滚**：内部 1.0.0 制品与标签
+  不可移动、不可覆盖。

@@ -1,5 +1,11 @@
 # FastDDD 1.0 → 1.1 框架升级指引
 
+> ⚠️ **历史文档（superseded，2026-09-11 标注）**：本文写于 1.0 开发期，基于 `1.0.0-SNAPSHOT`、
+> Spring Boot 3.4.x、JDK 17 基线，版本坐标与兼容表已过时（现行基线为 JDK 21 / Boot 3.5.16 /
+> `io.github.gallop.fastddd:1.0.0`，2026-09-10 发布）。现行升级以
+> [UPGRADE_GUIDE.md](../UPGRADE_GUIDE.md) 与 [upgrade/README.md](../upgrade/README.md) 为准；
+> 1.1 版本线规划见 [COMPATIBILITY_MATRIX.md](../COMPATIBILITY_MATRIX.md)。本文仅作背景追溯。
+
 > 本文档指导依赖 FastDDD 框架（`1.0.0-SNAPSHOT`）的业务项目升级到优化后版本的完整流程。
 > 升级前请完整阅读，按顺序执行各项检查和迁移。
 

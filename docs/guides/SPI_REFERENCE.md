@@ -1,6 +1,6 @@
 # FastDDD SPI 参考手册
 
-> Last verified: 2026-08-10 | Framework version: 1.0.0-jdk21-SNAPSHOT | JDK 21 · Spring Boot 3.5.16
+> Last verified: 2026-08-10 | Framework version: 1.0.0 | JDK 21 · Spring Boot 3.5.16
 
 本手册列出 FastDDD 所有 SPI 接口的定义、替换方式、默认行为和使用示例。
 

@@ -3,7 +3,8 @@
 > 面向新建业务系统与 AI 编程助手的最小开发规范。既有系统升级请使用
 > [业务系统升级入口](../upgrade/README.md)，不要混用两套流程。
 >
-> 当前候选基线：**JDK 21、Spring Boot 3.5.16、FastDDD `1.0.0-jdk21-rc1`**。
+> 当前基线：**JDK 21、Spring Boot 3.5.16、FastDDD `io.github.gallop.fastddd:1.0.0`**
+> （内部 v1.0 正式发布，2026-09-10，tag `v1.0.0`，经内部 release 仓部署）。
 
 ## 1. 必读与按需参考
 
@@ -31,7 +32,7 @@
     <dependency>
       <groupId>io.github.gallop.fastddd</groupId>
       <artifactId>fastddd-bom</artifactId>
-      <version>1.0.0-jdk21-rc1</version>
+      <version>1.0.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -46,7 +47,7 @@
 </dependencies>
 ```
 
-不要覆盖 Spring Boot、Spring、Jackson、MyBatis-Plus、Micrometer 等 BOM 已管理的版本。RC 制品须从已配置私服解析或以固定 `-Drevision=1.0.0-jdk21-rc1` 从 Framework 根目录安装；不得改用 SNAPSHOT 冒充 RC。
+不要覆盖 Spring Boot、Spring、Jackson、MyBatis-Plus、Micrometer 等 BOM 已管理的版本。`1.0.0` 制品须从已配置的内部 release 仓解析，或以固定 `-Drevision=1.0.0` 从 Framework 根目录安装；不得改用 SNAPSHOT 或 `-jdk21-rc1` 冒充正式版。
 
 ## 3. 代码与分层规则
 
@@ -80,6 +81,6 @@
 ```text
 新建 FastDDD 业务系统时，先读 NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md；
 仅按问题检索 FASTDDD_REFERENCE.md 和相应专题文档。使用 JDK 21、Boot 3.5.16、
-fastddd-bom:1.0.0-jdk21-rc1。所有 fast-ddd-* 不写版本；不引入 Tooling/Studio 运行时依赖；
+fastddd-bom:1.0.0。所有 fast-ddd-* 不写版本；不引入 Tooling/Studio 运行时依赖；
 不写入真实凭据。完成代码后执行编译、测试、启动健康检查和实际启用能力的回归，review 后以 Conventional Commit + 中文说明提交。
 ```

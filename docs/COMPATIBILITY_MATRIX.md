@@ -8,7 +8,7 @@
 | FastDDD | Java（构建+运行） | Spring Boot | Maven | 状态 |
 |---------|-------------------|-------------|-------|------|
 | 升级前开发快照 | 17 | 3.4.5 | 3.9.x | 🔒 仅 Git tag `baseline/jdk17-boot3.4.5` 归档，**不维护** |
-| **1.0.x** | **21** | **3.5.x**（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | ✅ **当前稳定线**（首个 GA 见 RELEASE_CHECKLIST） |
+| **1.0.x** | **21** | **3.5.x**（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | ✅ **当前稳定线**（内部 v1.0 已发布：`1.0.0`，tag `v1.0.0`，2026-09-10；公开 GA 门禁另见 RELEASE_CHECKLIST） |
 | 1.1.x | 21 | 3.5.x | 3.9.x | 📋 计划（兼容性增强：japicmp/Revapi、BOM 单一来源、模板切 BOM） |
 | 2.0.x | 待定 | 4.x | 待定 | 🔭 未来规划（Spring Boot 4 / Spring Framework 7 / Jackson 3 迁移） |
 
@@ -19,7 +19,7 @@
 | Spring Framework | 6.2.19 | Spring Boot BOM |
 | Spring AI | 1.1.8 | 显式 BOM import（Boot 3.5.x 对应 1.1 维护线） |
 | MyBatis-Plus（starter/jsqlparser/generator） | 3.5.12 | 显式 dependencyManagement |
-| MyBatis-Spring | 3.0.3 | 显式 dependencyManagement |
+| MyBatis-Spring | 3.0.4 | 显式 dependencyManagement |
 | Druid | 1.2.28（`druid-spring-boot-3-starter`） | 显式 dependencyManagement |
 | MySQL 驱动 | 9.7.0（`com.mysql:mysql-connector-j`） | Spring Boot BOM |
 | Micrometer（core/observation/registry-prometheus） | 1.15.12 | Spring Boot BOM |
@@ -58,7 +58,7 @@ GitLab 跨仓 CI 据此阻断未登记的不兼容组合。
 
 | Framework 线 | 状态 | Java | Spring Boot | Spring AI | SpringDoc | Knife4j |
 |--------------|------|------|-------------|-----------|-----------|---------|
-| 1.0.0-jdk21 | current-stable | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+| 1.0.0 | current-stable（内部发布 2026-09-10，tag `v1.0.0`） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 
 ### 生成通道如何取目标 Framework 版本（VER-001 步骤 5）
 
@@ -138,7 +138,7 @@ mvn verify -pl fastddd-consumer-tests -Pstudio-isolation -B
 FastDDD 采用 CI-friendly 版本治理（`${revision}` 单属性 + flatten-maven-plugin），切版无需改动任何模块 pom——
 仅覆盖 `revision` 属性即可。**`-jdk21` 限定符是 JDK21 产品线信号，切版时须保留**（UPG-010 + 本矩阵确立）。
 
-> 注：Framework 版本当前**不会 GA**（`1.0.0-jdk21-SNAPSHOT`，无生产消费者）；下列流程是机制文档化，供 RC 候选/未来发版时照做。
+> 注：内部 v1.0 已于 2026-09-10 发布（`1.0.0`，tag `v1.0.0`，部署至内部 release 仓；不推 GitHub / Maven Central / 不签名，Owner 决策见 tag 说明）。工作树 `<revision>` 保持下一开发线 `1.0.0-jdk21-SNAPSHOT`；下列流程供后续补丁/RC/GA 切版照做。
 
 ### 切 RC 候选
 

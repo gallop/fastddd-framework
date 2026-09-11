@@ -33,7 +33,7 @@ CREATE TABLE t_user (
 ### 2. 生成代码
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password="$CODEGEN_DB_PASSWORD" \
@@ -233,7 +233,7 @@ public class OrderCommandController extends CommandController<CreateOrderCommand
 使用 Maven 插件生成充血模型代码：
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=123456 \

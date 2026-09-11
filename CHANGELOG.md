@@ -8,7 +8,7 @@
 
 ---
 
-## [1.0.0-jdk21] - unreleased
+## [1.0.0] - 2026-09-10
 
 首个正式发布版本基线：**JDK 21 + Spring Boot 3.5.16**。
 本版本由 `JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md` 的 UPG-000～UPG-010 驱动，
@@ -25,7 +25,7 @@
   `requirePluginVersions`（所有插件版本须显式）、`banDuplicatePomDependencyVersions`。
 - **JDK 21 编译基线**：根 pom `java.version=21` + `maven.compiler.release`，产物 class major version 65。
 - **Spring Boot 3.5.16 + 依赖确定性对齐**：Spring AI 1.1.8、SpringDoc 2.8.17、Knife4j 4.5.0、
-  MyBatis-Plus 3.5.12、MyBatis-Spring 3.0.3、Druid `druid-spring-boot-3-starter` 1.2.28、
+  MyBatis-Plus 3.5.12、MyBatis-Spring 3.0.4、Druid `druid-spring-boot-3-starter` 1.2.28、
   mysql-connector-j 9.7.0、Micrometer 1.15.12（消除旧版分裂）、Jackson 2.21.x（Boot 管理）。
 - **PMD 7**：`maven-pmd-plugin` 升至 3.24.0（PMD 7.3.0），支持 `targetJdk=21`。
 - **Maven Wrapper**：`./mvnw` pin Maven 3.9.5，CI 与本地 Maven 版本统一。

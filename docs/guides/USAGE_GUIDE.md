@@ -43,7 +43,7 @@
         <dependency>
             <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fastddd-bom</artifactId>
-            <version>1.0.0-jdk21-rc1</version>
+            <version>1.0.0</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -70,7 +70,7 @@ spring:
 #### 3. 生成代码
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \
@@ -571,7 +571,7 @@ CREATE TABLE t_user (
 #### 2. 生成代码
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0-jdk21-rc1:generate-code \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.url=jdbc:mysql://localhost:3306/your_db \
   -Dcodegen.username=root \
   -Dcodegen.password=password \
