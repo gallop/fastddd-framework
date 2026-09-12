@@ -1,38 +1,66 @@
 # FastDDD Framework Community
 
-FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行时基础框架。它提供通用领域模型、应用层、Web、安全、事件、缓存、搜索、监控和可选 AI 集成，不包含 FastDDD Studio Pro 的商业控制面能力。
+![Version](https://img.shields.io/badge/version-1.0.0-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
-> 当前状态：1.0 发布准备期。公共 API、许可证、公开仓库地址和发布门禁全部关闭前，不应将 SNAPSHOT 视为正式版。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-## 模块
+FastDDD Framework Community is a DDD runtime foundation for Java 21 and Spring Boot 3.5. It provides the common domain model, application-layer contracts, web and unified response handling, security, domain events with Outbox, cache, search, monitoring, and optional AI integration. It does not include the commercial control-plane capabilities of FastDDD Studio Pro.
 
-| 模块 | 定位 | 1.0 稳定性标注 |
+> **Status: 1.0.0 GA** (2026-09-10, tag `v1.0.0`), Maven coordinates `io.github.gallop.fastddd`. Twelve modules are covered by the 1.0 stable-API commitment; `fast-ddd-ai-spring-boot-starter` and `fast-ddd-analyzer-spring-boot-starter` remain Incubating.
+
+## Modules
+
+| Module | Role | 1.0 stability |
 |---|---|---|
-| `fast-ddd-common` | 通用类型、异常与领域基础能力 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-config` | 配置与条件装配 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-model` | 领域模型和持久化基类 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-crud` | Repository、Mapper 与 CRUD 基础设施 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-application` | Command、Query 与 Handler 契约 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-web` | Web、统一响应和异常处理 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-cache` | 缓存抽象与 Redis 集成 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-event` | 领域事件、消息与 Outbox | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-search` | 搜索引擎集成 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-monitor` | 指标与 SQL 监控 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-security-starter` | JWT、认证、鉴权与安全扩展点 | 拟纳入 1.0 稳定范围 |
-| `fast-ddd-ai-spring-boot-starter` | Spring AI 通用接入（Incubating） | Incubating——不纳入 1.0 API 冻结承诺 |
-| `fast-ddd-analyzer-spring-boot-starter` | 数据结构分析（Incubating） | Incubating——不纳入 1.0 API 冻结承诺 |
-| `fast-ddd-starter` | All-in-One Starter | 拟纳入 1.0 稳定范围 |
+| `fast-ddd-common` | Common types, exceptions, and domain foundations | 1.0 stable |
+| `fast-ddd-config` | Configuration and conditional wiring | 1.0 stable |
+| `fast-ddd-model` | Domain model and persistence base classes | 1.0 stable |
+| `fast-ddd-crud` | Repository, Mapper, and CRUD infrastructure | 1.0 stable |
+| `fast-ddd-application` | Command, Query, and Handler contracts | 1.0 stable |
+| `fast-ddd-web` | Web, unified response, and exception handling | 1.0 stable |
+| `fast-ddd-cache` | Cache abstraction and Redis integration | 1.0 stable |
+| `fast-ddd-event` | Domain events, messaging, and Outbox | 1.0 stable |
+| `fast-ddd-search` | Search-engine integration | 1.0 stable |
+| `fast-ddd-monitor` | Metrics and SQL monitoring | 1.0 stable |
+| `fast-ddd-security-starter` | JWT, authentication, authorization, and security extension points | 1.0 stable |
+| `fast-ddd-ai-spring-boot-starter` | Generic Spring AI integration (Incubating) | Incubating |
+| `fast-ddd-analyzer-spring-boot-starter` | Data-structure analysis (Incubating) | Incubating |
+| `fast-ddd-starter` | All-in-One Starter | 1.0 stable |
 
-> **稳定性标注语义**（ECO-006 D1，2026-09-06）：「拟纳入 1.0 稳定范围」表示该模块计划进入
-> 1.0 稳定承诺，但在 API 冻结评审通过前**不代表任何模块的 API 已冻结**；「Incubating」表示
-> 实验能力，保留随版本调整的自由，重大不兼容变更将在发布说明中公告。逐模块冻结状态以
-> 1.0 冻结评审与 GA 门禁的正式结论为准。
+> **Stability label semantics**: "1.0 stable" marks modules inside the GA 1.0 stable-API commitment, per the 1.0 API freeze review and GA gate conclusions. "Incubating" marks experimental capabilities, which keep the freedom to change between versions; breaking changes will be announced in release notes.
 
-模块源码位于 [`fastddd-framework/`](fastddd-framework/)，统一版本入口为 [`fastddd-bom`](fastddd-bom/)。Experimental Agent Access 位于 [`agent-access/`](agent-access/)，拥有独立兼容承诺，不阻塞 Framework 1.0。
+Module sources live in [`fastddd-framework/`](fastddd-framework/); the single version entry point is [`fastddd-bom`](fastddd-bom/). Experimental Agent Access lives in [`agent-access/`](agent-access/) with its own compatibility commitment and does not gate Framework 1.0.
 
-## 使用
+## Requirements
 
-业务项目建议先导入 BOM，再按需声明模块：
+- **JDK 21** — hard requirement; the build enforces `requireJavaVersion[21,)`
+- **Maven 3.9+** — the wrapper pins 3.9.5
+- **Spring Boot 3.5.16** — managed through the BOM
+
+## Quick start
+
+> **Artifact resolution**: FastDDD artifacts resolve from your configured Maven repositories under the coordinates `io.github.gallop.fastddd` (Java package names remain `com.gallop.fastddd`). To install from source, build the framework repo first, then the tooling repo (the plugin depends on `fastddd-bom`):
+>
+> ```bash
+> cd fastddd-framework && ./mvnw -B -Drevision=1.0.0 clean install -DskipTests
+> cd ../fastddd-tooling  && ./mvnw -B -Drevision=1.0.0 clean install -DskipTests
+> ```
+
+**New project — scaffold it with the companion tooling plugin** (RICH model, PostgreSQL, two bounded contexts):
+
+```bash
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
+  -Dinit.groupId=com.example \
+  -Dinit.artifactId=shop \
+  -Dinit.package=com.example.shop \
+  -Dinit.modelType=RICH \
+  -Dinit.databaseType=postgresql \
+  -Dinit.enableEvent=true \
+  -Dinit.enableSecurity=true \
+  -Dinit.contexts=order,product
+```
+
+**Existing project — import the BOM first, then declare modules without versions:**
 
 ```xml
 <dependencyManagement>
@@ -55,16 +83,27 @@ FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行
 </dependency>
 ```
 
-## 构建与文档
+Guides: [Quick start](docs/guides/QUICK_START.md) · [New business system development guide](docs/guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) · [Upgrade guide](docs/upgrade/README.md) · [Compatibility matrix](docs/COMPATIBILITY_MATRIX.md)
+
+## Build
 
 ```bash
 ./mvnw clean verify
 ```
 
-- 文档入口：[`docs/README.md`](docs/README.md)
-- 贡献说明：[`CONTRIBUTING.md`](CONTRIBUTING.md)
-- 版本变更：[`CHANGELOG.md`](CHANGELOG.md)
+Versioned (GA) artifacts build with `-Drevision=1.0.0`; the reactor default stays `-SNAPSHOT`.
 
-## 许可证
+## Documentation
 
-FastDDD Framework Community 使用 [Apache License 2.0](LICENSE)。第三方归属说明见 [NOTICE](NOTICE)。FastDDD Studio Pro 是独立的专有产品，不因依赖 Community 制品而获得本许可证授权。
+- Docs entry: [`docs/README.md`](docs/README.md)
+- Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+
+## Ecosystem
+
+- **fastddd-tooling** — companion repository: project scaffolding (`init-project`, `generate-code`), code/doc generation engines, templates, Maven plugins. <!-- public repo URL to be added at open-source time -->
+- **FastDDD Skills** — Claude skills encoding FastDDD best practices: architecture design → project init → development patterns → automated dev loop. Distributed separately. <!-- distribution URL to be added -->
+
+## License
+
+FastDDD Framework Community is licensed under the [Apache License 2.0](LICENSE); third-party attribution is in [NOTICE](NOTICE). FastDDD Studio Pro is a separate proprietary product and is not granted rights under this license by depending on Community artifacts.
