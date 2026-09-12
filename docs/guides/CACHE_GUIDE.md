@@ -1,8 +1,10 @@
-# FastDDD Cache 模块使用指南
+# FastDDD Cache Module Usage Guide
 
-> 两级缓存 (Caffeine L1 + Redis L2)，零配置开箱即用，5 分钟接入新项目。
+**English** | [简体中文](CACHE_GUIDE.zh-CN.md)
 
-## 1. 引入依赖
+> Two-level caching (Caffeine L1 + Redis L2) — zero configuration out of the box, integrate a new project in 5 minutes.
+
+## 1. Add the Dependency
 
 ```xml
 <dependency>
@@ -12,28 +14,28 @@
 </dependency>
 ```
 
-**可选依赖**（运行时）：
-- Redis: 引入 `spring-boot-starter-data-redis` + 配置 `spring.data.redis.*`
-- 无 Redis → 自动降级为纯本地缓存（仅 Caffeine）
+**Optional dependencies** (runtime):
+- Redis: add `spring-boot-starter-data-redis` and configure `spring.data.redis.*`
+- Without Redis → automatically degrades to a pure local cache (Caffeine only)
 
-## 2. 零配置启动
+## 2. Zero-Configuration Startup
 
-不做任何配置即可使用，默认值：
+The module works without any configuration. Default values:
 
-| 配置项 | 默认值 | 说明 |
+| Property | Default | Description |
 |--------|--------|------|
-| `fastddd.cache.enabled` | `true` | 模块总开关 |
-| `fastddd.cache.allow-null-values` | `true` | 缓存 null 防穿透 |
-| `fastddd.cache.local.max-size` | `10000` | L1 最大条目数 |
-| `fastddd.cache.local.expire-after-write` | `5m` | L1 写入后过期 |
-| `fastddd.cache.redis.expire-after-write` | `30m` | L2 写入后过期 |
-| `fastddd.cache.redis.key-prefix` | `fastddd:` | Redis key 前缀 |
+| `fastddd.cache.enabled` | `true` | Master switch for the module |
+| `fastddd.cache.allow-null-values` | `true` | Cache nulls to prevent cache penetration |
+| `fastddd.cache.local.max-size` | `10000` | Maximum number of L1 entries |
+| `fastddd.cache.local.expire-after-write` | `5m` | L1 expiry after write |
+| `fastddd.cache.redis.expire-after-write` | `30m` | L2 expiry after write |
+| `fastddd.cache.redis.key-prefix` | `fastddd:` | Redis key prefix |
 
-## 3. 使用方式
+## 3. Usage
 
-### 3.1 Spring Cache 注解（推荐）
+### 3.1 Spring Cache Annotations (Recommended)
 
-最简单的用法，直接在方法上加注解：
+The simplest approach — just annotate your methods:
 
 ```java
 @Service
@@ -67,11 +69,11 @@ public class UserService {
 }
 ```
 
-**返回类型安全**：`@Cacheable` 方法返回的对象类型与原始方法一致（框架自动在 Redis 中存储类型元数据），不会出现 `LinkedHashMap` 问题。
+**Return type safety**: objects returned by `@Cacheable` methods keep the exact type of the original method (the framework automatically stores type metadata in Redis), so the `LinkedHashMap` problem never occurs.
 
-### 3.2 编程 API（CacheService）
+### 3.2 Programmatic API (CacheService)
 
-适合需要精细控制缓存逻辑的场景：
+For scenarios that need fine-grained control over caching logic:
 
 ```java
 @Service
@@ -120,9 +122,9 @@ public class OrderService {
 }
 ```
 
-## 4. 配置详解
+## 4. Configuration Reference
 
-### 4.1 完整配置
+### 4.1 Full Configuration
 
 ```yaml
 fastddd:
@@ -154,9 +156,9 @@ fastddd:
           expire-after-write: 1h
 ```
 
-### 4.2 按 cache name 定制
+### 4.2 Per-Cache-Name Customization
 
-通过 `caches` 配置项可以为不同的缓存区域设置独立的 L1/L2 参数：
+The `caches` property lets you set independent L1/L2 parameters for individual cache regions:
 
 ```yaml
 fastddd:
@@ -183,17 +185,17 @@ fastddd:
           expire-after-write: 2h
 ```
 
-未在 `caches` 中配置的 cache name 使用全局默认值。
+Cache names not configured under `caches` use the global defaults.
 
-## 5. 运行场景
+## 5. Runtime Scenarios
 
-| 场景 | 配置 | 行为 |
+| Scenario | Configuration | Behavior |
 |------|------|------|
-| **完整两级** | 有 Redis 配置 | L1 → L2 → loader，L2 命中回填 L1，Pub/Sub 同步 L1 失效 |
-| **纯本地** | 无 Redis 依赖/配置 | 仅 Caffeine L1，适合单体应用或开发环境 |
-| **禁用缓存** | `fastddd.cache.enabled=false` | 不加载任何 Bean，@Cacheable 不生效 |
+| **Full two-level** | Redis configured | L1 → L2 → loader; L2 hits backfill L1; Pub/Sub syncs L1 invalidation |
+| **Local only** | No Redis dependency/config | Caffeine L1 only — suitable for monolithic applications or development environments |
+| **Cache disabled** | `fastddd.cache.enabled=false` | No beans are loaded; @Cacheable has no effect |
 
-## 6. 缓存架构
+## 6. Cache Architecture
 
 ```
 ┌─────────────┐    miss    ┌─────────────┐    miss    ┌──────────┐
@@ -205,17 +207,17 @@ fastddd:
       └──── L1 失效同步 ←────────┘
 ```
 
-**写入流程**：`put(key, value)` → 写 L1 + 写 L2（带类型元数据）
+**Write flow**: `put(key, value)` → write L1 + write L2 (with type metadata)
 
-**读取流程**：`get(key)` → L1 命中? → 返回 : L2 命中? → 回填 L1 + 返回 : 返回 null
+**Read flow**: `get(key)` → L1 hit? → return : L2 hit? → backfill L1 + return : return null
 
-**失效流程**：`evict(key)` → 删 L1 + 删 L2 + Pub/Sub 通知其他节点删 L1
+**Invalidation flow**: `evict(key)` → delete L1 + delete L2 + Pub/Sub notifies other nodes to delete L1
 
-**类型安全**：Redis 中存储 `{"__type":"className","__value":{...}}` 包装结构，反序列化时自动恢复正确类型。
+**Type safety**: Redis stores a `{"__type":"className","__value":{...}}` wrapper structure; the correct type is restored automatically on deserialization.
 
-## 7. null 值处理
+## 7. Null Value Handling
 
-默认启用 `allow-null-values: true`，框架使用内部 `NullValue` 标记缓存 null 结果：
+With the default `allow-null-values: true`, the framework uses an internal `NullValue` marker to cache null results:
 
 ```java
 // 防止缓存穿透 — 查不到也会缓存
@@ -225,16 +227,16 @@ public User getById(Long id) {
 }
 ```
 
-如不希望缓存 null 值：
+To disable caching of null values:
 ```yaml
 fastddd:
   cache:
     allow-null-values: false
 ```
 
-## 8. 防击穿（Stampede Protection）
+## 8. Stampede Protection
 
-`CacheService.getOrLoad()` 内置 per-key synchronized 双重检查：
+`CacheService.getOrLoad()` has built-in per-key synchronized double-checking:
 
 ```java
 // 多线程并发查询同一 key，只有一个线程执行 loader
@@ -242,7 +244,7 @@ cacheService.getOrLoad("users", "user:123", User.class,
     () -> userMapper.selectById(123));
 ```
 
-## 9. 批量操作
+## 9. Batch Operations
 
 ```java
 // 批量读取 — L1 批量查 → 未命中 key 走 L2
@@ -254,9 +256,9 @@ Map<String, User> batch = Map.of("user:1", user1, "user:2", user2);
 cacheService.multiPut("users", batch);
 ```
 
-## 10. Spring Cache 注解 + CacheService 混用
+## 10. Mixing Spring Cache Annotations with CacheService
 
-两者共享同一个 `MultiLevelCache` 实例（通过 `CacheRegistry`），操作同一份数据：
+Both share the same `MultiLevelCache` instance (via `CacheRegistry`) and operate on the same data:
 
 ```java
 // 注解方式写入
@@ -267,17 +269,17 @@ public User save(User user) { ... }
 User user = cacheService.get("users", String.valueOf(userId), User.class);
 ```
 
-## 11. Redis Key 格式
+## 11. Redis Key Format
 
 ```
 {keyPrefix}{cacheName}::{key}
 ```
 
-示例：
+Examples:
 - `fastddd:users::123`
 - `fastddd:orders::order:456`
 
-Redis 值格式（带类型元数据）：
+Redis value format (with type metadata):
 ```json
 {"__type":"com.example.User","__value":{"id":123,"name":"张三","email":"zhangsan@example.com"}}
 ```

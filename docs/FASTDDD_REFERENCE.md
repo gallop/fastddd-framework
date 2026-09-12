@@ -1,18 +1,21 @@
 # FastDDD Framework Reference
 
-> 本文档是 FastDDD 的**按需 API 与设计参考**。新业务系统不要先全文加载：先阅读
-> [新业务系统开发规范](guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)，遇到具体 API、SPI 或配置问题时再检索本文。
+**English** | [简体中文](FASTDDD_REFERENCE.zh-CN.md)
 
-## 框架概述
+> This document is FastDDD's **on-demand API and design reference**. For a new business system, do not load the
+> whole document up front: read the [New Business System Development Guide](guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) first,
+> and search this document when you hit a concrete API, SPI, or configuration question.
 
-FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准化的分层架构、代码生成、事件驱动、多端安全认证等能力。
+## Framework Overview
 
-**当前坐标**: `io.github.gallop.fastddd:fastddd-bom:1.0.0`（内部 v1.0，2026-09-10 发布，tag `v1.0.0`；业务项目通过 import
-[`fastddd-bom`](UPGRADE_GUIDE.md#2-升级-fastddd-依赖import-fastddd-bom) 统一管理版本）
-**Java 版本**: 21+
-**Spring Boot 版本**: 3.5.16
+FastDDD is an enterprise-grade DDD development framework built on Spring Boot 3.x. It provides a standardized layered architecture, code generation, event-driven capabilities, multi-channel security authentication, and more.
 
-> 版本基线与兼容线详见 [兼容矩阵](COMPATIBILITY_MATRIX.md)，升级步骤见 [升级指南](UPGRADE_GUIDE.md)。
+**Current coordinates**: `io.github.gallop.fastddd:fastddd-bom:1.0.0` (internal v1.0, released 2026-09-10, tag `v1.0.0`; business projects
+manage versions uniformly by importing [`fastddd-bom`](UPGRADE_GUIDE.md#2-upgrade-fastddd-dependencies-import-fastddd-bom))
+**Java version**: 21+
+**Spring Boot version**: 3.5.16
+
+> For the version baseline and compatibility lines see the [Compatibility Matrix](COMPATIBILITY_MATRIX.md); for upgrade steps see the [Upgrade Guide](UPGRADE_GUIDE.md).
 
 ```xml
 <!-- 业务项目统一版本入口；所有 fast-ddd-* 依赖均不再写 version -->
@@ -31,7 +34,7 @@ FastDDD 是基于 Spring Boot 3.x 的企业级 DDD 开发框架。提供标准�
 
 ---
 
-## 模块依赖关系
+## Module Dependencies
 
 ```
 fast-ddd-starter (一键引入核心五模块)
@@ -51,36 +54,36 @@ fast-ddd-ai-spring-boot-starter       # AI/LLM 提示词模板
 fast-ddd-analyzer-spring-boot-starter # 智能表分析 (领域划分)
 ```
 
-**典型项目 POM 依赖选择**:
-- 基础 CRUD 项目: `fast-ddd-starter` + `fast-ddd-security-starter`
-- 充血模型项目: 额外引入 `fast-ddd-application` + `fast-ddd-event`
-- 完整企业项目: 全部引入
+**Typical POM dependency selection**:
+- Basic CRUD project: `fast-ddd-starter` + `fast-ddd-security-starter`
+- Rich-model project: additionally add `fast-ddd-application` + `fast-ddd-event`
+- Full enterprise project: include all of them
 
 ---
 
-## 两套基类体系
+## Two Base-Class Systems
 
-FastDDD 提供两套独立的基类体系，字段命名已统一：
+FastDDD provides two independent base-class systems with unified field naming:
 
-| 字段 | BaseEntity (领域层) | BasePO (持久层) | DB 列名 |
+| Field | BaseEntity (domain layer) | BasePO (persistence layer) | DB column |
 |------|-------------------|----------------|---------|
-| 创建时间 | `protected LocalDateTime createTime` | `@TableField(fill=INSERT) createTime` | `create_time` |
-| 更新时间 | `protected LocalDateTime updateTime` | `@TableField(fill=INSERT_UPDATE) updateTime` | `update_time` |
-| 创建人 | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
-| 更新人 | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
-| 逻辑删除 | `protected Integer deleted` | `@TableLogic Integer deleted` | `deleted` |
-| 主键 | `protected ID id` (abstract getId/setId) | `protected ID id`（`ID extends Serializable`，默认 `Long`） | `id` |
-| 版本号 | `VersionedEntity` 子类提供 | `VersionedPO` 子类提供 | `version` |
+| Creation time | `protected LocalDateTime createTime` | `@TableField(fill=INSERT) createTime` | `create_time` |
+| Update time | `protected LocalDateTime updateTime` | `@TableField(fill=INSERT_UPDATE) updateTime` | `update_time` |
+| Created by | `protected String createUser` | `@TableField(fill=INSERT) createUser` | `create_user` |
+| Updated by | `protected String updateUser` | `@TableField(fill=INSERT_UPDATE) updateUser` | `update_user` |
+| Logical delete | `protected Integer deleted` | `@TableLogic Integer deleted` | `deleted` |
+| Primary key | `protected ID id` (abstract getId/setId) | `protected ID id` (`ID extends Serializable`, defaults to `Long`) | `id` |
+| Version | provided by `VersionedEntity` subclasses | provided by `VersionedPO` subclasses | `version` |
 
-**version 字段按需继承**：只有数据库表有 `version` 列的实体才继承 `VersionedPO`/`VersionedEntity`，其余继承 `BasePO`/`BaseEntity`。
+**Inherit the `version` field only when needed**: only entities whose database table has a `version` column extend `VersionedPO`/`VersionedEntity`; all others extend `BasePO`/`BaseEntity`.
 
-**统一收益**: 充血模型 Entity ↔ PO 转换时，公共字段名完全一致，BeanUtils/MapStruct 可直接拷贝。
+**Unified benefit**: when converting between Entity and PO in the rich model, the common field names match exactly, so BeanUtils/MapStruct can copy them directly.
 
 ---
 
-## 核心基类速查
+## Core Base Classes Quick Reference
 
-### 1. 贫血模型 — BasePO (fast-ddd-model)
+### 1. Anemic model — BasePO (fast-ddd-model)
 
 ```java
 @TableName("t_order")
@@ -99,15 +102,15 @@ public class Order extends BasePO<Long> {
 // 需要乐观锁的实体请继承 VersionedPO（自动包含 version 字段）
 ```
 
-**关键规则**:
-- 继承 `BasePO` 时用 `@Getter/@Setter`，不用 `@Data`（`@Data` 的 `equals/hashCode` 对 JPA/MyBatis 代理对象有副作用）
-- `BasePO<ID>` 已内置强类型 `ID id` 字段（**不**携带字段级 `@TableId`），子类无需再声明 `id`、`@TableId`、`getId()`、`setId()`
-- 不要在子类中重复声明 `createTime`, `updateTime`, `createUser`, `updateUser`, `deleted` — 这些已由 `AuditedPO`（`BasePO` 父类）提供
-- ID 策略唯一由全局配置 `mybatis-plus.global-config.db-config.id-type`（默认 `assign_id` 雪花）决定；需要不同策略的子类自行重声明 `id` 并加 `@TableId(type=...)`
-- 需要乐观锁的实体继承 `VersionedPO`（自动包含 `version` 字段 + `@Version` 注解），不需要乐观锁的直接继承 `BasePO`
-- 对应 `BIGINT` 主键使用 `BasePO<Long>`；UUID/String 主键使用匹配的 `ID` 类型，并在需要时于子类声明 `@TableId(type=...)`。MyBatis-Plus 按实际类型处理读写，无需全局 `SerializableTypeHandler`
+**Key rules**:
+- Use `@Getter/@Setter` when extending `BasePO`, not `@Data` (`@Data`'s `equals/hashCode` has side effects on JPA/MyBatis proxy objects)
+- `BasePO<ID>` already ships a strongly typed `ID id` field (**without** a field-level `@TableId`); subclasses never need to declare `id`, `@TableId`, `getId()`, or `setId()` again
+- Do not re-declare `createTime`, `updateTime`, `createUser`, `updateUser`, or `deleted` in subclasses — they are already provided by `AuditedPO` (the parent class of `BasePO`)
+- The ID strategy is decided solely by the global configuration `mybatis-plus.global-config.db-config.id-type` (default `assign_id` snowflake); a subclass that needs a different strategy re-declares `id` itself with `@TableId(type=...)`
+- Entities that need an optimistic lock extend `VersionedPO` (automatically includes the `version` field + the `@Version` annotation); those that do not extend `BasePO` directly
+- Use `BasePO<Long>` for `BIGINT` primary keys; for UUID/String primary keys use a matching `ID` type and declare `@TableId(type=...)` in the subclass when needed. MyBatis-Plus handles reads and writes by the actual type — no global `SerializableTypeHandler` required
 
-### 2. 充血模型 — AggregateRoot (fast-ddd-common)
+### 2. Rich model — AggregateRoot (fast-ddd-common)
 
 ```java
 @Getter @Setter
@@ -131,7 +134,7 @@ public class Order extends AggregateRoot<Long> {
 // 需要乐观锁的领域实体请继承 VersionedEntity（自动包含 version 字段）
 ```
 
-**充血模型 PO 与 Entity 转换** (infrastructure 层):
+**Rich-model PO ↔ Entity conversion** (infrastructure layer):
 
 ```java
 // PO — 持久化对象，对应数据库表
@@ -178,12 +181,12 @@ public class OrderRepositoryImpl implements EntityRepository<Order, Long> {
 }
 ```
 
-**关键规则**:
-- 继承 `AggregateRoot` 时用 `@Getter/@Setter`，不用 `@Data`
-- 不要调用 `super.getId()` — 它是抽象方法，无实现，直接访问 `protected id` 字段
-- DTO 跨包访问必须用 `private` 字段 + `@Data`
+**Key rules**:
+- Use `@Getter/@Setter` when extending `AggregateRoot`, not `@Data`
+- Do not call `super.getId()` — it is an abstract method with no implementation; access the `protected id` field directly
+- DTOs accessed across packages must use `private` fields + `@Data`
 
-### 3. 数据层 (fast-ddd-crud)
+### 3. Data layer (fast-ddd-crud)
 
 ```java
 // Mapper — 继承 BaseRepository 获得通用查询方法
@@ -209,25 +212,25 @@ public class OrderServiceImpl extends BaseServiceImpl<OrderMapper, Order, Long> 
 }
 ```
 
-**BaseRepository 内置查询方法**（无需手写 SQL，字段名支持 Java 驼峰自动映射）:
+**Built-in BaseRepository query methods** (no handwritten SQL; Java camelCase field names are mapped automatically):
 - `selectOneByField("username", "admin")` → `Optional<T>`
 - `selectListByField("status", 1)` → `List<T>`
 - `selectListByFieldLike("nickname", "%张%")` → `List<T>`
 - `selectListByFieldIn("status", List.of(1,2,3))` → `List<T>`
-- `selectListByFields("status", 1, "department", "IT")` → `List<T>`（AND 条件）
+- `selectListByFields("status", 1, "department", "IT")` → `List<T>` (AND conditions)
 - `existsByField("username", "admin")` → `boolean`
 - `countByField("status", 1)` → `long`
 - `deleteByField("status", 0)` → `int`
-- `batchInsert(List<T>)` → 批量插入
-- `batchUpdateById(List<T>)` → 批量更新
+- `batchInsert(List<T>)` → batch insert
+- `batchUpdateById(List<T>)` → batch update
 
-> **字段名约定**：`*ByField` 方法的 `field` 参数写 Java 驼峰名（如 `createTime`、`isDefault`），框架自动转为数据库列名（`create_time`、`is_default`）。传入 snake_case 也兼容。
+> **Field-name convention**: the `field` parameter of `*ByField` methods takes the Java camelCase name (e.g. `createTime`, `isDefault`); the framework converts it to the database column name (`create_time`, `is_default`) automatically. Passing snake_case also works.
 
-> **泛型约束说明**：`BaseRepository<T>` 对 `T` 无约束（不要求继承 BasePO），便捷查询方法适用于任何实体表。`BaseServiceImpl<M, T, ID>` 和 `IService<T, ID>` 要求 `T extends BasePO<ID>` 且 `ID extends Serializable`；实体、服务与控制器必须使用同一个 ID 类型。纯数据表（无审计字段）可仅使用 Mapper 层。
+> **Generic constraints**: `BaseRepository<T>` puts no constraint on `T` (extending BasePO is not required), so the convenience query methods work for any entity table. `BaseServiceImpl<M, T, ID>` and `IService<T, ID>` require `T extends BasePO<ID>` and `ID extends Serializable`; the entity, the service, and the controller must use the same ID type. Pure data tables (without audit fields) can use the Mapper layer alone.
 
-### 4. Web 层 (fast-ddd-web)
+### 4. Web layer (fast-ddd-web)
 
-#### Controller 基类层次结构
+#### Controller base class hierarchy
 
 ```
 AbstractBaseController              ← 基础设施（service、resolveId、resolveEntityClass），无端点
@@ -236,7 +239,7 @@ AbstractBaseController              ← 基础设施（service、resolveId、res
 │       └── BaseController          ← @Deprecated 兼容入口
 ```
 
-#### 后台管理 CRUD（推荐）
+#### Admin CRUD (recommended)
 
 ```java
 @RestController
@@ -265,7 +268,7 @@ public class OrderAdminController extends BaseAdminCrudController<OrderService, 
 }
 ```
 
-#### 只读查询
+#### Read-only queries
 
 ```java
 @RestController
@@ -278,7 +281,7 @@ public class DictionaryController extends BaseReadOnlyController<DictionaryServi
 }
 ```
 
-#### 兼容旧项目（不推荐新项目使用）
+#### Legacy project compatibility (not recommended for new projects)
 
 ```java
 // BaseController 已 @Deprecated(since="1.1")，仍可编译使用
@@ -288,28 +291,28 @@ public class UserController extends BaseController<UserService, User, Long> {
 }
 ```
 
-#### 使用建议
+#### Usage recommendations
 
-| 场景 | 推荐基类 | 说明 |
+| Scenario | Recommended base class | Notes |
 |------|---------|------|
-| 后台管理 CRUD | `BaseAdminCrudController` | 完整增删改查，路径应放在 `/api/admin/**`。**继承的 7 写无方法级守卫，靠子类类级注解统管** |
-| 只读字典/查询 | `BaseReadOnlyController` | 仅 GET 方法，无写操作风险 |
-| 敏感业务 API | 不继承任何 CRUD 基类 | 显式声明每个端点，避免隐式暴露 |
-| 旧项目兼容 | `BaseController`（已废弃） | 保持编译通过，建议逐步迁移 |
+| Admin CRUD | `BaseAdminCrudController` | Full CRUD; paths should live under `/api/admin/**`. **The 7 inherited write endpoints carry no method-level guard and are governed by the subclass's class-level annotation** |
+| Read-only dictionaries/queries | `BaseReadOnlyController` | GET methods only, no write-operation risk |
+| Sensitive business APIs | Do not extend any CRUD base class | Declare every endpoint explicitly to avoid implicit exposure |
+| Legacy project compatibility | `BaseController` (deprecated) | Keeps compilation working; gradual migration recommended |
 
-#### ⚠️ 继承写端点的安全模型
+#### ⚠️ Security model of inherited write endpoints
 
-空体子类继承自 `BaseAdminCrudController` 的 **7 个写端点（POST/PUT/DELETE）没有方法级权限守卫**，完全依赖子类的类级注解统管。这意味着：
+The **7 write endpoints (POST/PUT/DELETE) that an empty subclass inherits from `BaseAdminCrudController` carry no method-level permission guard**; they rely entirely on the subclass's class-level annotation. This means:
 
-- 任何通过类级注解的角色都可以执行**所有**继承写操作（增/改/删全放行）
-- **无法在空体子类上实现按钮级细粒度权限**（如「只允许增、不允许删」）
+- Any role admitted through the class-level annotation can perform **all** inherited write operations (create/update/delete are all permitted)
+- **Button-level fine-grained permissions cannot be implemented on an empty subclass** (e.g. "allow create but not delete")
 
-**何时需要重写写端点**：
-1. 需要按钮级细粒度权限（如 `sys_billing_rule` 表，需要区分增/改/删权限）
-2. 需要为写操作添加 `@AuditLog` 审计留痕
-3. 需要收紧权限——类级注解通写太宽，方法级独立守卫
+**When to override the write endpoints**:
+1. Button-level fine-grained permissions are needed (e.g. the `sys_billing_rule` table needs create/update/delete permissions distinguished)
+2. Write operations need `@AuditLog` audit trails
+3. Permissions need tightening — the class-level annotation admits writes too broadly, so guard each method independently
 
-**重写示例**（与 DishController/FoodSafetyController 同范式）：
+**Override example** (same pattern as DishController/FoodSafetyController):
 
 ```java
 @RestController
@@ -330,27 +333,26 @@ public class SysBillingRuleController extends BaseAdminCrudController<SysBilling
 }
 ```
 
-**不重写时默认行为**：7 个继承写端点仅受类级注解守卫。子类的类级注解 `value` 数组中任何一条匹配当前用户权限码即放行全部写操作。
+**Default behavior when not overridden**: the 7 inherited write endpoints are guarded only by the class-level annotation. If any entry in the subclass's class-level annotation `value` array matches the current user's permission codes, all write operations are permitted.
 
-> 💡 **推荐做法**：敏感业务模块（费用、合同、账户等）的 `BaseAdminCrudController` 子类应从 Day 1 起重写写端点并加方法级注解。纯字典/配置类 CRUD（如 `meal:dish-tag`）可先用空体，后续按需收紧。
+> 💡 **Recommended practice**: `BaseAdminCrudController` subclasses for sensitive business modules (fees, contracts, accounts, etc.) should override the write endpoints with method-level annotations from Day 1. Pure dictionary/configuration CRUD (e.g. `meal:dish-tag`) can start with an empty body and tighten later as needed.
 
-**统一响应格式** (`ApiResponse<T>`):
+**Unified response format** (`ApiResponse<T>`):
 ```json
 { "code": 200, "message": "操作成功", "data": {...}, "timestamp": 1704067200000 }
 ```
 
-**ID 路径变量自动类型转换**：`GET /{id}`、`PUT /{id}`、`DELETE /{id}` 端点的路径变量已自动处理类型转换。框架根据实体的 MyBatis-Plus `TableInfo.idType` 判断 ID 类型：
+**Automatic type conversion for the ID path variable**: the path variables of the `GET /{id}`, `PUT /{id}`, and `DELETE /{id}` endpoints are type-converted automatically. The framework determines the ID type from the entity's MyBatis-Plus `TableInfo.idType`:
 
-| `id-type` 配置 | URL 路径 `/{id}` | 控制器收到的类型 |
+| `id-type` configuration | URL path `/{id}` | Type received by the controller |
 |----------------|-------------------|-----------------|
-| `assign_id`（雪花算法，推荐） | `/api/users/18956483271045` | `Long` |
-| `auto`（数据库自增） | `/api/users/123` | `Long` |
+| `assign_id` (snowflake algorithm, recommended) | `/api/users/18956483271045` | `Long` |
+| `auto` (database auto-increment) | `/api/users/123` | `Long` |
 | `assign_uuid` | `/api/orders/a1b2c3d4-...` | `String` |
 
-业务项目**无需任何额外配置**，ID 转换由 `AbstractBaseController.resolveId()` 自动完成。覆写端点时参数改为 `String idStr` 并调用 `resolveId(idStr)` 即可。
+Business projects need **no extra configuration at all**; ID conversion is performed automatically by `AbstractBaseController.resolveId()`. When overriding an endpoint, simply change the parameter to `String idStr` and call `resolveId(idStr)`.
 
-启用自动包装: **WEB-002 起为 opt-in（默认关）**。响应包装与 Jackson 扩展（Long→String / 日期格式 /
-枚举→name）均在类级别 `@ConditionalOnProperty(..., matchIfMissing = false)` 门控，**属性是唯一开关**：
+Enabling automatic wrapping: **as of WEB-002 it is opt-in (off by default)**. Both the response wrapper and the Jackson extensions (Long→String / date format / enum→name) are gated at the class level by `@ConditionalOnProperty(..., matchIfMissing = false)`; **the property is the only switch**:
 
 ```yaml
 fastddd:
@@ -361,17 +363,12 @@ fastddd:
     enabled: true     # 开启 Long/日期/枚举 Jackson 扩展（默认关）
 ```
 
-- **默认关**：仅引入 `fast-ddd-web` 不改写消费者既有 JSON 契约（Long 数值、无信封、日期为 Spring Boot
-  默认表示）。
-- **框架聚合消费者**（studio / examples / archetype 生成项目）在各自 `application.yml` 显式 opt-in
-  还原信封能力。
-- `@EnableApiResponseWrapper` 已 **`@Deprecated(since="1.0.0-jdk21")`**，降级为源兼容标记，不再具备
-  opt-in 语义；新项目统一用属性开关。
-- **OpenAPI 契约一致**：`fastddd.web.response-wrapper.enabled=true` 时，`ApiResponseOpenApiCustomizer`
-  把 POJO 端点的 2xx 响应 schema 包成信封，与运行时 `SmartResponseAdvice` 同源判定（`ResponseWrapPredicate`），
-  避免 springdoc 文档（读签名）与运行时（信封）分歧。
+- **Off by default**: merely adding `fast-ddd-web` does not rewrite a consumer's existing JSON contract (Long as a number, no envelope, dates in Spring Boot's default representation).
+- **Framework aggregate consumers** (studio / examples / archetype-generated projects) explicitly opt in via their own `application.yml` to restore the envelope capability.
+- `@EnableApiResponseWrapper` is **`@Deprecated(since="1.0.0-jdk21")`** and has been downgraded to a source-compatibility marker with no opt-in semantics; new projects uniformly use the property switch.
+- **OpenAPI contract consistency**: when `fastddd.web.response-wrapper.enabled=true`, `ApiResponseOpenApiCustomizer` wraps the 2xx response schema of POJO endpoints into an envelope, deciding by the same source as the runtime `SmartResponseAdvice` (`ResponseWrapPredicate`), so the springdoc documentation (raw signatures) and the runtime (envelope) never diverge.
 
-### 5. CQRS 充血模型 (fast-ddd-application)
+### 5. CQRS rich model (fast-ddd-application)
 
 ```java
 // 命令
@@ -416,11 +413,11 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ---
 
-## 安全模块 (fast-ddd-security-starter)
+## Security Module (fast-ddd-security-starter)
 
-### 快速集成指南
+### Quick Integration Guide
 
-#### 1. 引入依赖
+#### 1. Add the dependencies
 
 ```xml
 <dependency>
@@ -433,7 +430,7 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 </dependency>
 ```
 
-#### 2. 启动类
+#### 2. Application class
 
 ```java
 @SpringBootApplication(scanBasePackages = "com.example.app")
@@ -441,10 +438,9 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 public class Application { ... }
 ```
 
-> 响应包装启用方式见上节「统一响应格式」——经 `fastddd.web.response-wrapper.enabled=true` opt-in，
-> 不再使用 `@EnableApiResponseWrapper`（已 `@Deprecated`，源兼容无语义）。
+> For how to enable the response wrapper see "Unified response format" in the section above — opt in via `fastddd.web.response-wrapper.enabled=true`; do not use `@EnableApiResponseWrapper` anymore (already `@Deprecated`, source-compatible but semantics-free).
 
-#### 3. YAML 配置
+#### 3. YAML configuration
 
 ```yaml
 fastddd:
@@ -482,13 +478,13 @@ fastddd:
       dev-mode: false          # true 时注册 Noop sender，仅打印验证码日志
 ```
 
-**配置注意点**:
-- 前缀是 `fastddd:`，不是 `fast-ddd:`
-- 所有 Duration 字段必须带单位后缀 (`s`/`m`/`h`/`d`)
-- `permit-all-paths` 不要写 `/api/auth/**`，否则 `/api/auth/userinfo` 也会被跳过 JWT 认证，导致 principal 为 `anonymousUser`
-- 验证码发送接口 `/api/auth/code/send` 必须允许未登录访问；生产环境必须提供真实的 `VerificationCodeSender`
+**Configuration notes**:
+- The prefix is `fastddd:`, not `fast-ddd:`
+- All Duration fields must carry a unit suffix (`s`/`m`/`h`/`d`)
+- Do not write `/api/auth/**` in `permit-all-paths`; otherwise `/api/auth/userinfo` is also skipped for JWT authentication and the principal becomes `anonymousUser`
+- The verification-code endpoint `/api/auth/code/send` must be reachable without login; in production you must provide a real `VerificationCodeSender`
 
-#### 4. 实体类
+#### 4. Entity class
 
 ```java
 @Getter
@@ -507,9 +503,9 @@ public class User extends BasePO<Long> {
 }
 ```
 
-#### 5. 实现 SPI（两个 @Service）
+#### 5. Implement the SPIs (two @Service beans)
 
-安全模块使用 `@AutoConfiguration`（deferred import），业务项目只需 `@Service` 声明即可自动替换框架默认实现，无需 `@Import`。
+The security module uses `@AutoConfiguration` (deferred import); in a business project a plain `@Service` declaration automatically replaces the framework default implementation — no `@Import` required.
 
 ```java
 // 1. 身份服务 — 替换 DefaultSecurityIdentityService
@@ -566,9 +562,9 @@ public class AppPermissionService implements SecurityPermissionService {
 }
 ```
 
-**关键**：`SecurityUserDetails.builder()` 必须设置 `userId`，框架会将其写入 JWT claims。后续请求中 `JwtAuthenticationFilter` 自动从 Token 提取 userId 作为 principal，`/api/auth/userinfo` 无需再通过 username 回查。
+**Key point**: `SecurityUserDetails.builder()` must set `userId`; the framework writes it into the JWT claims. On subsequent requests `JwtAuthenticationFilter` automatically extracts the userId from the token as the principal, so `/api/auth/userinfo` no longer needs a username round-trip lookup.
 
-如需支持短信验证码或邮箱验证码登录，实现 `CodeLoginIdentityService`，提供手机号/邮箱到用户的查询能力:
+To support SMS-code or email-code login, implement `CodeLoginIdentityService` to provide phone-number/email-to-user lookup:
 
 ```java
 @Service
@@ -602,7 +598,7 @@ public class AppIdentityService implements SecurityIdentityService, CodeLoginIde
 }
 ```
 
-验证码发送通道通过 `VerificationCodeSender` 接入，框架不绑定具体短信/邮件服务商:
+Verification-code delivery channels plug in through `VerificationCodeSender`; the framework binds to no specific SMS/email vendor:
 
 ```java
 @Component
@@ -619,21 +615,21 @@ public class EmailVerificationCodeSender implements VerificationCodeSender {
 }
 ```
 
-#### 6. 自动获得的能力
+#### 6. Capabilities you get automatically
 
-完成上述配置后，框架自动提供:
+After the configuration above, the framework automatically provides:
 
-| 能力 | 说明 |
+| Capability | Description |
 |------|------|
-| `POST /api/auth/login` | 登录，返回 accessToken + refreshToken + 用户信息 + 权限 |
-| `POST /api/auth/code/send` | 发送短信/邮箱验证码，默认未登录可访问 |
-| `POST /api/auth/logout` | 登出（清除 SecurityContext） |
-| `POST /api/auth/refresh` | Token 续期 |
-| `GET /api/auth/userinfo` | 当前用户信息（需 Bearer Token，优先用 JWT 中的 userId） |
-| `createUser/updateUser` | CRUD 审计字段自动填充当前登录用户名 |
-| `SecurityFilterChain` | JWT 验证 + CORS + 路径白名单 |
+| `POST /api/auth/login` | Login; returns accessToken + refreshToken + user info + permissions |
+| `POST /api/auth/code/send` | Send an SMS/email verification code; accessible without login by default |
+| `POST /api/auth/logout` | Logout (clears the SecurityContext) |
+| `POST /api/auth/refresh` | Token renewal |
+| `GET /api/auth/userinfo` | Current user info (requires a Bearer token; prefers the userId inside the JWT) |
+| `createUser/updateUser` | CRUD audit fields auto-filled with the current logged-in username |
+| `SecurityFilterChain` | JWT verification + CORS + path allowlist |
 
-#### 7. 在业务代码中获取当前用户
+#### 7. Get the current user in business code
 
 ```java
 import com.gallop.fastddd.security.spi.SecurityUserDetails;
@@ -654,17 +650,17 @@ String username = auth.getName();
 String currentUserId = currentUserProvider.getCurrentUserId();
 ```
 
-### 认证策略扩展
+### Authentication strategy extensions
 
-框架内置三种登录策略:
+The framework ships three built-in login strategies:
 
-| type | 说明 | 请求参数 |
+| type | Description | Request parameters |
 |------|------|----------|
-| `password` | 账号密码登录，未指定 `type` 时默认使用 | `username` + `password` |
-| `sms_code` | 手机短信验证码登录 | `extra.phone` + `extra.code` |
-| `email_code` | 邮箱验证码登录 | `extra.email` + `extra.code` |
+| `password` | Username/password login; the default when no `type` is specified | `username` + `password` |
+| `sms_code` | SMS verification-code login | `extra.phone` + `extra.code` |
+| `email_code` | Email verification-code login | `extra.email` + `extra.code` |
 
-发送验证码:
+Send a verification code:
 
 ```http
 POST /api/auth/code/send
@@ -677,7 +673,7 @@ Content-Type: application/json
 }
 ```
 
-邮箱验证码登录:
+Email verification-code login:
 
 ```http
 POST /api/auth/login
@@ -692,7 +688,7 @@ Content-Type: application/json
 }
 ```
 
-短信验证码登录:
+SMS verification-code login:
 
 ```http
 POST /api/auth/login
@@ -707,14 +703,14 @@ Content-Type: application/json
 }
 ```
 
-验证码登录注意:
-- `AuthenticationRequest.type` 是认证策略的显式路由字段，不再通过 `extra.smsCode` 等字段猜测策略
-- 验证码会哈希存储，校验成功后立即消费，失败次数超过 `max-attempts` 会删除
-- 默认 `InMemoryVerificationCodeStore` 适合单体/开发环境；分布式生产环境建议自定义 `VerificationCodeStore` 或接入 Redis
-- 如需 IP、设备、每日次数等防刷策略，实现 `VerificationCodeRateLimiter`
-- `fastddd.security.code.dev-mode=true` 会注册 Noop sender，仅用于开发环境日志查看验证码
+Notes on verification-code login:
+- `AuthenticationRequest.type` is the explicit routing field for authentication strategies; the strategy is no longer guessed from fields like `extra.smsCode`
+- Verification codes are stored hashed, consumed immediately after successful verification, and deleted once failed attempts exceed `max-attempts`
+- The default `InMemoryVerificationCodeStore` suits monoliths/development; for distributed production, it is recommended to define a custom `VerificationCodeStore` or back it with Redis
+- For anti-abuse policies such as IP, device, or daily-send limits, implement `VerificationCodeRateLimiter`
+- `fastddd.security.code.dev-mode=true` registers a Noop sender, intended only for viewing codes in logs during development
 
-自定义认证策略仍可通过 `AuthStrategy` 扩展:
+Custom authentication strategies can still be added via `AuthStrategy`:
 
 ```java
 // 自动注册到 AuthStrategyRegistry
@@ -725,11 +721,11 @@ public class CustomAuthStrategy implements AuthStrategy {
 }
 ```
 
-> **策略覆盖**: 如果自定义策略的 `getType()` 与框架内置策略相同（如 `password`），`AuthStrategyRegistry` 会自动优先保留应用层策略，框架内置策略退让。无需额外配置。
+> **Strategy override**: if a custom strategy's `getType()` collides with a built-in strategy (e.g. `password`), `AuthStrategyRegistry` automatically keeps the application-level strategy and the built-in one steps aside. No extra configuration needed.
 
-### JWT 签名策略（JwtSigner）
+### JWT Signing Strategy (JwtSigner)
 
-框架通过 `JwtSigner` 策略接口将签名/验签算法与 `JwtTokenProvider` 解耦。默认使用 HMAC-SHA512 对称签名，业务层可通过 `@Component` 覆盖为 RSA/EC 等非对称签名。
+The framework decouples the signing/verification algorithm from `JwtTokenProvider` through the `JwtSigner` strategy interface. It defaults to HMAC-SHA512 symmetric signing; the business layer can override it with RSA/EC or other asymmetric signing via `@Component`.
 
 ```java
 public interface JwtSigner {
@@ -738,12 +734,12 @@ public interface JwtSigner {
 }
 ```
 
-| 实现 | 算法 | 适用场景 | 注册方式 |
+| Implementation | Algorithm | Use case | Registration |
 |------|------|----------|----------|
-| `HmacJwtSigner`（框架内置） | HMAC-SHA512 | 单体应用，默认 | `@ConditionalOnMissingBean` 自动注册 |
-| 自定义实现 | RS256 / ES256 等 | 跨子系统 SSO | `@Component` 声明即可覆盖 |
+| `HmacJwtSigner` (built into the framework) | HMAC-SHA512 | Monolithic applications; the default | Auto-registered via `@ConditionalOnMissingBean` |
+| Custom implementation | RS256 / ES256 etc. | Cross-subsystem SSO | Just declare `@Component` to override |
 
-**默认 HMAC 路径**（零配置）：
+**Default HMAC path** (zero configuration):
 
 ```yaml
 fastddd:
@@ -752,7 +748,7 @@ fastddd:
       secret: your-secret-key-at-least-64-bytes-long!!   # HmacJwtSigner 自动使用
 ```
 
-**RSA 路径**（覆盖默认）：
+**RSA path** (overrides the default):
 
 ```java
 @Component
@@ -777,11 +773,11 @@ public class RsaJwtSigner implements JwtSigner {
 }
 ```
 
-声明 `@Component` 后，`@ConditionalOnMissingBean(JwtSigner.class)` 会跳过框架的 `HmacJwtSigner`，`JwtTokenProvider` 自动使用自定义签名器。子类也可通过 `protected signToken(JwtBuilder)` 和 `protected getClaimsFromToken(String)` 扩展点定制签名流程。
+Once `@Component` is declared, `@ConditionalOnMissingBean(JwtSigner.class)` skips the framework's `HmacJwtSigner` and `JwtTokenProvider` automatically uses the custom signer. Subclasses can also customize the signing flow through the `protected signToken(JwtBuilder)` and `protected getClaimsFromToken(String)` extension points.
 
-### 审计日志
+### Audit Logging
 
-框架提供 `@AuditLog` 注解，用于记录操作审计日志（自动脱敏 password/secret/token 字段）:
+The framework provides the `@AuditLog` annotation for recording operation audit logs (password/secret/token fields are masked automatically):
 
 ```java
 @PostMapping("/login")
@@ -798,7 +794,7 @@ public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) { ...
 
 ---
 
-## 事件驱动 (fast-ddd-event)
+## Event-Driven (fast-ddd-event)
 
 ```java
 // 发布事件
@@ -821,10 +817,10 @@ public class OrderEventHandler {
 }
 ```
 
-### 依赖形态（ECO-006C6 池中立化后）
+### Dependency shape (after ECO-006C6 pool neutralization)
 
-`fast-ddd-event` 传递 MyBatis-Plus 运行能力四件套（`mybatis-plus` + `mybatis-spring` +
-MyBatis-Plus 自动配置 + `spring-jdbc`）但**不传递任何连接池**（池中立）：
+`fast-ddd-event` passes along the four-piece MyBatis-Plus runtime set (`mybatis-plus` + `mybatis-spring` +
+MyBatis-Plus auto-configuration + `spring-jdbc`) but **passes along no connection pool** (pool-neutral):
 
 ```xml
 <!-- local 模式（默认）：仅此一条，无库、无数据源配置、无排除即可启动 -->
@@ -844,13 +840,13 @@ MyBatis-Plus 自动配置 + `spring-jdbc`）但**不传递任何连接池**（�
 </dependency>
 ```
 
-非 web 的 outbox 消费者另需自备 `ObjectMapper`（建议 `findAndRegisterModules()`）并显式依赖
-`jackson-datatype-jsr310`（`DomainEvent.createdAt` 为 `Instant`）；web 消费者经 starter-json 自动获得，无需处理。
+Non-web outbox consumers must additionally provide their own `ObjectMapper` (recommend `findAndRegisterModules()`) and explicitly depend on
+`jackson-datatype-jsr310` (`DomainEvent.createdAt` is an `Instant`); web consumers get it automatically via starter-json and need to do nothing.
 
-### Outbox 事务性事件
+### Outbox transactional events
 
-创建 `outbox_events` 表并注册 `OutboxEventRepository` Bean 即可启用。
-MySQL 和 PostgreSQL 的完整 DDL 见 `fast-ddd-event/src/main/resources/sql/` 目录，以下为 PostgreSQL 版本：
+Create the `outbox_events` table and register an `OutboxEventRepository` bean to enable it.
+Full DDL for MySQL and PostgreSQL is in the `fast-ddd-event/src/main/resources/sql/` directory; below is the PostgreSQL version:
 
 ```sql
 CREATE TABLE outbox_events (
@@ -889,26 +885,26 @@ ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_version
     CHECK (version >= 0);
 ```
 
-启用后，`eventPublisher.publishEvent()` 会在事务内先将事件持久化到 outbox 表，后台定时器负责实际投递。
+Once enabled, `eventPublisher.publishEvent()` persists the event to the outbox table inside the transaction first, and a background scheduler handles actual delivery.
 
-### Outbox 事件消费注意事项
+### Notes on consuming Outbox events
 
-1. **不要将 `event_data` 反序列化为 `DomainEvent` 子类** — `DomainEvent` 无无参构造器（有意设计，保证不可变），Jackson 反序列化会报 `InvalidDefinitionException`
-2. **推荐模式**: 定义内部 record 只提取需要的字段，完整数据从聚合根加载
+1. **Do not deserialize `event_data` into a `DomainEvent` subclass** — `DomainEvent` has no no-arg constructor (an intentional design choice to guarantee immutability), and Jackson deserialization throws `InvalidDefinitionException`
+2. **Recommended pattern**: define an inner record that extracts only the fields you need, and load the full data from the aggregate root
    ```java
    record EventPayload(String orderId) {}
    String orderId = objectMapper.readValue(event.getEventData(), EventPayload.class).orderId();
    Order order = orderRepository.findByOrderId(orderId).orElseThrow(...);
    ```
-3. 事件是**触发器**（通知"发生了什么"），不作为数据载体。详见 [SPI 参考手册](./guides/SPI_REFERENCE.md) 第 4 节
+3. Events are **triggers** (they announce "what happened"), not data carriers. See Section 4 of the [SPI Reference](./guides/SPI_REFERENCE.md)
 
 ---
 
-## 缓存模块 (fast-ddd-cache)
+## Cache Module (fast-ddd-cache)
 
-两级缓存：Caffeine (L1 本地) + Redis (L2 分布式)，零配置开箱即用。
+Two-level cache: Caffeine (L1 local) + Redis (L2 distributed), zero configuration, works out of the box.
 
-### 引入依赖
+### Add the dependency
 
 ```xml
 <dependency>
@@ -917,9 +913,9 @@ ALTER TABLE outbox_events ADD CONSTRAINT chk_outbox_version
 </dependency>
 ```
 
-无 Redis 配置 → 自动降级为纯本地缓存。不引入此依赖 → 缓存模块不加载。
+No Redis configuration → automatically degrades to a pure local cache. Without this dependency → the cache module does not load.
 
-### 使用方式一：Spring Cache 注解（推荐）
+### Usage option 1: Spring Cache annotations (recommended)
 
 ```java
 @Service
@@ -943,9 +939,9 @@ public class UserService {
 }
 ```
 
-**类型安全**：框架在 Redis 中存储 `{"__type":"className","__value":{...}}`，`@Cacheable` 返回的对象类型与原始方法一致，不会出现 `LinkedHashMap`。
+**Type safety**: the framework stores `{"__type":"className","__value":{...}}` in Redis, so objects returned from `@Cacheable` have the same type as the original method — you never get a `LinkedHashMap`.
 
-### 使用方式二：编程 API (CacheService)
+### Usage option 2: programmatic API (CacheService)
 
 ```java
 @Autowired
@@ -964,9 +960,9 @@ cacheService.evict("users", "user:123");
 cacheService.clear("users");
 ```
 
-两种方式共享同一缓存实例，操作同一份数据。
+Both approaches share the same cache instance and operate on the same data.
 
-### 配置
+### Configuration
 
 ```yaml
 fastddd:
@@ -991,24 +987,24 @@ fastddd:
           expire-after-write: 10m
 ```
 
-### 运行场景
+### Runtime scenarios
 
-| 场景 | 条件 | 行为 |
+| Scenario | Condition | Behavior |
 |------|------|------|
-| 完整两级 | 有 Redis 配置 | L1 → L2 → loader，Pub/Sub 同步 L1 失效 |
-| 纯本地 | 无 Redis | 仅 Caffeine，适合单体应用 |
-| 禁用 | `enabled=false` | 不加载任何 Bean |
+| Full two-level | Redis configured | L1 → L2 → loader; Pub/Sub synchronizes L1 invalidation |
+| Local only | No Redis | Caffeine only; suits monolithic applications |
+| Disabled | `enabled=false` | No beans loaded |
 
-详细用法参见 [CACHE_GUIDE.md](guides/CACHE_GUIDE.md)。
+For detailed usage see [CACHE_GUIDE.md](guides/CACHE_GUIDE.md).
 
 ---
 
-## 搜索模块 (fast-ddd-search)
+## Search Module (fast-ddd-search)
 
-轻量级全文搜索，SQL、Meilisearch 和 disabled 三种显式模式；启用 SQL 时必须具备
-MyBatis-Plus `BaseMapper`，Meilisearch 模式必须显式提供 SDK，业务代码不变。
+Lightweight full-text search with three explicit modes — SQL, Meilisearch, and disabled; the SQL mode requires a
+MyBatis-Plus `BaseMapper` to be present, the Meilisearch mode requires the SDK to be provided explicitly, and business code stays unchanged.
 
-### 依赖引入
+### Add the dependency
 
 ```xml
 <dependency>
@@ -1018,7 +1014,7 @@ MyBatis-Plus `BaseMapper`，Meilisearch 模式必须显式提供 SDK，业务代
 </dependency>
 ```
 
-### 核心接口
+### Core interface
 
 ```java
 // 非泛型 SPI，注入无歧义
@@ -1028,7 +1024,7 @@ private SearchService searchService;
 SearchResult<Product> result = searchService.search(query, Product.class);
 ```
 
-### SearchQuery 构建器
+### SearchQuery builder
 
 ```java
 SearchQuery query = SearchQuery.builder()
@@ -1044,18 +1040,18 @@ SearchQuery query = SearchQuery.builder()
     .build();
 ```
 
-### Filter 操作符
+### Filter operators
 
-| 方法 | 说明 | 示例 SQL |
+| Method | Description | Example SQL |
 |------|------|---------|
-| `eq(val)` | 精确匹配 | `status = 1` |
-| `ne(val)` | 不等于 | `status != 0` |
-| `gt/gte/lt/lte(val)` | 范围 | `price >= 100` |
-| `in(list)` / `notIn(list)` | 集合 | `category_id IN (1,2,3)` |
-| `isNull()` / `notNull()` | 空值 | `email IS NOT NULL` |
-| `like(pattern)` | 模糊匹配 | `name LIKE '%张%'` |
+| `eq(val)` | Exact match | `status = 1` |
+| `ne(val)` | Not equal | `status != 0` |
+| `gt/gte/lt/lte(val)` | Range | `price >= 100` |
+| `in(list)` / `notIn(list)` | Set membership | `category_id IN (1,2,3)` |
+| `isNull()` / `notNull()` | Null checks | `email IS NOT NULL` |
+| `like(pattern)` | Fuzzy match | `name LIKE '%张%'` |
 
-### 后端切换 (仅改配置)
+### Backend switching (configuration only)
 
 ```yaml
 # 默认 SQL 后端 — 零配置
@@ -1073,23 +1069,23 @@ fastddd:
       api-key: "${MEILISEARCH_API_KEY}"
 ```
 
-### 运行场景
+### Runtime scenarios
 
-| 场景 | 条件 | 行为 |
+| Scenario | Condition | Behavior |
 |------|------|------|
-| SQL LIKE | `backend=sql` (默认) + MyBatis-Plus `BaseMapper` | QueryWrapper LIKE 查询；依赖或 Mapper 缺失时启动失败 |
-| SQL FULLTEXT | `backend=sql` + MySQL | 自动 `MATCH...AGAINST` (需 FULLTEXT 索引) |
-| Meilisearch | `backend=meilisearch` + SDK 在 classpath | 全文搜索 + 高亮 |
-| Disabled | `backend=disabled` | 不注册 `SearchService`；适用于未配置搜索后端的消费者 |
-| 禁用 | `enabled=false` | 不加载任何 Bean |
+| SQL LIKE | `backend=sql` (default) + MyBatis-Plus `BaseMapper` | QueryWrapper LIKE query; startup fails if the dependency or Mapper is missing |
+| SQL FULLTEXT | `backend=sql` + MySQL | Automatic `MATCH...AGAINST` (requires a FULLTEXT index) |
+| Meilisearch | `backend=meilisearch` + SDK on the classpath | Full-text search + highlighting |
+| Disabled | `backend=disabled` | No `SearchService` registered; for consumers with no search backend configured |
+| Disabled | `enabled=false` | No beans loaded |
 
-详细用法参见 [SEARCH_GUIDE.md](guides/SEARCH_GUIDE.md)。
+For detailed usage see [SEARCH_GUIDE.md](guides/SEARCH_GUIDE.md).
 
 ---
 
-## 代码生成
+## Code Generation
 
-### CLI 方式 (Maven Plugin)
+### CLI (Maven plugin)
 
 ```bash
 # 单表代码生成
@@ -1108,27 +1104,27 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
   -Dinit.databaseType=mysql
 ```
 
-### Studio 方式 (可视化)
+### Studio (visual)
 
-访问 `http://localhost:8082/fastddd-studio`，提供:
-- **项目初始化**: 可视化选择模块、数据库类型
-- **表设计**: 在线设计表结构 + DDL 执行
-- **代码生成**: 选表生成，支持贫血/充血两种模型
-- **AI 设计**: 粘贴 PRD 自动生成表结构设计
-- **多端项目生成**: 多模块 Maven 项目 + 安全组件 + Docker 部署配置
+Visit `http://localhost:8082/fastddd-studio`, which provides:
+- **Project initialization**: visually select modules and database type
+- **Table design**: design table structures online + execute DDL
+- **Code generation**: pick tables to generate; supports both the anemic and rich models
+- **AI design**: paste a PRD to auto-generate a table design
+- **Multi-app project generation**: multi-module Maven project + security components + Docker deployment configuration
 
-### 生成模型选择
+### Generated model selection
 
-| 场景 | 模型 | 生成文件数 | 适用 |
+| Scenario | Model | Files generated | Fits |
 |------|------|-----------|------|
-| 简单 CRUD 表 | ANEMIC | 5 个 (Entity/Mapper/Service/ServiceImpl/Controller) | 配置表、字典表 |
-| 核心业务实体 | RICH | 11+ 个 (AggregateRoot/PO/Repository/CQRS/Event) | 订单、用户、商品 |
+| Simple CRUD tables | ANEMIC | 5 files (Entity/Mapper/Service/ServiceImpl/Controller) | Configuration and dictionary tables |
+| Core business entities | RICH | 11+ files (AggregateRoot/PO/Repository/CQRS/Event) | Orders, users, products |
 
 ---
 
-## 包结构规范
+## Package Structure Conventions
 
-### 贫血模型
+### Anemic model
 ```
 com.example.{module}
 ├── entity/          # extends BasePO<ID>
@@ -1138,7 +1134,7 @@ com.example.{module}
 └── controller/      # extends BaseAdminCrudController<S, T, ID> 或 BaseReadOnlyController<S, T, ID>
 ```
 
-### 充血模型
+### Rich model
 ```
 com.example.{aggregate}
 ├── domain/
@@ -1165,25 +1161,25 @@ com.example.{aggregate}
 
 ---
 
-## 数据库规范
+## Database Conventions
 
-### 表命名
-- `snake_case`，可选 `t_` 或 `sys_` 前缀
-- 示例: `user_info`, `order_detail`, `sys_config`
+### Table naming
+- `snake_case`, with an optional `t_` or `sys_` prefix
+- Examples: `user_info`, `order_detail`, `sys_config`
 
-### 标准字段（框架自动填充）
+### Standard fields (auto-filled by the framework)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `id` | BIGINT AUTO_INCREMENT | 主键 |
-| `create_time` | DATETIME | 创建时间（自动填充） |
-| `update_time` | DATETIME | 更新时间（自动填充） |
-| `create_user` | VARCHAR(64) | 创建人（自动填充） |
-| `update_user` | VARCHAR(64) | 更新人（自动填充） |
-| `version` | INT DEFAULT 0 | 乐观锁版本号（**可选**，仅 VersionedPO 子类需要） |
-| `deleted` | TINYINT DEFAULT 0 | 逻辑删除标志 |
+| `id` | BIGINT AUTO_INCREMENT | Primary key |
+| `create_time` | DATETIME | Creation time (auto-filled) |
+| `update_time` | DATETIME | Update time (auto-filled) |
+| `create_user` | VARCHAR(64) | Created by (auto-filled) |
+| `update_user` | VARCHAR(64) | Updated by (auto-filled) |
+| `version` | INT DEFAULT 0 | Optimistic lock version (**optional**; only needed by VersionedPO subclasses) |
+| `deleted` | TINYINT DEFAULT 0 | Logical delete flag |
 
-### MyBatis Plus 配置
+### MyBatis Plus configuration
 ```yaml
 mybatis-plus:
   configuration:
@@ -1197,44 +1193,44 @@ mybatis-plus:
       logic-not-delete-value: 0
 ```
 
-> `BasePO<ID>` 的 `id` 是强类型契约；例如 BIGINT 使用 `BasePO<Long>`。框架不再注册全局 `SerializableTypeHandler`，避免弱类型主键掩盖调用错误。
+> The `id` of `BasePO<ID>` is a strongly typed contract; for example, BIGINT uses `BasePO<Long>`. The framework no longer registers a global `SerializableTypeHandler`, so weakly typed primary keys cannot mask call errors.
 
 ---
 
-## 配置属性汇总
+## Configuration Property Summary
 
-| 前缀 | 模块 | 说明 |
+| Prefix | Module | Description |
 |------|------|------|
-| `fastddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
-| `fastddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
-| `fastddd.security.http` | security | HTTP 安全 (permit-all-paths) |
-| `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
-| `fastddd.search` | search | 全文搜索 (backend: sql/meilisearch, SQL 全文策略, Meilisearch 连接配置, 按索引定制) |
-| `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String)。⚠️ **默认关**：`FastDddJacksonAutoConfiguration` 类级 `@ConditionalOnProperty(enabled, matchIfMissing=false)`，须 `fastddd.jackson.enabled=true` 才装配，否则 Long→String / 日期格式均不生效 |
-| `fastddd.web.response-wrapper` | web | ApiResponse 自动包装。⚠️ **默认关**：须 `fastddd.web.response-wrapper.enabled=true`，否则裸返回 DTO 的 Controller 漏 `{code,data}` 外壳（注解 `@EnableApiResponseWrapper` 已 `@Deprecated` 纯标记，不再装配） |
-| `fastddd.web.knife4j` | web | Knife4j/Swagger 文档 |
-| `fastddd.monitor.sql` | monitor | SQL 监控 (慢查询阈值, Prometheus) |
-| `fastddd.ai` | ai | AI 模块开关 |
-| `fastddd.analyzer` | analyzer | 智能表分析 (策略, 权重) |
+| `fastddd.security.jwt` | security | JWT configuration (secret, expiration, channel) |
+| `fastddd.security.cors` | security | CORS configuration (origins, methods, headers) |
+| `fastddd.security.http` | security | HTTP security (permit-all-paths) |
+| `fastddd.cache` | cache | Two-level cache (L1 Caffeine + L2 Redis, per-cache configuration) |
+| `fastddd.search` | search | Full-text search (backend: sql/meilisearch, SQL full-text strategy, Meilisearch connection settings, per-index customization) |
+| `fastddd.jackson` | web | JSON serialization (date format, Long→String). ⚠️ **Off by default**: `FastDddJacksonAutoConfiguration` is class-level `@ConditionalOnProperty(enabled, matchIfMissing=false)`; it assembles only with `fastddd.jackson.enabled=true`, otherwise neither Long→String nor the date format takes effect |
+| `fastddd.web.response-wrapper` | web | Automatic ApiResponse wrapping. ⚠️ **Off by default**: requires `fastddd.web.response-wrapper.enabled=true`; otherwise Controllers that return raw DTOs miss the `{code,data}` envelope (the `@EnableApiResponseWrapper` annotation is `@Deprecated` as a pure marker and no longer assembles anything) |
+| `fastddd.web.knife4j` | web | Knife4j/Swagger documentation |
+| `fastddd.monitor.sql` | monitor | SQL monitoring (slow-query threshold, Prometheus) |
+| `fastddd.ai` | ai | AI module switch |
+| `fastddd.analyzer` | analyzer | Smart table analysis (strategies, weights) |
 
-**Duration 字段**: 所有 `Duration` 类型配置必须带单位后缀 (`s`/`m`/`h`/`d`)，如 `8h`, `3600s`, `7d`。
+**Duration fields**: every `Duration`-type configuration property must carry a unit suffix (`s`/`m`/`h`/`d`), e.g. `8h`, `3600s`, `7d`.
 
 ---
 
-## 异常处理
+## Exception Handling
 
-框架自动注册 `GlobalExceptionHandler`，统一处理:
+The framework automatically registers a `GlobalExceptionHandler` that handles everything uniformly:
 
-| 异常 | HTTP 状态码 | 说明 |
+| Exception | HTTP status | Description |
 |------|-----------|------|
-| `BusinessException` | 400 | 业务异常，客户端可处理 |
-| `SystemException` | 500 | 系统异常，需排查 |
-| `CommandValidationException` | 400 | 命令校验失败（含字段级错误详情） |
-| `MethodArgumentNotValidException` | 400 | 参数校验失败 |
-| `AuthenticationException` | 401 | 认证失败 |
-| 其他 `Exception` | 500 | 兜底处理 |
+| `BusinessException` | 400 | Business exception; the client can handle it |
+| `SystemException` | 500 | System exception; needs investigation |
+| `CommandValidationException` | 400 | Command validation failure (with field-level error details) |
+| `MethodArgumentNotValidException` | 400 | Parameter validation failure |
+| `AuthenticationException` | 401 | Authentication failure |
+| Other `Exception` | 500 | Catch-all handling |
 
-业务中抛出异常:
+Throwing exceptions in business code:
 ```java
 Assert.notNull(user, "用户不存在");                    // 自动抛 BusinessException
 throw new BusinessException("余额不足");                // errorCode=400
@@ -1244,13 +1240,13 @@ throw new SystemException("支付网关超时");               // code=500
 // 下游获取错误码: exception.getErrorCode() / exception.getErrorMessage()
 ```
 
-> **提示**: `BusinessException` 已内置 `errorCode`（Integer）和 `errorMessage`（String）两个字段。推荐为不同业务领域规划错误码范围（如 1xxx 订单、2xxx 支付、3xxx 交付），下游通过 `getErrorCode()` 做结构化处理。详见 [SPI 参考手册](./guides/SPI_REFERENCE.md) 第 3 节。
+> **Tip**: `BusinessException` already carries two built-in fields, `errorCode` (Integer) and `errorMessage` (String). It is recommended to plan error-code ranges per business domain (e.g. 1xxx orders, 2xxx payments, 3xxx delivery) so downstream code can handle them structurally via `getErrorCode()`. See Section 3 of the [SPI Reference](./guides/SPI_REFERENCE.md).
 
 ---
 
-## 多端项目生成
+## Multi-App Project Generation
 
-Studio 支持一键生成多端 Maven 多模块项目:
+Studio supports one-click generation of a multi-app Maven multi-module project:
 
 ```
 generated-project/
@@ -1267,20 +1263,20 @@ generated-project/
 └── docker/nginx/default.conf  # 反向代理配置
 ```
 
-每个子应用自动生成:
-- Security SPI 实现 (`AppIdentityService`，多端模板会实现 `CodeLoginIdentityService`)
-- 短信/邮箱验证码策略由 `fast-ddd-security-starter` 内置，业务项目按需实现 `VerificationCodeSender`
-- 按需生成微信认证策略 (`WechatMiniAuthStrategy`)
-- 独立 JWT Secret + Channel 隔离
-- Dockerfile + nginx 配置
+Each sub-application is automatically generated with:
+- A Security SPI implementation (`AppIdentityService`; the multi-app templates also implement `CodeLoginIdentityService`)
+- SMS/email verification-code strategies are built into `fast-ddd-security-starter`; business projects implement `VerificationCodeSender` as needed
+- A WeChat authentication strategy generated on demand (`WechatMiniAuthStrategy`)
+- An independent JWT secret + channel isolation
+- Dockerfile + nginx configuration
 
 ---
 
-## 国际化 i18n (fast-ddd-common)
+## Internationalization i18n (fast-ddd-common)
 
-框架内置国际化支持，所有 API 响应消息、错误提示均已 i18n 化。默认中文，支持英文切换。
+The framework has built-in internationalization; all API response messages and error hints are i18n-aware. Chinese is the default, and English can be switched to.
 
-### 基本用法
+### Basic usage
 
 ```java
 import com.gallop.fastddd.common.i18n.Messages;
@@ -1293,34 +1289,34 @@ String msg = Messages.get("web.crud.create.error", "主键冲突"); // → "创�
 String msg = Messages.get("web.crud.batch-create.detail", 5);  // → "成功创建 5 条记录"
 ```
 
-### Locale 切换
+### Locale switching
 
-框架自动配置 `LocaleResolver`，按以下优先级解析语言:
+The framework auto-configures a `LocaleResolver` that resolves the language with the following priorities:
 
-1. **URL 参数**: `?lang=en` → 英文, `?lang=zh` → 中文
-2. **Accept-Language Header**: 浏览器/客户端自动携带
-3. **默认**: `zh_CN` (简体中文)
+1. **URL parameter**: `?lang=en` → English, `?lang=zh` → Chinese
+2. **Accept-Language header**: carried automatically by browsers/clients
+3. **Default**: `zh_CN` (Simplified Chinese)
 
-示例: `GET /api/users/1?lang=en` → 所有响应消息变为英文
+Example: `GET /api/users/1?lang=en` → all response messages become English
 
-### 消息码约定
+### Message code conventions
 
-格式: `{module}.{category}.{operation}.{status}`
+Format: `{module}.{category}.{operation}.{status}`
 
-| 前缀 | 范围 | 示例 |
+| Prefix | Scope | Example |
 |------|------|------|
-| `common.*` | 通用 | `common.success` |
-| `web.crud.*` | BaseController 端点 | `web.crud.create.success`, `web.crud.query.not-found` |
+| `common.*` | General | `common.success` |
+| `web.crud.*` | BaseController endpoints | `web.crud.create.success`, `web.crud.query.not-found` |
 | `web.command.*` | CommandController | `web.command.success`, `web.command.failed` |
 | `web.query.*` | QueryController | `web.query.success`, `web.query.not-found` |
 | `web.error.*` | GlobalExceptionHandler | `web.error.param-validation`, `web.error.internal` |
-| `web.doc.*` | FastDoc 文档生成 | `web.doc.generate.failed` |
-| `security.auth.*` | 认证端点 | `security.auth.login.success`, `security.auth.user-not-found` |
-| `security.access.*` | 访问控制 | `security.access.denied`, `security.access.unauthorized` |
+| `web.doc.*` | FastDoc document generation | `web.doc.generate.failed` |
+| `security.auth.*` | Authentication endpoints | `security.auth.login.success`, `security.auth.user-not-found` |
+| `security.access.*` | Access control | `security.access.denied`, `security.access.unauthorized` |
 
-### 业务项目自定义消息
+### Custom messages in the business project
 
-在业务项目的 `src/main/resources/` 下创建 `messages.properties` (中文) 和 `messages_en.properties` (英文)，同名 key 会覆盖框架默认值:
+Create `messages.properties` (Chinese) and `messages_en.properties` (English) under the business project's `src/main/resources/`; keys with the same name override the framework defaults:
 
 ```properties
 # messages.properties — 覆盖框架默认消息
@@ -1339,55 +1335,55 @@ biz.order.paid=Order has been paid
 biz.order.cancelled=Order has been cancelled
 ```
 
-业务代码中使用:
+Use in business code:
 
 ```java
 throw new BusinessException(Messages.get("biz.order.cancelled"));
 return ApiResponse.success(data, Messages.get("biz.order.paid"));
 ```
 
-### 自动配置
+### Auto-configuration
 
-框架通过 `I18nAutoConfiguration` 自动注册:
-- `MessageSource` — 加载 `messages` 资源包 (`@ConditionalOnMissingBean`，可覆盖)
-- `I18nWebConfiguration` — `LocaleResolver` + `LocaleChangeInterceptor` (fast-ddd-web 模块)
+The framework auto-registers the following via `I18nAutoConfiguration`:
+- `MessageSource` — loads the `messages` resource bundle (`@ConditionalOnMissingBean`, overridable)
+- `I18nWebConfiguration` — `LocaleResolver` + `LocaleChangeInterceptor` (fast-ddd-web module)
 
 ---
 
-## 常见踩坑点
+## Common Pitfalls
 
-| 场景 | 正确做法 | 错误做法 |
+| Scenario | Correct practice | Wrong practice |
 |------|---------|---------|
-| 继承 BasePO | `@Getter @Setter`，不声明 id | `@Data` + 重复声明 `private Long id` |
-| 继承 AggregateRoot | `@Getter @Setter` + 显式实现 getId/setId | `@Data`（不处理父类抽象方法） |
-| BasePO getId 返回值 | 使用 `Long id = entity.getId()`（当实体为 `BasePO<Long>`） | `(Long) entity.getId()` 的无意义强转或原始泛型 |
-| DTO 跨包字段 | `private` + `@Data` | 默认包级访问（跨包不可见） |
-| Duration 配置 | `8h`, `3600s`, `7d` | 纯数字 `28800`（缺少单位） |
-| CORS allowed-methods | YAML list 格式 | 逗号分隔字符串 |
-| BasePO 子类 | 不重复声明 id/createTime/updateTime/deleted | 重复声明导致类型冲突 |
-| 乐观锁 | 需要时继承 VersionedPO / VersionedEntity | 所有实体都加 version（表中无 version 列会报错） |
-| Security SPI 实现 | 用 `@Service` 即可，框架自动检测 | 加 `@Import` 或 `@Component` |
-| SecurityUserDetails | builder 必须设 userId（写入 JWT） | 不设 userId → /userinfo 无法直接查询 |
-| permit-all-paths | 精确放行 `/api/auth/login`、`/api/auth/code/send` | 写 `/api/auth/**`（userinfo 被跳过认证） |
-| @MapperScan | 启动类必须加 | 缺失 → BaseRepository 不注册 |
-| `response-wrapper.enabled` | 默认关，须显式 `=true` opt-in | 依赖全局包装的 Controller 裸返回 DTO，前端拦截器透传 → 业务字段 undefined（`@EnableApiResponseWrapper` 已 `@Deprecated` 纯标记） |
-| `jackson.enabled` | 默认关，须显式 `=true` 让 Long→String / 日期格式装配 | 不开则 19 位雪花 id 按 JSON number 序列化，前端 `JSON.parse` 丢精度（如「合同/任务不存在」） |
-| BasePO 主键泛型 | PO 声明 `extends BasePO<Long>`，则 `getId()` 直接返回 `Long` | 持有裸 `BasePO` 引用才需 `(Long) po.getId()`；泛型已参数化时强转是冗余（无害但无意义） |
-| *ByField 字段名 | 传 Java 驼峰 `"createTime"` | 传数据库列名 `"create_time"`（也兼容，但不推荐） |
-| i18n 业务消息 | 在业务项目 resources 下放 messages.properties | 修改框架 JAR 内的 properties |
+| Extending BasePO | `@Getter @Setter`, do not declare id | `@Data` + re-declaring `private Long id` |
+| Extending AggregateRoot | `@Getter @Setter` + explicitly implement getId/setId | `@Data` (does not handle the parent's abstract methods) |
+| BasePO getId return value | Use `Long id = entity.getId()` (when the entity is `BasePO<Long>`) | Meaningless casts like `(Long) entity.getId()` or raw generics |
+| DTO cross-package fields | `private` + `@Data` | Default package-private access (invisible across packages) |
+| Duration configuration | `8h`, `3600s`, `7d` | A bare number `28800` (missing unit) |
+| CORS allowed-methods | YAML list format | A comma-separated string |
+| BasePO subclasses | Do not re-declare id/createTime/updateTime/deleted | Re-declaring causes type conflicts |
+| Optimistic lock | Extend VersionedPO / VersionedEntity only when needed | Adding version to every entity (errors when the table has no version column) |
+| Security SPI implementation | Just use `@Service`; the framework auto-detects it | Adding `@Import` or `@Component` |
+| SecurityUserDetails | The builder must set userId (written into the JWT) | Not setting userId → /userinfo cannot query directly |
+| permit-all-paths | Permit exact paths `/api/auth/login`, `/api/auth/code/send` | Writing `/api/auth/**` (userinfo skips authentication) |
+| @MapperScan | Must be present on the application class | Missing → BaseRepository is not registered |
+| `response-wrapper.enabled` | Off by default; must explicitly opt in with `=true` | Controllers relying on global wrapping return raw DTOs, the frontend interceptor passes them through → business fields undefined (`@EnableApiResponseWrapper` is `@Deprecated` as a pure marker) |
+| `jackson.enabled` | Off by default; must explicitly set `=true` for Long→String / date format to assemble | Left off, 19-digit snowflake ids serialize as JSON numbers and the frontend `JSON.parse` loses precision (e.g. "contract/task not found") |
+| BasePO primary-key generic | If the PO declares `extends BasePO<Long>`, `getId()` returns `Long` directly | `(Long) po.getId()` is needed only when holding a raw `BasePO` reference; once the generic is parameterized the cast is redundant (harmless but pointless) |
+| *ByField field names | Pass the Java camelCase `"createTime"` | Passing the database column name `"create_time"` (also accepted, but not recommended) |
+| i18n business messages | Put messages.properties under the business project's resources | Editing the properties inside the framework JAR |
 
 ---
 
-## 升级后默认关的配置开关（静默降级类）
+## Configuration Switches Off by Default After Upgrading (silent degradation)
 
-FastDDD 1.0 将部分原「开箱即用」的机制改为**显式 opt-in**，属性默认 `false`，且**不报错、只静默降级**——后端日志干净，问题全在前端才暴露。升级或新环境部署后若页面异常却无后端报错，优先排查这两项：
+FastDDD 1.0 changed some formerly "works out of the box" mechanisms to **explicit opt-in**: the properties default to `false` and **do not error — they just degrade silently** — the backend logs stay clean while problems only surface on the frontend. If pages misbehave after an upgrade or a fresh deployment with no backend error, check these two first:
 
-| 配置 | 默认 | 漏配症状 | 排查 |
+| Configuration | Default | Symptom when missing | How to check |
 |------|------|---------|------|
-| `fastddd.web.response-wrapper.enabled` | false | Controller 裸返回 DTO（无 `{code,data}` 外壳），前端拦截器透传、业务字段 undefined | `curl` 看响应根有无 `code/data` 外壳 |
-| `fastddd.jackson.enabled` | false | Long→String 未注册，19 位雪花 id 前端 `JSON.parse` 丢精度（如「合同/任务不存在」）；日期格式不生效 | Python `repr(id)` 看带不带引号（字符串有引号、number 无） |
+| `fastddd.web.response-wrapper.enabled` | false | Controllers return raw DTOs (no `{code,data}` envelope), the frontend interceptor passes them through, business fields are undefined | Use `curl` to check whether the response root has the `code/data` envelope |
+| `fastddd.jackson.enabled` | false | Long→String not registered; 19-digit snowflake ids lose precision in the frontend `JSON.parse` (e.g. "contract/task not found"); date format not applied | Check with Python `repr(id)` whether it is quoted (strings are quoted, numbers are not) |
 
-两者均建议在基线配置（`application.yml` / 模板 `application.yml.example`）显式开启：
+Both are best enabled explicitly in the baseline configuration (`application.yml` / the `application.yml.example` template):
 
 ```yaml
 fastddd:
@@ -1400,26 +1396,26 @@ fastddd:
     date-time-format: "yyyy-MM-dd'T'HH:mm:ss"   # 显式钉回 ISO，避免框架默认空格分隔让前端 new Date 解析失败
 ```
 
-> **识别规律**：升级 changelog 里**凡 `@Deprecated` 注解**（如 `@EnableApiResponseWrapper`），多半意味着原机制改成了属性开关——去源码 grep 该注解类级/方法级新的 `@ConditionalOnProperty`，确认默认值与漏配后果。
+> **How to spot the pattern**: in upgrade changelogs, **any `@Deprecated` annotation** (e.g. `@EnableApiResponseWrapper`) usually means the original mechanism became a property switch — grep the source for the annotation's new class-level/method-level `@ConditionalOnProperty` to confirm the default value and the consequence of leaving it unset.
 >
-> **防御**：本地 `application.yml` 常被 `.gitignore` 忽略，根因配置务必同步进 tracked 的 `application.yml.example` 模板，否则新部署静默回归。
+> **Defense**: local `application.yml` files are often ignored by `.gitignore`; always sync root-cause configuration into the tracked `application.yml.example` template, otherwise new deployments silently regress.
 
 ---
 
-## 常用工具类
+## Common Utility Classes
 
-| 类 | 用途 |
+| Class | Purpose |
 |----|------|
-| `Assert` | 参数校验，失败抛 `BusinessException` |
-| `Messages` | i18n 国际化消息获取 (`Messages.get(code, args...)`) |
-| `CacheService` | 两级缓存编程 API (get/put/evict/getOrLoad/multiGet) |
-| `JsonUtils` | JSON 序列化/反序列化 |
-| `NamingUtils` | 命名转换 (camelCase ↔ snakeCase ↔ PascalCase) |
-| `Result<T>` | 通用结果包装（**已废弃**，请使用 `ApiResponse<T>`） |
-| `ApiResponse<T>` | 统一响应包装（推荐），位于 `com.gallop.fastddd.web.response`，经 `fastddd.web.response-wrapper.enabled=true` opt-in 由 `SmartResponseAdvice` 自动包装 Controller 返回值 |
-| `PageResult<T>` | 分页结果包装 |
-| `SearchService` | 全文搜索 SPI (SQL/Meilisearch 双后端) |
-| `SearchQuery` | 搜索查询构建器 (关键词+字段+过滤+排序+分页) |
-| `SearchResult<T>` | 搜索结果 (分页+高亮+聚合+后端标识) |
-| `DomainModelType` | 模型类型枚举 (ANEMIC/RICH) |
-| `CurrentUserProvider` | 当前用户 ID 提供者 SPI（默认返回 "system"） |
+| `Assert` | Parameter validation; throws `BusinessException` on failure |
+| `Messages` | i18n message lookup (`Messages.get(code, args...)`) |
+| `CacheService` | Programmatic two-level cache API (get/put/evict/getOrLoad/multiGet) |
+| `JsonUtils` | JSON serialization/deserialization |
+| `NamingUtils` | Name conversion (camelCase ↔ snakeCase ↔ PascalCase) |
+| `Result<T>` | Generic result wrapper (**deprecated**; use `ApiResponse<T>`) |
+| `ApiResponse<T>` | Unified response wrapper (recommended), located at `com.gallop.fastddd.web.response`; with `fastddd.web.response-wrapper.enabled=true` opted in, `SmartResponseAdvice` wraps Controller return values automatically |
+| `PageResult<T>` | Pagination result wrapper |
+| `SearchService` | Full-text search SPI (dual SQL/Meilisearch backends) |
+| `SearchQuery` | Search query builder (keyword + fields + filters + sorting + pagination) |
+| `SearchResult<T>` | Search results (pagination + highlighting + aggregations + backend identifier) |
+| `DomainModelType` | Model type enum (ANEMIC/RICH) |
+| `CurrentUserProvider` | Current user ID provider SPI (returns "system" by default) |

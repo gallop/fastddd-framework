@@ -1,29 +1,31 @@
-# FastDDD Framework Community 文档索引
+# FastDDD Framework Community Documentation Index
 
-本目录只以 Framework Community 的运行时、公共 API、升级和发布证据为现行事实源。Tooling、Studio Pro 与跨产品商业规划不属于本仓公共文档事实。
+**English** | [简体中文](README.zh-CN.md)
 
-## 现行文档
+This directory is the single source of truth for the Framework Community's runtime, public API, upgrade, and release evidence. Tooling, Studio Pro, and cross-product commercial planning are not part of this repository's public documentation.
 
-| 目标 | 入口 |
+## Current Documentation
+
+| Purpose | Entry |
 |---|---|
-| 快速接入与模块选择 | [`guides/QUICK_START.md`](guides/QUICK_START.md)、[`guides/USAGE_GUIDE.md`](guides/USAGE_GUIDE.md) |
-| 公共 API 与 SPI | [`api/API_REFERENCE.md`](api/API_REFERENCE.md)、[`guides/SPI_REFERENCE.md`](guides/SPI_REFERENCE.md) |
-| DDD 架构 | [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md)、[`architecture/DDD_LAYERING_BEST_PRACTICES.md`](architecture/DDD_LAYERING_BEST_PRACTICES.md) |
-| 安全、缓存、搜索与事件 | [`security/INTEGRATION_GUIDE.md`](security/INTEGRATION_GUIDE.md)、[`security/AUDIT_LOG_TABLE_MIGRATION.md`](security/AUDIT_LOG_TABLE_MIGRATION.md)、[`guides/CACHE_GUIDE.md`](guides/CACHE_GUIDE.md)、[`guides/SEARCH_GUIDE.md`](guides/SEARCH_GUIDE.md)、[`devops/OUTBOX_OPS_GUIDE.md`](devops/OUTBOX_OPS_GUIDE.md) |
-| 兼容与升级 | [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md)、[`UPGRADE_GUIDE.md`](UPGRADE_GUIDE.md)、[`ID_MIGRATION_GUIDE.md`](ID_MIGRATION_GUIDE.md) |
-| 发布门禁 | 发布门禁与验证记录（RELEASE_CHECKLIST、TECHNICAL_FREEZE_CHECKLIST、OSS_001、QA_001/002、RC1_RELEASE_EVIDENCE）已于 2026-09-12 移至仓外私有档案 `fastddd-docs-internal`，不随开源仓发布 |
-| Agent Access（Experimental） | [`../agent-access/README.md`](../agent-access/README.md) |
-| Community/Studio 产品边界 | [`PRODUCT_BOUNDARIES.md`](PRODUCT_BOUNDARIES.md) |
+| Quick start & module selection | [`guides/QUICK_START.md`](guides/QUICK_START.md), [`guides/USAGE_GUIDE.md`](guides/USAGE_GUIDE.md) |
+| Public API & SPI | [`api/API_REFERENCE.md`](api/API_REFERENCE.md), [`guides/SPI_REFERENCE.md`](guides/SPI_REFERENCE.md) |
+| DDD architecture | [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md), [`architecture/DDD_LAYERING_BEST_PRACTICES.md`](architecture/DDD_LAYERING_BEST_PRACTICES.md) |
+| Security, caching, search & events | [`security/INTEGRATION_GUIDE.md`](security/INTEGRATION_GUIDE.md), [`security/AUDIT_LOG_TABLE_MIGRATION.md`](security/AUDIT_LOG_TABLE_MIGRATION.md), [`guides/CACHE_GUIDE.md`](guides/CACHE_GUIDE.md), [`guides/SEARCH_GUIDE.md`](guides/SEARCH_GUIDE.md), [`devops/OUTBOX_OPS_GUIDE.md`](devops/OUTBOX_OPS_GUIDE.md) |
+| Compatibility & upgrades | [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md), [`UPGRADE_GUIDE.md`](UPGRADE_GUIDE.md), [`ID_MIGRATION_GUIDE.md`](ID_MIGRATION_GUIDE.md) |
+| Release gates | Release-gate and verification records (RELEASE_CHECKLIST, TECHNICAL_FREEZE_CHECKLIST, OSS_001, QA_001/002, RC1_RELEASE_EVIDENCE) were moved to the private out-of-repository archive `fastddd-docs-internal` on 2026-09-12 and are not published with the open-source repository |
+| Agent Access (Experimental) | [`../agent-access/README.md`](../agent-access/README.md) |
+| Community/Studio product boundaries | [`PRODUCT_BOUNDARIES.md`](PRODUCT_BOUNDARIES.md) |
 
-## 归属边界
+## Ownership Boundaries
 
-- Tooling API、代码生成、模板、FastDoc、Maven 插件和脚手架文档以 `fastddd-tooling` 为事实源；
-- Studio 的 AI 设计、可视化建表、统一生成器、部署与商业规划以私有 `fastddd-studio-pro` 为事实源；
-- Studio AI/统一生成器/部署材料、完整商业 ADR、消费者私有清单和拆仓前综合整改副本已在 ECO-004 从本仓移除，可从 Git 历史或私有 Studio 事实源追溯；
-- 新增文档必须明确属于 Framework Community，否则不得进入本仓。
+- Tooling API, code generation, templates, FastDoc, Maven plugin, and scaffolding documentation take the `fastddd-tooling` repository as their source of truth;
+- Studio's AI design, visual table design, unified generator, deployment, and commercial planning take the private `fastddd-studio-pro` repository as their source of truth;
+- Studio AI / unified-generator / deployment material, full commercial ADRs, consumer-private checklists, and pre-split renovation copies were removed from this repository in ECO-004 and remain traceable through Git history or the private Studio source of truth;
+- New documents must clearly belong to the Framework Community; otherwise they must not enter this repository.
 
-## 历史材料规则
+## Historical Material Policy
 
-拆仓前审计、整改计划和已经被 ADR/执行记录替代的材料属于 `historical / superseded`。历史材料可以用于追溯背景，不能覆盖现行 POM、公共 API、ADR 和发布检查清单。
+Pre-split audits, renovation plans, and material already superseded by ADRs or execution records count as `historical / superseded`. Historical material may be used to trace background, but must not override the current POMs, public API, ADRs, or release checklists.
 
-> Canonical owner：FastDDD Framework Community。最后更新：2026-09-12（发布门禁材料移至仓外私有档案）。
+> Canonical owner: FastDDD Framework Community. Last updated: 2026-09-12 (release-gate material moved to a private out-of-repository archive).

@@ -1,74 +1,76 @@
-# 业务系统升级入口（供 Claude Code 使用）
+# Business-System Upgrade Entry Point (for Claude Code)
 
-> **用途**：这是升级既有业务系统到 FastDDD 1.0 的唯一入口。不要先遍历整个 `docs/`，也不要把 Framework 的整改记录当作业务系统的执行手册。
+**English** | [简体中文](README.zh-CN.md)
+
+> **Purpose**: This is the single entry point for upgrading an existing business system to FastDDD 1.0. Do not traverse the whole `docs/` directory first, and do not treat the Framework's renovation records as an execution manual for business systems.
 >
-> **当前正式版本**：`io.github.gallop.fastddd:fastddd-bom:1.0.0`（JDK 21、Spring Boot 3.5.16，内部发布）。
-> 自 1.0.0 起 Maven groupId 由 `com.gallop.fastddd` 迁移为 `io.github.gallop.fastddd`（Java 包名不变），
-> 升级必读 [UPGRADE_GUIDE 第 3 节坐标迁移](../UPGRADE_GUIDE.md#3-fastddd-maven-坐标迁移100-ga)
-> 与防混装门禁；不得把业务系统改回 `1.0.0-jdk21-SNAPSHOT` 或旧组坐标。
+> **Current official version**: `io.github.gallop.fastddd:fastddd-bom:1.0.0` (JDK 21, Spring Boot 3.5.16, internal release).
+> From 1.0.0 on, the Maven groupId migrated from `com.gallop.fastddd` to `io.github.gallop.fastddd` (Java package names unchanged);
+> upgrades must read [UPGRADE_GUIDE §3 coordinate migration](../UPGRADE_GUIDE.md#3-fastddd-maven-coordinate-migration-100-ga)
+> and the anti-mixing gates. Business systems must not be reverted to `1.0.0-jdk21-SNAPSHOT` or the old group coordinates.
 
-## 先读这 3 份文档
+## Read These 3 Documents First
 
-按下列顺序阅读即可开始一个普通业务系统的升级：
+Read in the following order to start upgrading an ordinary business system:
 
-1. [升级指南](../UPGRADE_GUIDE.md)：POM、JDK、配置、构建和启动的标准操作。
-2. [兼容矩阵](../COMPATIBILITY_MATRIX.md)：确认 JDK、Boot、Framework 的唯一版本组合与 BOM 边界。
-3. 本文：下面的执行约束、验收门禁与 Claude Code 工作提示。
+1. [Upgrade Guide](../UPGRADE_GUIDE.md): standard operations for POM, JDK, configuration, build, and startup.
+2. [Compatibility Matrix](../COMPATIBILITY_MATRIX.md): confirm the single supported combination of JDK, Boot, and Framework versions and the BOM boundary.
+3. This document: the execution constraints, acceptance gates, and Claude Code working hints below.
 
-**不要默认阅读**下列文档：
+Do **not** read the following by default:
 
-- Framework 自身拆仓前整改任务和具体业务试点记录已迁出 Community 现行文档，不是消费者升级手册。
-- `RC1_RELEASE_EVIDENCE.md`、`QA_*.md`、`OSS_*.md`：发布证据/审计记录，不是操作步骤（已于 2026-09-12 移至仓外私有档案）。
-- `FASTDDD_REFERENCE.md`：完整 API 参考；仅在代码确实需要查询某个 API 时按需检索。
+- The Framework's own pre-split renovation tasks and specific business-pilot records have been moved out of the Community's current documentation; they are not consumer upgrade manuals.
+- `RC1_RELEASE_EVIDENCE.md`, `QA_*.md`, `OSS_*.md`: release evidence / audit records, not operational steps (moved to a private out-of-repository archive on 2026-09-12).
+- `FASTDDD_REFERENCE.md`: the full API reference; consult it on demand only when code genuinely needs a specific API.
 
-## 按功能再读（不要无差别加载）
+## Read Further by Feature (Do Not Load Indiscriminately)
 
-| 业务系统使用的能力 | 追加阅读的文档 |
+| Capability used by the business system | Additional document to read |
 |---|---|
-| `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 编译报泛型/ID 问题 | [ID 迁移指南](../ID_MIGRATION_GUIDE.md)（内部迁移清单已移至仓外私有档案） |
-| Security、JWT、权限 SPI | [安全集成指南](../security/INTEGRATION_GUIDE.md) |
-| Redis/Caffeine 缓存 | [缓存指南](../guides/CACHE_GUIDE.md) |
-| 事务事件、Outbox、RocketMQ | [Outbox 运维指南](../devops/OUTBOX_OPS_GUIDE.md) |
-| CQRS | [CQRS 指南](../guides/CQRS_GUIDE.md) |
-| Elasticsearch/OpenSearch | [搜索指南](../guides/SEARCH_GUIDE.md) |
-| 多外部依赖、灰度/UAT、复杂系统 | 本指南 + 业务项目自己的私有灰度/UAT 方案 |
+| `BasePO`, `IService`, `BaseServiceImpl`, `BaseController` generic/ID compile errors | [ID Migration Guide](../ID_MIGRATION_GUIDE.md) (the internal migration checklist was moved to a private out-of-repository archive) |
+| Security, JWT, permission SPI | [Security Integration Guide](../security/INTEGRATION_GUIDE.md) |
+| Redis/Caffeine caching | [Cache Guide](../guides/CACHE_GUIDE.md) |
+| Transactional events, Outbox, RocketMQ | [Outbox Ops Guide](../devops/OUTBOX_OPS_GUIDE.md) |
+| CQRS | [CQRS Guide](../guides/CQRS_GUIDE.md) |
+| Elasticsearch/OpenSearch | [Search Guide](../guides/SEARCH_GUIDE.md) |
+| Many external dependencies, gray/UAT rollout, complex systems | This guide + the business project's own private gray/UAT plan |
 
-## Claude Code 执行约束
+## Claude Code Execution Constraints
 
-将以下内容连同目标业务系统路径交给 Claude Code。它应先在业务仓库建立独立分支，再执行升级；不得修改 Framework、Tooling 或 Studio 仓库来规避业务系统编译错误。
+Hand the following, together with the target business system's path, to Claude Code. It should first create an independent branch in the business repository before executing the upgrade; it must not modify the Framework, Tooling, or Studio repositories to dodge business-system compile errors.
 
 ```text
-请将当前业务系统升级到 FastDDD 1.0（内部正式版 1.0.0）。
+Please upgrade the current business system to FastDDD 1.0 (internal official release 1.0.0).
 
-必读文档（按顺序）：
+Required reading (in order):
 1. <fastddd-framework>/docs/upgrade/README.md
-2. <fastddd-framework>/docs/UPGRADE_GUIDE.md（第 3 节坐标迁移 + 防混装门禁必做）
+2. <fastddd-framework>/docs/UPGRADE_GUIDE.md (§3 coordinate migration + anti-mixing gates are mandatory)
 3. <fastddd-framework>/docs/COMPATIBILITY_MATRIX.md
 
-目标版本：JDK 21、Spring Boot 3.5.16、
-io.github.gallop.fastddd:fastddd-bom:1.0.0。
+Target versions: JDK 21, Spring Boot 3.5.16,
+io.github.gallop.fastddd:fastddd-bom:1.0.0.
 
-工作规则：
-- 在业务仓库创建独立升级分支；先记录当前分支/提交、模块结构、启动模块、数据库与外部依赖。
-- import fastddd-bom；所有 fast-ddd-* 依赖不写 version；不要引入 Tooling/Studio 运行时依赖，也不要覆盖 Spring、Jackson、MyBatis 等平台版本。
-- 坐标迁移按 UPGRADE_GUIDE 第 3.3 节最小模式：只替换 POM 的 groupId 与版本字面量，不改 Java 源码与 import（包名 com.gallop.fastddd.* 保留）。
-- 启用第 3.5 节 Maven Enforcer 防混装门禁，构建必须通过；不得退回 SNAPSHOT 或旧组坐标 com.gallop.fastddd。
-- 若该机器本地仓没有 1.0.0 制品，按 UPGRADE_GUIDE 第 3.4 节配置内部 release 仓（file://）解析；制品不在公开渠道。
-- 只在出现相关代码/配置时，按本入口“按功能再读”的表格加载补充文档。
-- 受跟踪配置只能保留环境变量占位符；真实密码、JWT、LLM Key、RSA 私钥等仅放入被忽略的本地 .env 或环境变量，严禁输出到日志、文档和提交。
-- 依次完成：clean compile、clean test/verify、依赖树审查、从实际启动模块启动、端口监听和 /actuator/health=UP、关键业务链路回归。
-- 真实数据库、缓存、MQ、搜索、LLM 等按项目实际启用能力验证；没有的能力标记“不适用”并说明依据，不伪造通过。
-- 完成后进行代码 review，修复问题，提交一条 Conventional Commit + 中文说明的提交；报告改动、命令、结果、未覆盖项、回滚点。
+Working rules:
+- Create a dedicated upgrade branch in the business repository; first record the current branch/commit, module structure, startup module, databases, and external dependencies.
+- Import fastddd-bom; write no version on fast-ddd-* dependencies; do not introduce Tooling/Studio runtime dependencies, and do not override platform versions such as Spring, Jackson, or MyBatis.
+- Coordinate migration follows the UPGRADE_GUIDE §3.3 minimal pattern: replace only the POM's groupId and version literals; do not touch Java sources or imports (package names com.gallop.fastddd.* are kept).
+- Enable the §3.5 Maven Enforcer anti-mixing gates; the build must pass; do not fall back to SNAPSHOT or the old group coordinates com.gallop.fastddd.
+- If this machine's local repository lacks the 1.0.0 artifacts, configure the internal release repository (file://) per UPGRADE_GUIDE §3.4 to resolve them; the artifacts are not on public channels.
+- Load supplementary documents only when related code/configuration appears, following the "read further by feature" table in this entry point.
+- Tracked configuration may keep only environment-variable placeholders; real passwords, JWT secrets, LLM keys, RSA private keys, etc. go only into ignored local .env files or environment variables — never into logs, documents, or commits.
+- Complete in sequence: clean compile; clean test/verify; dependency-tree review; startup from the real startup module; port listening and /actuator/health=UP; regression of key business chains.
+- Verify real databases, caches, MQ, search, LLM, etc. according to the capabilities the project actually enables; mark unenabled capabilities "not applicable" with justification — never fake a pass.
+- On completion, review the code, fix issues, and make one Conventional Commit with a Chinese-language message; report changes, commands, results, uncovered items, and the rollback point.
 ```
 
-## 最小完成定义
+## Minimal Definition of Done
 
-- [ ] JDK 21 与 Spring Boot 3.5.16 生效，BOM 解析为 `io.github.gallop.fastddd:*:1.0.0`，依赖树与最终包不存在两套 FastDDD 坐标（旧组 `com.gallop.fastddd` 0 命中，`fastddd-studio*` 除外），Enforcer 门禁通过。
-- [ ] 全量编译与默认测试通过；失败测试必须修复或明确标为外部环境前置，不能静默跳过。
-- [ ] 从真实启动模块加载被忽略的开发配置，`/actuator/health` 返回 `UP`。
-- [ ] 已回归系统实际启用的数据库、认证、缓存、事件/消息、搜索、第三方服务等关键路径。
-- [ ] 有升级前回滚点、升级提交和验证记录；无真实凭据进入 Git、日志或文档。
+- [ ] JDK 21 and Spring Boot 3.5.16 in effect; the BOM resolves to `io.github.gallop.fastddd:*:1.0.0`; the dependency tree and final packages contain no dual FastDDD coordinates (zero hits for the old group `com.gallop.fastddd`, except `fastddd-studio*`); Enforcer gates pass.
+- [ ] Full compilation and default tests pass; failing tests must be fixed or explicitly marked as external-environment prerequisites, never silently skipped.
+- [ ] Ignored development configuration is loaded from the real startup module; `/actuator/health` returns `UP`.
+- [ ] The key paths the system actually enables — databases, authentication, caching, events/messaging, search, third-party services — have been regression-tested.
+- [ ] A pre-upgrade rollback point, the upgrade commit, and verification records exist; no real credentials entered Git, logs, or documents.
 
-## 文档层级
+## Document Hierarchy
 
-`docs/` 保留现行设计、集成与升级文档；内部治理与演进过程文档已于 2026-09-12 移至仓外私有档案 `fastddd-docs-internal`（不随开源仓发布，可追溯）。新业务系统升级只从本目录进入。
+`docs/` keeps the current design, integration, and upgrade documentation; internal governance and evolution-process documents were moved to the private out-of-repository archive `fastddd-docs-internal` on 2026-09-12 (not published with the open-source repository, traceable). New business-system upgrades enter only through this directory.

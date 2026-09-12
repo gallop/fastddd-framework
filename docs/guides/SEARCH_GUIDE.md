@@ -1,8 +1,10 @@
-# FastDDD Search 模块使用指南
+# FastDDD Search Module Usage Guide
 
-> 轻量级全文搜索，SQL、Meilisearch 和 disabled 三种显式模式，5 分钟接入。
+**English** | [简体中文](SEARCH_GUIDE.zh-CN.md)
 
-## 1. 引入依赖
+> Lightweight full-text search with three explicit modes — SQL, Meilisearch, and disabled — up and running in 5 minutes.
+
+## 1. Add the Dependency
 
 ```xml
 <dependency>
@@ -12,23 +14,23 @@
 </dependency>
 ```
 
-**可选依赖**（运行时）：
-- SQL 后端：默认模式，必须包含 MyBatis Plus、至少一个 `BaseMapper` Bean；缺失时启动失败并提示修复方式
-- Meilisearch 后端：需额外引入 `fast-ddd-search`（已内置 meilisearch-java SDK，optional scope）+ 运行 Meilisearch 服务
+**Optional dependencies** (runtime):
+- SQL backend: the default mode; requires MyBatis Plus and at least one `BaseMapper` bean — if either is missing, startup fails with a message explaining how to fix it
+- Meilisearch backend: additionally requires `fast-ddd-search` (the meilisearch-java SDK is already bundled with optional scope) plus a running Meilisearch service
 
-## 2. SQL 后端启动
+## 2. SQL Backend Startup
 
-SQL 是默认值；使用它的应用必须已引入 `fast-ddd-crud` 并注册至少一个 MyBatis-Plus Mapper：
+SQL is the default; applications using it must already include `fast-ddd-crud` and register at least one MyBatis-Plus Mapper:
 
-| 配置项 | 默认值 | 说明 |
+| Property | Default | Description |
 |--------|--------|------|
-| `fastddd.search.enabled` | `true` | 模块总开关 |
-| `fastddd.search.backend` | `sql` | 搜索后端 |
-| `fastddd.search.sql.full-text-enabled` | `auto` | 全文检索策略 |
+| `fastddd.search.enabled` | `true` | Master switch for the module |
+| `fastddd.search.backend` | `sql` | Search backend |
+| `fastddd.search.sql.full-text-enabled` | `auto` | Full-text search strategy |
 
-## 3. 使用方式
+## 3. Usage
 
-### 3.1 注入 SearchService
+### 3.1 Inject SearchService
 
 ```java
 @Service
@@ -54,7 +56,7 @@ public class ProductSearchService {
 }
 ```
 
-### 3.2 多字段关键词搜索
+### 3.2 Multi-Field Keyword Search
 
 ```java
 SearchQuery query = SearchQuery.builder()
@@ -67,7 +69,7 @@ SearchQuery query = SearchQuery.builder()
 // Meilisearch: 全字段全文检索（自动分词）
 ```
 
-### 3.3 过滤条件
+### 3.3 Filter Conditions
 
 ```java
 // 精确匹配
@@ -89,7 +91,7 @@ SearchQuery.Filter.isNull()
 SearchQuery.Filter.notNull()
 ```
 
-### 3.4 排序
+### 3.4 Sorting
 
 ```java
 SearchQuery query = SearchQuery.builder()
@@ -100,7 +102,7 @@ SearchQuery query = SearchQuery.builder()
         .build();
 ```
 
-### 3.5 结果处理
+### 3.5 Result Handling
 
 ```java
 SearchResult<Product> result = searchService.search(query, Product.class);
@@ -119,9 +121,9 @@ PageResult<Product> pageResult = result.toPageResult();
 result.getBackendType();  // "sql" 或 "meilisearch"
 ```
 
-### 3.6 Controller 中使用
+### 3.6 Using It in a Controller
 
-搜索模块不提供 Controller，由业务层自行暴露端点（避免与 `BaseController.search()` 冲突）：
+The search module does not provide a Controller; expose endpoints yourself in the business layer (to avoid conflicting with `BaseController.search()`):
 
 ```java
 @RestController
@@ -142,11 +144,11 @@ public class ProductController extends BaseController<ProductService, Product> {
 }
 ```
 
-## 4. SQL 后端详解
+## 4. SQL Backend In Depth
 
-### 4.1 LIKE 模式（默认）
+### 4.1 LIKE Mode (Default)
 
-无 FULLTEXT 索引时自动使用 LIKE 子串匹配：
+Automatically falls back to LIKE substring matching when no FULLTEXT index exists:
 
 ```sql
 -- keyword="手机", fields=["name","description"]
@@ -156,9 +158,9 @@ ORDER BY create_time DESC
 LIMIT 10 OFFSET 0
 ```
 
-### 4.2 FULLTEXT 全文检索
+### 4.2 FULLTEXT Full-Text Search
 
-MySQL 环境下自动检测方言，使用 `MATCH...AGAINST`（需要 FULLTEXT 索引）：
+On MySQL the dialect is auto-detected and `MATCH...AGAINST` is used (requires a FULLTEXT index):
 
 ```sql
 -- keyword="手机", fields=["name","description"]
@@ -168,13 +170,13 @@ ORDER BY create_time DESC
 LIMIT 10 OFFSET 0
 ```
 
-**创建 FULLTEXT 索引**：
+**Creating a FULLTEXT index**:
 
 ```sql
 ALTER TABLE product ADD FULLTEXT INDEX ft_name_desc (name, description);
 ```
 
-**全文检索策略配置**：
+**Full-text search strategy configuration**:
 
 ```yaml
 fastddd:
@@ -183,15 +185,15 @@ fastddd:
       full-text-enabled: auto    # auto(检测方言) | always(强制) | never(禁用)
 ```
 
-| 值 | 行为 |
+| Value | Behavior |
 |---|------|
-| `auto` | MySQL 方言自动启用 FULLTEXT，其他数据库用 LIKE |
-| `always` | 强制 FULLTEXT，非 MySQL 数据库会降级到 LIKE 并打印警告 |
-| `never` | 始终使用 LIKE |
+| `auto` | FULLTEXT is enabled automatically for the MySQL dialect; other databases use LIKE |
+| `always` | Forces FULLTEXT; non-MySQL databases degrade to LIKE and print a warning |
+| `never` | Always uses LIKE |
 
-## 5. Meilisearch 后端
+## 5. Meilisearch Backend
 
-### 5.1 安装 Meilisearch
+### 5.1 Install Meilisearch
 
 ```bash
 # Docker 方式
@@ -205,7 +207,7 @@ curl -L https://install.meilisearch.com | sh
 ./meilisearch --master-key your-master-key
 ```
 
-### 5.2 切换配置
+### 5.2 Switching Configuration
 
 ```yaml
 fastddd:
@@ -219,9 +221,9 @@ fastddd:
       index-prefix: "fastddd_"
 ```
 
-**代码无需任何修改**，`SearchService` 自动切换到 Meilisearch 后端。
+**No code changes are needed** — `SearchService` automatically switches to the Meilisearch backend.
 
-### 5.3 索引管理
+### 5.3 Index Management
 
 ```java
 // 创建索引（配置 searchable/filterable/sortable 字段）
@@ -240,9 +242,9 @@ searchService.removeFromIndex("products", String.valueOf(productId));
 searchService.dropIndex("products");
 ```
 
-SQL 后端下 `index()`/`removeFromIndex()` 等方法为 no-op，无需条件判断。
+Under the SQL backend, methods such as `index()`/`removeFromIndex()` are no-ops, so no conditional checks are needed.
 
-### 5.4 按索引定制配置
+### 5.4 Per-Index Configuration
 
 ```yaml
 fastddd:
@@ -262,7 +264,7 @@ fastddd:
         sortable-fields: [createTime, amount]
 ```
 
-### 5.5 高亮
+### 5.5 Highlighting
 
 ```java
 SearchQuery query = SearchQuery.builder()
@@ -277,16 +279,16 @@ Map<String, List<String>> highlights = result.getHighlights();
 // {"name": ["华为<em>手机</em>P60"], "description": ["旗舰<em>手机</em>，搭载..."]}
 ```
 
-## 6. 运行场景
+## 6. Runtime Scenarios
 
-| 场景 | 配置 | 行为 |
+| Scenario | Configuration | Behavior |
 |------|------|------|
-| **SQL LIKE** | `backend=sql`（默认）+ MyBatis-Plus `BaseMapper` | QueryWrapper 查询；依赖或 Mapper 缺失时启动失败 |
-| **SQL FULLTEXT** | `backend=sql` + MySQL | 自动 MATCH...AGAINST |
-| **Meilisearch** | `backend=meilisearch` + SDK 在 classpath | Meilisearch 全文搜索 + 高亮 |
-| **禁用** | `backend=disabled` 或 `enabled=false` | 不加载 `SearchService`；用于未配置搜索后端的消费者 |
+| **SQL LIKE** | `backend=sql` (default) + MyBatis-Plus `BaseMapper` | QueryWrapper-based query; startup fails if the dependency or Mapper is missing |
+| **SQL FULLTEXT** | `backend=sql` + MySQL | Automatic MATCH...AGAINST |
+| **Meilisearch** | `backend=meilisearch` + SDK on the classpath | Meilisearch full-text search + highlighting |
+| **Disabled** | `backend=disabled` or `enabled=false` | `SearchService` is not loaded; for consumers that have not configured a search backend |
 
-## 7. 搜索架构
+## 7. Search Architecture
 
 ```
                          ┌─ SearchService (SPI 接口)
@@ -301,17 +303,17 @@ QueryWrapper   DatabaseDialect  Meilisearch  Jackson
 (如 LIKE)      (如 FULLTEXT)    SDK 0.16.1   桥接
 ```
 
-**SQL 读取流程**：`SearchQuery` → `QueryWrapperBuilder` → `BaseMapper.selectPage()` → `SearchResult`
+**SQL read flow**: `SearchQuery` → `QueryWrapperBuilder` → `BaseMapper.selectPage()` → `SearchResult`
 
-**Meilisearch 读取流程**：`SearchQuery` → `SearchRequest` → SDK → Jackson 反序列化 → `SearchResult`
+**Meilisearch read flow**: `SearchQuery` → `SearchRequest` → SDK → Jackson deserialization → `SearchResult`
 
-## 8. 异常处理
+## 8. Exception Handling
 
-| 异常 | 场景 | 处理建议 |
+| Exception | Scenario | Suggested Handling |
 |------|------|----------|
-| 无异常，返回空结果 | SQL 查询无匹配 | 正常业务场景 |
-| `SearchBackendException` | Meilisearch 通信失败 | 捕获后降级或提示 |
-| `SearchBackendException` | 索引操作失败 | 检查 Meilisearch 服务状态 |
+| No exception, empty result returned | SQL query has no matches | Normal business scenario |
+| `SearchBackendException` | Meilisearch communication failure | Catch and degrade, or surface an error message |
+| `SearchBackendException` | Index operation failure | Check the Meilisearch service status |
 
 ```java
 try {
@@ -323,15 +325,15 @@ try {
 }
 ```
 
-## 9. 切换后端示例
+## 9. Backend Switching Examples
 
-**开发环境**（SQL，零配置）：
+**Development environment** (SQL, zero configuration):
 
 ```yaml
 # application-dev.yml — 无需任何搜索配置，默认 SQL
 ```
 
-**生产环境**（Meilisearch）：
+**Production environment** (Meilisearch):
 
 ```yaml
 # application-prod.yml
@@ -343,4 +345,4 @@ fastddd:
       api-key: "${MEILISEARCH_API_KEY}"
 ```
 
-**业务代码完全不变**，仅改配置即可切换后端。
+**Business code stays completely unchanged** — switch backends by changing configuration only.

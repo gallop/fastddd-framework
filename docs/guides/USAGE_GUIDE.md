@@ -1,41 +1,43 @@
-# FastDDD 框架使用指南
+# FastDDD Framework Usage Guide
 
-> 企业级领域驱动设计 (DDD) 开发框架 - 完整使用手册
+**English** | [简体中文](USAGE_GUIDE.zh-CN.md)
+
+> Enterprise-grade Domain-Driven Design (DDD) development framework - the complete usage manual
 >
-> 新项目请先遵循[新业务系统开发规范](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)；本文用于模块功能查阅。
+> For new projects, follow the [New Business System Development Guide](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) first; this document serves as a module feature reference.
 
 ---
 
-## 目录
+## Table of Contents
 
-1. [快速开始](#快速开始)
-2. [框架概述](#框架概述)
-3. [核心模块详解](#核心模块详解)
-4. [开发实战指南](#开发实战指南)
-5. [配置参考](#配置参考)
-6. [最佳实践](#最佳实践)
-7. [监控与运维](#监控与运维)
-8. [多端认证](#多端认证multi-channel-auth)
-9. [改进建议](#改进建议)
+1. [Quick Start](#quick-start)
+2. [Framework Overview](#framework-overview)
+3. [Core Modules in Depth](#core-modules-in-depth)
+4. [Development in Practice](#development-in-practice)
+5. [Configuration Reference](#configuration-reference)
+6. [Best Practices](#best-practices)
+7. [Monitoring and Operations](#monitoring-and-operations)
+8. [Multi-Channel Auth](#multi-channel-auth)
+9. [Improvement Suggestions](#improvement-suggestions)
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Environment Requirements
 
-| 组件 | 版本要求 |
+| Component | Version Requirement |
 |------|----------|
 | JDK | 21+ |
 | Maven | 3.9+ |
 | Spring Boot | 3.5.16 |
-| MySQL | 8.0+ (生产环境) |
-| Redis | 6.0+ (可选) |
-| Docker | 20.10+ (可选) |
+| MySQL | 8.0+ (production) |
+| Redis | 6.0+ (optional) |
+| Docker | 20.10+ (optional) |
 
-### 五分钟快速上手
+### Five-Minute Quick Start
 
-#### 1. 添加依赖
+#### 1. Add Dependencies
 
 ```xml
 <dependencyManagement>
@@ -57,7 +59,7 @@
 </dependency>
 ```
 
-#### 2. 配置数据源
+#### 2. Configure the Data Source
 
 ```yaml
 spring:
@@ -67,7 +69,7 @@ spring:
     password: password
 ```
 
-#### 3. 生成代码
+#### 3. Generate Code
 
 ```bash
 mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
@@ -78,7 +80,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.tablePrefix=t_
 ```
 
-#### 4. 运行应用
+#### 4. Run the Application
 
 ```bash
 mvn spring-boot:run
@@ -86,9 +88,9 @@ mvn spring-boot:run
 
 ---
 
-## 框架概述
+## Framework Overview
 
-### DDD 四层架构
+### DDD Four-Layer Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -115,17 +117,17 @@ mvn spring-boot:run
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 核心设计原则
+### Core Design Principles
 
-- **高标准**: 统一代码/架构/文档标准，90%+ 代码一致性
-- **高效率**: 代码生成将单表 CRUD 开发从 2 天缩短到 5 分钟
-- **高协作**: 标准化接口规范，集成时间减少 50%
+- **High standards**: unified code/architecture/documentation standards, 90%+ code consistency
+- **High efficiency**: code generation cuts single-table CRUD development from 2 days to 5 minutes
+- **High collaboration**: standardized interface conventions, reducing integration time by 50%
 
 ---
 
-## 核心模块详解
+## Core Modules in Depth
 
-### 模块依赖关系图
+### Module Dependency Diagram
 
 ```
 Level 1 (基础层):
@@ -156,21 +158,21 @@ Level 6 (应用层):
 └── fastddd-studio-server         # 演示应用
 ```
 
-### 1. fast-ddd-common (基础工具模块)
+### 1. fast-ddd-common (Base Utilities Module)
 
-**核心功能：**
+**Core Features:**
 
-| 组件 | 说明 |
+| Component | Description |
 |------|------|
-| `Result<T>` | 统一响应封装 |
-| `PageResult<T>` | 分页响应封装 |
-| `BusinessException` | 业务异常基类 |
-| `@ConditionalOnDev` | 开发环境条件注解 |
-| `@ConditionalOnSystemProperty` | 系统属性条件注解 |
-| `JsonUtil` | JSON 工具类 |
-| `DateUtil` | 日期工具类 |
+| `Result<T>` | Unified response wrapper |
+| `PageResult<T>` | Paginated response wrapper |
+| `BusinessException` | Base business exception class |
+| `@ConditionalOnDev` | Development environment conditional annotation |
+| `@ConditionalOnSystemProperty` | System property conditional annotation |
+| `JsonUtil` | JSON utility class |
+| `DateUtil` | Date utility class |
 
-**使用示例：**
+**Usage Example:**
 
 ```java
 // 统一响应返回
@@ -186,15 +188,15 @@ if (user == null) {
 }
 ```
 
-### 2. fast-ddd-config (配置管理模块)
+### 2. fast-ddd-config (Configuration Management Module)
 
-**核心功能：**
+**Core Features:**
 
-- 条件加载机制
-- 多环境配置支持
-- 动态配置刷新
+- Conditional loading mechanism
+- Multi-environment configuration support
+- Dynamic configuration refresh
 
-**配置示例：**
+**Configuration Example:**
 
 ```yaml
 fastddd:
@@ -203,9 +205,9 @@ fastddd:
     dynamic-refresh: true
 ```
 
-### 3. fast-ddd-model (数据模型模块)
+### 3. fast-ddd-model (Data Model Module)
 
-**核心基类：**
+**Core Base Classes:**
 
 ```java
 // 基础实体 (领域层)
@@ -246,19 +248,19 @@ public class UserPO extends BasePO<Long> {
 }
 ```
 
-### 4. fast-ddd-crud (CRUD 操作模块)
+### 4. fast-ddd-crud (CRUD Operations Module)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 通用 CRUD | 基于 MyBatis Plus 的增删改查 |
-| 批量操作 | 批量插入、批量更新 |
-| 自动填充 | 创建时间、更新时间自动填充 |
-| 逻辑删除 | 软删除支持 |
-| 乐观锁 | 版本号并发控制 |
+| Generic CRUD | Create/read/update/delete operations based on MyBatis Plus |
+| Batch operations | Batch insert and batch update |
+| Auto-fill | Automatic population of creation and update timestamps |
+| Logical delete | Soft-delete support |
+| Optimistic lock | Version-number concurrency control |
 
-**使用示例：**
+**Usage Example:**
 
 ```java
 // Service 层继承 BaseServiceImpl
@@ -285,29 +287,29 @@ public interface UserRepository extends BaseMapper<User> {
 }
 ```
 
-### 5. fast-ddd-web (Web 层模块)
+### 5. fast-ddd-web (Web Layer Module)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| BaseAdminCrudController | 管理端完整 CRUD 控制器基类（1.1 新增） |
-| BaseReadOnlyController | 只读查询控制器基类（1.1 新增） |
-| BaseController | 通用控制器基类（已 @Deprecated，保留兼容） |
-| 自动响应包装 | ApiResponse 包装 |
-| 统一异常处理 | 全局异常捕获 |
-| 请求日志 | 自动请求/响应日志 |
+| BaseAdminCrudController | Full admin-side CRUD controller base class (added in 1.1) |
+| BaseReadOnlyController | Read-only query controller base class (added in 1.1) |
+| BaseController | Generic controller base class (@Deprecated, kept for compatibility) |
+| Automatic response wrapping | ApiResponse wrapping |
+| Unified exception handling | Global exception capture |
+| Request logging | Automatic request/response logging |
 
-**Controller 基类选择：**
+**Choosing a Controller Base Class:**
 
-| 场景 | 推荐基类 | 示例 |
+| Scenario | Recommended Base Class | Examples |
 |------|---------|------|
-| 后台管理 CRUD | `BaseAdminCrudController` | 字典表、配置表、低风险资源 |
-| 只读查询 | `BaseReadOnlyController` | 下拉选项、数据展示 |
-| 敏感业务 API | 不继承 CRUD 基类 | 认证、支付、订单 |
-| 旧项目兼容 | `BaseController`（已废弃） | 已有项目，暂不迁移 |
+| Admin CRUD | `BaseAdminCrudController` | Dictionary tables, configuration tables, low-risk resources |
+| Read-only queries | `BaseReadOnlyController` | Dropdown options, data display |
+| Sensitive business APIs | Do not extend a CRUD base class | Authentication, payments, orders |
+| Legacy project compatibility | `BaseController` (deprecated) | Existing projects, not migrating yet |
 
-**管理端 CRUD 示例：**
+**Admin CRUD Example:**
 
 ```java
 @RestController
@@ -326,7 +328,7 @@ public class UserAdminController
 }
 ```
 
-**只读查询示例：**
+**Read-Only Query Example:**
 
 ```java
 @RestController
@@ -341,7 +343,7 @@ public class DictionaryController
 }
 ```
 
-**兼容旧项目（不推荐新项目使用）：**
+**Legacy Project Compatibility (not recommended for new projects):**
 
 ```java
 // BaseController 已 @Deprecated(since="1.1")，仍可编译使用
@@ -351,7 +353,7 @@ public class UserController extends BaseController<UserService, User, Long> {
 }
 ```
 
-**启用自动响应包装：**
+**Enabling Automatic Response Wrapping:**
 
 ```java
 @SpringBootApplication
@@ -363,18 +365,18 @@ public class Application {
 }
 ```
 
-### 6. fast-ddd-event (事件驱动模块)
+### 6. fast-ddd-event (Event-Driven Module)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 领域事件 | 领域事件发布/订阅 |
-| Outbox 模式 | 事务性事件发布 |
-| RocketMQ 集成 | 分布式事件消息 |
-| 死信队列 | 失败事件处理 |
+| Domain events | Domain event publishing/subscribing |
+| Outbox pattern | Transactional event publishing |
+| RocketMQ integration | Distributed event messaging |
+| Dead-letter queue | Failed event handling |
 
-**使用示例：**
+**Usage Example:**
 
 ```java
 // 1. 定义领域事件
@@ -420,18 +422,18 @@ public class OrderEventHandler {
 }
 ```
 
-### 7. fast-ddd-security-starter (安全模块)
+### 7. fast-ddd-security-starter (Security Module)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| JWT 认证 | 无状态 Token 认证 |
-| 审计日志 | 操作日志记录 |
-| 权限控制 | 基于注解的权限验证 |
-| 安全验证 | SQL 注入、XSS 防护 |
+| JWT authentication | Stateless token authentication |
+| Audit logging | Operation log recording |
+| Access control | Annotation-based permission checks |
+| Security validation | SQL injection and XSS protection |
 
-**配置示例：**
+**Configuration Example:**
 
 ```yaml
 fastddd:
@@ -450,9 +452,9 @@ fastddd:
       log-failure: true
 ```
 
-> **签名策略**：默认使用 HMAC-SHA512（对称密钥）。如需 RSA/ES256 非对称签名（如跨子系统 SSO），声明 `@Component` 实现 `JwtSigner` 接口即可覆盖默认，详见 `FASTDDD_REFERENCE.md` 的"JWT 签名策略"章节。
+> **Signing strategy**: HMAC-SHA512 (a symmetric key) is used by default. If you need RSA/ES256 asymmetric signing (for example, for cross-subsystem SSO), declare a `@Component` that implements the `JwtSigner` interface to override the default. See the "JWT Signing Strategy" section of `FASTDDD_REFERENCE.md` for details.
 
-**使用示例：**
+**Usage Example:**
 
 ```java
 // JWT Token 生成和使用
@@ -474,16 +476,16 @@ public Result<Void> deleteUser(@PathVariable Long id) {
 }
 ```
 
-### 8. fast-ddd-ai-spring-boot-starter (AI 开发工具)
+### 8. fast-ddd-ai-spring-boot-starter (AI Development Tools)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| EasyCode | 数据库驱动代码生成 |
-| FastDoc | 自动 API 文档生成 |
+| EasyCode | Database-driven code generation |
+| FastDoc | Automatic API documentation generation |
 
-**配置示例：**
+**Configuration Example:**
 
 ```yaml
 fastddd:
@@ -504,7 +506,7 @@ fastddd:
       format: markdown
 ```
 
-**使用示例：**
+**Usage Example:**
 
 ```java
 // 代码生成
@@ -525,18 +527,18 @@ private FastDocService fastDocService;
 Map<String, Object> result = fastDocService.generate("com.example.controller");
 ```
 
-### 9. fast-ddd-monitor (监控模块)
+### 9. fast-ddd-monitor (Monitoring Module)
 
-**核心功能：**
+**Core Features:**
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 性能监控 | HTTP 请求、SQL 执行监控 |
-| Prometheus 集成 | 指标采集 |
-| ELK 日志 | 集中式日志管理 |
-| 告警规则 | 自定义告警 |
+| Performance monitoring | HTTP request and SQL execution monitoring |
+| Prometheus integration | Metrics collection |
+| ELK logging | Centralized log management |
+| Alerting rules | Custom alerts |
 
-**配置示例：**
+**Configuration Example:**
 
 ```yaml
 fastddd:
@@ -548,11 +550,11 @@ fastddd:
 
 ---
 
-## 开发实战指南
+## Development in Practice
 
-### 场景一：创建用户管理功能
+### Scenario 1: Building a User Management Feature
 
-#### 1. 设计数据库表
+#### 1. Design the Database Table
 
 ```sql
 CREATE TABLE t_user (
@@ -568,7 +570,7 @@ CREATE TABLE t_user (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-#### 2. 生成代码
+#### 2. Generate Code
 
 ```bash
 mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
@@ -580,7 +582,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.tables=user
 ```
 
-#### 3. 自定义业务逻辑
+#### 3. Customize Business Logic
 
 ```java
 // 领域服务
@@ -625,9 +627,9 @@ public class UserServiceImpl extends BaseServiceImpl<User> implements UserServic
 }
 ```
 
-### 场景二：订单处理流程
+### Scenario 2: Order Processing Flow
 
-#### 1. 定义聚合根
+#### 1. Define the Aggregate Root
 
 ```java
 @Data
@@ -671,7 +673,7 @@ public class Order extends AggregateRoot<Long> {
 }
 ```
 
-#### 2. 实现事件处理
+#### 2. Implement Event Handling
 
 ```java
 @Component
@@ -704,9 +706,9 @@ public class OrderEventHandler {
 
 ---
 
-## 配置参考
+## Configuration Reference
 
-### 完整配置示例
+### Complete Configuration Example
 
 ```yaml
 server:
@@ -786,19 +788,19 @@ management:
 
 ---
 
-## 最佳实践
+## Best Practices
 
-### 1. 命名规范
+### 1. Naming Conventions
 
-| 类型 | 规范 | 示例 |
+| Type | Convention | Examples |
 |------|------|------|
-| 数据库表 | snake_case | `user_info`, `order_detail` |
-| Java 类 | PascalCase | `UserService`, `OrderController` |
-| 方法名 | camelCase, 动词开头 | `getUserById`, `createOrder` |
-| 常量 | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
-| DTO | PascalCase + 后缀 | `UserDTO`, `CreateUserRequest` |
+| Database tables | snake_case | `user_info`, `order_detail` |
+| Java classes | PascalCase | `UserService`, `OrderController` |
+| Method names | camelCase, starting with a verb | `getUserById`, `createOrder` |
+| Constants | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
+| DTOs | PascalCase + suffix | `UserDTO`, `CreateUserRequest` |
 
-### 2. 分层职责
+### 2. Layer Responsibilities
 
 ```java
 // ✅ 正确：各层职责清晰
@@ -843,7 +845,7 @@ public class UserService {
 }
 ```
 
-### 3. 异常处理
+### 3. Exception Handling
 
 ```java
 // 使用业务异常
@@ -860,7 +862,7 @@ public enum ErrorCode {
 }
 ```
 
-### 4. 事务管理
+### 4. Transaction Management
 
 ```java
 // 在应用层管理事务
@@ -885,56 +887,56 @@ public class OrderService {
 
 ---
 
-## 监控与运维
+## Monitoring and Operations
 
-### Prometheus + Grafana 监控
+### Prometheus + Grafana Monitoring
 
-启动监控服务：
+Start the monitoring services:
 
 ```bash
 docker-compose up -d prometheus grafana alertmanager
 ```
 
-访问：
+Access:
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000 (admin/admin)
 
-### ELK 日志分析
+### ELK Log Analysis
 
-启动 ELK 服务：
+Start the ELK services:
 
 ```bash
 docker-compose up -d elasticsearch logstash kibana filebeat
 ```
 
-访问：
+Access:
 - Kibana: http://localhost:5601
 
-### 关键指标
+### Key Metrics
 
-| 指标 | 说明 | 告警阈值 |
+| Metric | Description | Alert Threshold |
 |------|------|----------|
-| http_request_rate | HTTP 请求速率 | > 1000 req/s |
-| http_error_rate | HTTP 错误率 | > 5% |
-| http_response_time_p95 | P95 响应时间 | > 500ms |
-| jvm_heap_usage | JVM 堆使用率 | > 85% |
-| slow_query_count | 慢查询数量 | > 10/min |
+| http_request_rate | HTTP request rate | > 1000 req/s |
+| http_error_rate | HTTP error rate | > 5% |
+| http_response_time_p95 | P95 response time | > 500ms |
+| jvm_heap_usage | JVM heap usage | > 85% |
+| slow_query_count | Slow query count | > 10/min |
 
 ---
 
-## 改进建议
+## Improvement Suggestions
 
-### 当前待完善项
+### Current Items Pending Improvement
 
-#### 1. fast-ddd-cache 模块
+#### 1. fast-ddd-cache Module
 
-**现状**：模块存在但实现不完整
+**Current state**: The module exists but the implementation is incomplete.
 
-**建议**：
-- 实现多级缓存（本地缓存 + Redis）
-- 添加缓存预热机制
-- 实现缓存一致性方案
-- 支持缓存注解 (@Cacheable, @CacheEvict)
+**Suggestions**:
+- Implement multi-level caching (local cache + Redis)
+- Add a cache warm-up mechanism
+- Implement a cache consistency solution
+- Support cache annotations (@Cacheable, @CacheEvict)
 
 ```java
 // 计划实现的功能
@@ -949,15 +951,15 @@ public void deleteUser(Long id) {
 }
 ```
 
-#### 2. fast-ddd-search 模块
+#### 2. fast-ddd-search Module
 
-**现状**：模块存在但 Elasticsearch 集成不完整
+**Current state**: The module exists but the Elasticsearch integration is incomplete.
 
-**建议**：
-- 完善 Elasticsearch Repository
-- 实现搜索条件构建器
-- 添加聚合查询支持
-- 实现数据同步机制
+**Suggestions**:
+- Complete the Elasticsearch Repository
+- Implement a search condition builder
+- Add aggregation query support
+- Implement a data synchronization mechanism
 
 ```java
 // 计划实现的功能
@@ -975,58 +977,58 @@ public class SearchServiceTest {
 }
 ```
 
-#### 3. 测试覆盖率
+#### 3. Test Coverage
 
-**现状**：部分模块测试覆盖不足
+**Current state**: Some modules lack sufficient test coverage.
 
-**建议**：
-- 单元测试覆盖率目标 > 80%
-- 添加集成测试
-- 添加端到端测试
-- 使用 JMH 进行性能基准测试
+**Suggestions**:
+- Target unit test coverage above 80%
+- Add integration tests
+- Add end-to-end tests
+- Use JMH for performance benchmarking
 
-#### 4. 文档完善
+#### 4. Documentation Improvements
 
-**现状**：部分模块缺少文档
+**Current state**: Some modules lack documentation.
 
-**建议**：
-- 为每个模块添加 README
-- 完善 JavaDoc 注释
-- 添加更多使用示例
-- 创建故障排查指南
+**Suggestions**:
+- Add a README for each module
+- Improve JavaDoc comments
+- Add more usage examples
+- Create a troubleshooting guide
 
-#### 5. 前端平台集成
+#### 5. Frontend Platform Integration
 
-**现状**：Vue 3 平台存在但集成不完整
+**Current state**: The Vue 3 platform exists but the integration is incomplete.
 
-**建议**：
-- 实现 API 自动对接
-- 添加权限管理界面
-- 实现代码生成可视化
-- 添加监控仪表板
+**Suggestions**:
+- Implement automatic API integration
+- Add a permission management UI
+- Visualize code generation
+- Add monitoring dashboards
 
-#### 6. DevOps 完善
+#### 6. DevOps Improvements
 
-**建议**：
-- CI/CD 流水线优化
-- 自动化测试集成
-- 自动化部署
-- 蓝绿部署/金丝雀发布支持
+**Suggestions**:
+- Optimize CI/CD pipelines
+- Integrate automated testing
+- Automate deployment
+- Support blue-green deployment / canary releases
 
 ---
 
-## 多端认证（Multi-Channel Auth）
+## Multi-Channel Auth
 
-### 概述
+### Overview
 
-FastDDD 支持单端和多端两种认证模式，通过 Studio 代码生成器按需选择。
+FastDDD supports two authentication modes — single-channel and multi-channel — selected as needed through the Studio code generator.
 
-| 模式 | 适用场景 | 认证方式 | 项目结构 |
+| Mode | Applicable Scenarios | Authentication Methods | Project Structure |
 |------|---------|---------|---------|
-| 单端 (SINGLE) | 管理后台、单端业务系统 | 密码 | 单 Spring Boot 应用 |
-| 多端 (MULTI) | 电商(小程序+管理)、SaaS、物流 | 密码/短信/微信小程序 | Maven 多模块 |
+| Single-channel (SINGLE) | Admin consoles, single-channel business systems | Password | Single Spring Boot application |
+| Multi-channel (MULTI) | E-commerce (mini-program + admin), SaaS, logistics | Password/SMS/WeChat mini-program | Maven multi-module |
 
-### 多端项目结构
+### Multi-Channel Project Structure
 
 ```
 my-project/                        ← Maven 父工程
@@ -1045,17 +1047,17 @@ my-project/                        ← Maven 父工程
 └── docker/nginx/default.conf
 ```
 
-### Studio 配置步骤
+### Studio Configuration Steps
 
-1. **一体化生成器** 或 **我的项目** → 选择数据源和表
-2. **Security 配置** → 选择 `多端模式 (MULTI)`
-3. 配置通道: 启用 ADMIN/CUSTOMER/MERCHANT，选择认证策略
-4. **表分配**: 将表分配到对应的子应用或共享
-5. 生成 → 下载 ZIP
+1. **All-in-One Generator** or **My Projects** → select the data source and tables
+2. **Security Configuration** → select `多端模式 (MULTI)`
+3. Configure channels: enable ADMIN/CUSTOMER/MERCHANT and choose authentication strategies
+4. **Table assignment**: assign tables to the corresponding sub-application or to shared modules
+5. Generate → download the ZIP
 
-### Token 隔离
+### Token Isolation
 
-每个子应用使用不同的 JWT Secret + channel 校验:
+Each sub-application uses a different JWT Secret + channel validation:
 
 ```yaml
 # admin-api/application.yml
@@ -1075,22 +1077,22 @@ fastddd:
       secret: customer-secret-change-me
 ```
 
-框架内置 `JwtAuthenticationFilter` 会校验 Token 的 channel 与应用配置是否匹配，实现端间隔离。
+The framework's built-in `JwtAuthenticationFilter` verifies that the token's channel matches the application configuration, achieving isolation between channels.
 
-### 认证策略
+### Authentication Strategies
 
-| 策略 | type | 触发条件 | 生成条件 |
+| Strategy | type | Trigger Condition | Generation Condition |
 |------|------|---------|---------|
-| 密码 | `password` | 未指定 type 时默认 | 框架内置，无需生成 |
-| 短信验证码 | `sms_code` | 显式传入 `type=sms_code`，extra 中含 `phone` + `code` | 框架内置，业务实现 `VerificationCodeSender` |
-| 邮箱验证码 | `email_code` | 显式传入 `type=email_code`，extra 中含 `email` + `code` | 框架内置，业务实现 `VerificationCodeSender` |
-| 微信小程序 | `wechat-mini` | 显式传入 `type=wechat-mini`，extra 中含 `wechatCode` | 通道策略含 `wechat-mini` |
+| Password | `password` | Default when no type is specified | Built into the framework, no generation needed |
+| SMS verification code | `sms_code` | Explicitly pass `type=sms_code`, with `phone` + `code` in extra | Built into the framework; the business implements `VerificationCodeSender` |
+| Email verification code | `email_code` | Explicitly pass `type=email_code`, with `email` + `code` in extra | Built into the framework; the business implements `VerificationCodeSender` |
+| WeChat mini-program | `wechat-mini` | Explicitly pass `type=wechat-mini`, with `wechatCode` in extra | Channel strategy includes `wechat-mini` |
 
-登录接口统一为 `POST /api/auth/login`，框架根据请求中的 `type` 路由到对应策略；未传 `type` 时使用 `password`。
+The login endpoint is unified as `POST /api/auth/login`; the framework routes the request to the corresponding strategy based on `type`, and uses `password` when no `type` is passed.
 
-#### 自定义策略覆盖框架默认策略
+#### Overriding Framework Default Strategies with Custom Ones
 
-应用层可通过 `@Component` 注册同 type 的 `AuthStrategy` 来覆盖框架默认实现。`AuthStrategyRegistry` 在检测到冲突时，**优先保留应用层定义的策略**，框架内置策略自动退让。
+The application layer can override a framework default by registering an `AuthStrategy` of the same type via `@Component`. When `AuthStrategyRegistry` detects a conflict, it **keeps the application-defined strategy with priority**, and the built-in framework strategy automatically yields.
 
 ```java
 @Service
@@ -1106,9 +1108,9 @@ public class DevPasswordAuthStrategy implements AuthStrategy {
 }
 ```
 
-> 框架通过包名判断策略来源：`com.gallop.fastddd.security.strategy` 包下的为框架内置，其余为用户自定义。
+> The framework determines a strategy's origin by its package name: strategies under the `com.gallop.fastddd.security.strategy` package are framework built-ins; all others are user-defined.
 
-验证码发送接口:
+Verification code sending endpoint:
 
 ```text
 POST /api/auth/code/send
@@ -1122,15 +1124,15 @@ POST /api/auth/code/send
 }
 ```
 
-### 生成的 Security 组件
+### Generated Security Components
 
-每个子应用会生成:
+Each sub-application is generated with:
 
-- `AppIdentityService.java` — 实现 `SecurityIdentityService`，连接 common-user 模块
-- `AppIdentityService.java` 同时实现 `CodeLoginIdentityService`，提供手机号/邮箱验证码登录所需查询
-- `WechatMiniAuthStrategy.java` — (可选) 微信小程序认证
+- `AppIdentityService.java` — implements `SecurityIdentityService`, wired to the common-user module
+- `AppIdentityService.java` also implements `CodeLoginIdentityService`, providing the lookups required for phone-number/email verification-code login
+- `WechatMiniAuthStrategy.java` — (optional) WeChat mini-program authentication
 
-### 部署
+### Deployment
 
 ```bash
 # Docker Compose 一键部署
@@ -1141,13 +1143,13 @@ docker-compose up -d
 
 ---
 
-## 附录
+## Appendix
 
-### 常见问题
+### Frequently Asked Questions
 
-**Q: 如何自定义异常处理？**
+**Q: How do I customize exception handling?**
 
-A: 实现 `GlobalExceptionHandler`：
+A: Implement a `GlobalExceptionHandler`:
 
 ```java
 @RestControllerAdvice
@@ -1160,9 +1162,9 @@ public class GlobalExceptionHandler {
 }
 ```
 
-**Q: 如何实现多租户？**
+**Q: How do I implement multi-tenancy?**
 
-A: 使用 MyBatis Plus 拦截器：
+A: Use a MyBatis Plus interceptor:
 
 ```java
 @Component
@@ -1175,9 +1177,9 @@ public class TenantInterceptor implements InnerInterceptor {
 }
 ```
 
-**Q: 如何实现分布式事务？**
+**Q: How do I implement distributed transactions?**
 
-A: 框架建议使用 Saga 模式或 TCC 模式：
+A: The framework recommends the Saga pattern or the TCC pattern:
 
 ```java
 @Saga
@@ -1186,14 +1188,14 @@ public void processOrder(Order order) {
 }
 ```
 
-### 技术支持
+### Technical Support
 
-- Issue Tracker：随 Framework Community 公开仓一并公布
-- 文档站点：当前以本仓 `docs/README.md` 为入口
-- 社区讨论区：公开渠道确定后补充
+- Issue Tracker: to be announced along with the public Framework Community repository
+- Documentation site: this repository's `docs/README.md` currently serves as the entry point
+- Community discussion forum: to be added once the public channel is confirmed
 
 ---
 
-**文档版本**: 1.1.0
-**最后更新**: 2026-04-21
-**维护者**: FastDDD Team
+**Document version**: 1.1.0
+**Last updated**: 2026-04-21
+**Maintainers**: FastDDD Team

@@ -1,9 +1,11 @@
-# FastDDD 1.0 ID 迁移指南
+# FastDDD 1.0 ID Migration Guide
 
-> 适用于从旧弱类型 ID 迁移至 FastDDD 1.0 强类型 ID。内部迁移清单（ID_TYPE_MIGRATION_CHECKLIST.md）
-> 已于 2026-09-12 移至仓外私有档案，不随开源仓发布。
+**English** | [简体中文](ID_MIGRATION_GUIDE.zh-CN.md)
 
-## 目标形态
+> Applies to migrating from the old weakly typed IDs to the FastDDD 1.0 strongly typed IDs. The internal migration checklist (ID_TYPE_MIGRATION_CHECKLIST.md)
+> was moved to a private out-of-repository archive on 2026-09-12 and is not published with the open-source repository.
+
+## Target Shape
 
 ```java
 public class User extends BasePO<Long> {}
@@ -11,30 +13,29 @@ public class User extends BasePO<Long> {}
 public interface UserService extends IService<User, Long> {}
 ```
 
-领域模型可使用自己的 ID 值对象；PO 仍使用适配数据库的基础类型。不要让领域层引入 MyBatis 注解。
+The domain model may use its own ID value objects; POs still use base types that fit the database. Do not let the domain layer import MyBatis annotations.
 
-## 迁移步骤
+## Migration Steps
 
-1. 将 `extends BasePO` 改为 `extends BasePO<Long>`、`BasePO<String>` 或 `BasePO<UUID>`。
-2. 将 `IService<T>`、Repository、Controller 的 ID 泛型补全为同一 `ID` 类型。
-3. 删除 `(Long) entity.getId()` 等强转，直接使用强类型 `getId()`。
-4. 删除子类中重复的 `id` 字段和字段级 `@TableId`；策略由全局 `mybatis-plus.id-type` 决定。
-5. Controller 使用对应 `IdCodec<ID>`；自定义 Hashid 或值对象实现自己的 codec。
-6. 回归 URL、JSON/OpenAPI、DDL、Mapper、Service 与前端调用，确认 ID 表示一致。
+1. Change `extends BasePO` to `extends BasePO<Long>`, `BasePO<String>`, or `BasePO<UUID>`.
+2. Complete the ID generics of `IService<T>`, Repository, and Controller to the same `ID` type.
+3. Delete casts such as `(Long) entity.getId()` and use the strongly typed `getId()` directly.
+4. Delete duplicate `id` fields and field-level `@TableId` in subclasses; the strategy is decided by the global `mybatis-plus.id-type`.
+5. Controllers use the matching `IdCodec<ID>`; custom Hashids or value objects implement their own codec.
+6. Regression-test URLs, JSON/OpenAPI, DDL, Mapper, Service, and frontend calls to confirm the ID representation is consistent.
 
-## 禁止项
+## Prohibitions
 
-- 不用 `Serializable` 作为全链路主键类型。
-- 不让外部请求直接写 PO 的 `id`、`deleted`、`version` 或审计字段。
-- 不为日志、Outbox 或不可变快照强行继承 `BasePO`；此类例外需记录数据模型理由、ID 类型和生命周期。
+- Do not use `Serializable` as the end-to-end primary key type.
+- Do not let external requests write a PO's `id`, `deleted`, `version`, or audit fields directly.
+- Do not force `BasePO` inheritance onto logs, Outbox, or immutable snapshots; such exceptions require documenting the data-model rationale, the ID type, and the lifecycle.
 
-## 验证
+## Verification
 
 ```powershell
 $env:JAVA_HOME='<JAVA_21_HOME>'
 ./mvnw.cmd -B -pl <affected-module> test
 ```
 
-在业务仓库额外搜索裸 `BasePO`、`(Long) ...getId()`、重复 `@TableId` 与旧 `resolveId` 逻辑，并执行
-至少一条真实的 Controller/Mapper 集成回归。
-
+Additionally search the business repository for bare `BasePO`, `(Long) ...getId()`, duplicate `@TableId`, and legacy `resolveId` logic, and run
+at least one real Controller/Mapper integration regression.

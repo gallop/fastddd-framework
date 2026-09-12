@@ -1,86 +1,72 @@
 # Changelog
 
-本文件记录 FastDDD 所有显著变更，格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+**English** | [简体中文](CHANGELOG.zh-CN.md)
 
-完整版本基线与兼容线见 [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)；
-业务系统升级步骤见 [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE.md)。
+This file records all notable changes to FastDDD, following the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format;
+versioning follows [Semantic Versioning](https://semver.org/).
+
+For the full version baselines and compatibility lines see [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md);
+for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE.md).
 
 ---
 
 ## [1.0.0] - 2026-09-10
 
-首个正式发布版本基线：**JDK 21 + Spring Boot 3.5.16**。
-本版本由 `JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md` 的 UPG-000～UPG-010 驱动，
-从 JDK 17 / Boot 3.4.5 开发快照确定性升级而来。
+First official release baseline: **JDK 21 + Spring Boot 3.5.16**.
+This version was driven by UPG-000 through UPG-010 of `JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md`,
+as a deterministic upgrade from the JDK 17 / Boot 3.4.5 development snapshot.
 
-### Added（新增）
+### Added
 
-- **CI-friendly 版本治理**：引入 `${revision}` 属性作为 reactor 唯一版本入口，27 个模块版本统一受其驱动；
-  配合 `flatten-maven-plugin`（`resolveCiFriendliesOnly`）在发布 POM 中把 `${revision}` 解析为字面量，
-  满足"版本只从一个属性进入 reactor"且"发布 POM 版本已解析"。
-- **`fastddd-bom` 统一依赖契约模块**：业务项目只需 `import` 该 BOM 即获得 FastDDD 全部模块与推荐第三方
-  依赖的一致版本，无需各自声明版本。BOM 为独立 POM，发布产物自洽（无环境属性泄漏）。
-- **Maven Enforcer 构建门禁**：`requireJavaVersion[21,)`、`requireMavenVersion[3.9.0,4.0.0)`、
-  `requirePluginVersions`（所有插件版本须显式）、`banDuplicatePomDependencyVersions`。
-- **JDK 21 编译基线**：根 pom `java.version=21` + `maven.compiler.release`，产物 class major version 65。
-- **Spring Boot 3.5.16 + 依赖确定性对齐**：Spring AI 1.1.8、SpringDoc 2.8.17、Knife4j 4.5.0、
-  MyBatis-Plus 3.5.12、MyBatis-Spring 3.0.4、Druid `druid-spring-boot-3-starter` 1.2.28、
-  mysql-connector-j 9.7.0、Micrometer 1.15.12（消除旧版分裂）、Jackson 2.21.x（Boot 管理）。
-- **PMD 7**：`maven-pmd-plugin` 升至 3.24.0（PMD 7.3.0），支持 `targetJdk=21`。
-- **Maven Wrapper**：`./mvnw` pin Maven 3.9.5，CI 与本地 Maven 版本统一。
-- **Docker JDK 21**：构建阶段 `maven:3.9.9-eclipse-temurin-21`，运行阶段 `eclipse-temurin:21-jre-alpine`。
-- **版本治理文档**：新增 `docs/COMPATIBILITY_MATRIX.md`、`docs/UPGRADE_GUIDE.md`、`docs/RELEASE_CHECKLIST.md`。
+- **CI-friendly version governance**: the `${revision}` property is the single version entry of the reactor, driving all 27 module versions uniformly; combined with `flatten-maven-plugin` (`resolveCiFriendliesOnly`), `${revision}` is resolved to a literal in published POMs — satisfying both "versions enter the reactor through one property only" and "published POM versions are already resolved".
+- **`fastddd-bom` unified dependency-contract module**: business projects simply `import` this BOM to get consistent versions of all FastDDD modules and the recommended third-party dependencies, without declaring versions themselves. The BOM is a standalone POM; its published artifact is self-contained (no environment-property leakage).
+- **Maven Enforcer build gates**: `requireJavaVersion[21,)`, `requireMavenVersion[3.9.0,4.0.0)`, `requirePluginVersions` (all plugin versions explicit), `banDuplicatePomDependencyVersions`.
+- **JDK 21 compile baseline**: root pom `java.version=21` + `maven.compiler.release`; artifacts are class major version 65.
+- **Spring Boot 3.5.16 + deterministic dependency alignment**: Spring AI 1.1.8, SpringDoc 2.8.17, Knife4j 4.5.0, MyBatis-Plus 3.5.12, MyBatis-Spring 3.0.4, Druid `druid-spring-boot-3-starter` 1.2.28, mysql-connector-j 9.7.0, Micrometer 1.15.12 (eliminating legacy version splits), Jackson 2.21.x (Boot-managed).
+- **PMD 7**: `maven-pmd-plugin` upgraded to 3.24.0 (PMD 7.3.0), supporting `targetJdk=21`.
+- **Maven Wrapper**: `./mvnw` pins Maven 3.9.5, unifying CI and local Maven versions.
+- **Docker JDK 21**: build stage `maven:3.9.9-eclipse-temurin-21`, runtime stage `eclipse-temurin:21-jre-alpine`.
+- **Version-governance documentation**: added `docs/COMPATIBILITY_MATRIX.md`, `docs/UPGRADE_GUIDE.md`, `docs/RELEASE_CHECKLIST.md`.
 
-### Changed（变更）
+### Changed
 
-- Spring Boot 3.4.5 → **3.5.16**；JDK 17 → **JDK 21**（编译与运行时）。
-- Druid 坐标迁移：`druid-spring-boot-starter`（Boot 2 坐标）→ **`druid-spring-boot-3-starter`**（4 处引用）。
-- MySQL 驱动迁移：`mysql:mysql-connector-java` → **`com.mysql:mysql-connector-j`** 9.7.0（6 处引用）。
-- 清理手工版本属性（mysql-connector / micrometer / lombok / freemarker / junit / testcontainers），
-  统一交 Spring Boot BOM 管理，消除版本分裂。
-- `application-dev.yml` 修复重复 `fastddd:` 顶层键（Boot 3.5 SnakeYAML 严格解析拒绝重复键）。
+- Spring Boot 3.4.5 → **3.5.16**; JDK 17 → **JDK 21** (compile and runtime).
+- Druid coordinate migration: `druid-spring-boot-starter` (Boot 2 coordinate) → **`druid-spring-boot-3-starter`** (4 references).
+- MySQL driver migration: `mysql:mysql-connector-java` → **`com.mysql:mysql-connector-j`** 9.7.0 (6 references).
+- Removed hand-managed version properties (mysql-connector / micrometer / lombok / freemarker / junit / testcontainers), delegating uniformly to Spring Boot BOM management and eliminating version splits.
+- `application-dev.yml`: fixed a duplicated top-level `fastddd:` key (Boot 3.5 SnakeYAML strict parsing rejects duplicate keys).
 
-### Fixed（修复）
+### Fixed
 
-- **B-01**：`PerformanceIntegrationTest.testBatchInsertPerformance` 因"逻辑删除→重插相同 username"撞
-  `username` UNIQUE 而失败；改用注入 `JdbcTemplate` 的物理 `DELETE` 清理。全量门禁 356 tests / 0 failures。
-- `fast-ddd-examples/pom.xml` 预先存在的 `<relativePath>` 错误（`../../pom.xml` → `../pom.xml`）。
-- `fast-ddd-web/logback-spring.xml` 两处被 logstash-encoder 忽略的无效 `<includeStackTrace>` 属性清理。
+- **B-01**: `PerformanceIntegrationTest.testBatchInsertPerformance` failed because "logical delete → re-insert of the same username" hit the `username` UNIQUE constraint; switched to a physical `DELETE` via an injected `JdbcTemplate`. Full gate: 356 tests / 0 failures.
+- Pre-existing `<relativePath>` error in `fast-ddd-examples/pom.xml` (`../../pom.xml` → `../pom.xml`).
+- Cleaned up two invalid `<includeStackTrace>` attributes in `fast-ddd-web/logback-spring.xml` that were ignored by logstash-encoder.
 
-### Known Limitations / 遗留（不阻塞 1.0.0）
+### Known Limitations / carried over (not blocking 1.0.0)
 
-- **CI runner 未部署**：远程为内网 Gitea，`.github/workflows/*.yml` 为声明式文件、无 runner 执行；
-  JDK 21 / wrapper / `./mvnw` / PMD7 改动属"CI 就绪即生效"基线，待 runner 部署后验证。
-- **`checkstyle.xml` 规则文件缺失**：`configLocation=checkstyle.xml` 但仓库无此文件，
-  code-quality 步骤带 `continue-on-error` 容错；补规则文件留独立任务。
-- **外部基础设施运行时冒烟待补**：Redis、Elasticsearch、RocketMQ 分布式链路、Docker 构建启动健康检查
-  在本机无对应运行时，仅做编译/上下文级验证；待部署环境或 Docker 就绪后补 smoke。
-- **`SecurityIntegrationTest` 类级 `@Disabled`**：自引用 `@SpringBootTest(classes=自身)` 上下文加载问题，
-  既有测试债（非本次升级引入、非为过门禁新加）。
-- **Mockito self-attach 警告**：JDK 21 下 inline mock 自附加（全绿、覆盖率正常），
-  显式 mockito agent 与 JaCoCo argLine 共存留 JDK 25+ 迁移时配置。
-- **BOM 与根 pom 依赖清单重复**：本次为降低 reactor 解析风险，根 pom `<dependencyManagement>` 保持不变，
-  BOM 独立镜像清单。登记为已知技术债，1.0.1 由根 pom `import` BOM 收敛（独立验证 reactor 解析）。
+- **CI runner not deployed**: the remote is an internal Gitea instance; `.github/workflows/*.yml` are declarative files with no runner executing them; the JDK 21 / wrapper / `./mvnw` / PMD 7 changes form an "effective once CI is ready" baseline, to be verified after a runner is deployed.
+- **`checkstyle.xml` rules file missing**: `configLocation=checkstyle.xml` but the repository has no such file; the code-quality step runs with `continue-on-error` tolerance; adding the rules file is a separate task.
+- **External-infrastructure runtime smoke tests pending**: Redis, Elasticsearch, RocketMQ distributed chains, and Docker build/startup health checks had no corresponding runtimes on the dev machine — only compile/context-level verification; smoke tests to be added once the deployment environment or Docker is ready.
+- **`SecurityIntegrationTest` class-level `@Disabled`**: self-referencing `@SpringBootTest(classes=itself)` context-loading problem; pre-existing test debt (not introduced by this upgrade, not added to pass the gate).
+- **Mockito self-attach warning**: inline mock self-attachment under JDK 21 (all green, coverage normal); coexistence of an explicit mockito agent with the JaCoCo argLine is deferred to the JDK 25+ migration.
+- **BOM and root pom dependency lists duplicated**: to reduce reactor-resolution risk this time, the root pom's `<dependencyManagement>` stayed unchanged and the BOM mirrors the list independently. Registered as known technical debt; from 1.0.1 the root pom converges by importing the BOM (with separate reactor-resolution verification).
 
-### 1.0.1 路线（已登记必做项）
+### 1.0.1 roadmap (registered must-do items)
 
-- **二进制兼容性校验（japicmp / Revapi）**：1.0.0 无 GA 基线 jar，japicmp 无可比基准；
-  建立首个 GA 基线后，1.0.1 起对每次发布做 API 兼容性校验。
-- **根 pom 委托 BOM**：根 pom `<dependencyManagement>` 改为 `import` `fastddd-bom`，实现依赖版本单一来源。
-- **生成模板切 BOM**：archetype-resources / FreeMarker 生成项目模板默认 `import` `fastddd-bom`，
-  让生成的业务项目开箱即用统一依赖契约。
+- **Binary-compatibility checks (japicmp / Revapi)**: 1.0.0 has no GA baseline jar, so japicmp has no baseline to compare against; after the first GA baseline is established, every release from 1.0.1 on gets an API-compatibility check.
+- **Root pom delegates to the BOM**: the root pom's `<dependencyManagement>` switches to `import` `fastddd-bom`, achieving a single source of dependency versions.
+- **Generation templates switch to the BOM**: archetype-resources / FreeMarker generation templates import `fastddd-bom` by default, giving generated business projects the unified dependency contract out of the box.
 
 ---
 
-## 升级前开发快照（归档，不维护）
+## Pre-upgrade development snapshot (archived, unmaintained)
 
-| 项 | 值 |
+| Item | Value |
 |----|----|
 | Java | 17 |
 | Spring Boot | 3.4.5 |
-| FastDDD 版本字符串 | `1.0.0-SNAPSHOT` |
-| 状态 | 仅 Git tag `baseline/jdk17-boot3.4.5` 归档，不再维护 |
+| FastDDD version string | `1.0.0-SNAPSHOT` |
+| Status | archived as Git tag `baseline/jdk17-boot3.4.5` only, no longer maintained |
 
-> 该快照不作为任何兼容线对外承诺。所有在研业务系统应随 1.0.0 一起升级到 JDK 21 / Boot 3.5.16 基线
-> （见 [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE.md) 与 UPG-011）。
+> This snapshot carries no external compatibility-line commitment. All business systems in development should upgrade to the JDK 21 / Boot 3.5.16 baseline together with 1.0.0
+> (see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE.md) and UPG-011).

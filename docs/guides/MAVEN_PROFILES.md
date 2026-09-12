@@ -1,45 +1,47 @@
 # Maven Build Profiles Configuration
 
-本文档说明如何使用FastDDD框架中配置的Maven构建配置文件。
+**English** | [简体中文](MAVEN_PROFILES.zh-CN.md)
 
-## 可用的构建配置文件
+This document explains how to use the Maven build profiles configured in the FastDDD framework.
+
+## Available Build Profiles
 
 ### 1. Development Profile (dev)
 - **Profile ID**: `dev`
-- **默认激活**: 是
-- **用途**: 本地开发环境
-- **特性**:
-  - 使用H2内存数据库
-  - 启用详细的调试日志
-  - 启用Swagger文档
-  - 启用Actuator监控
-  - Redis连接到本地实例
+- **Active by default**: Yes
+- **Purpose**: local development environment
+- **Features**:
+  - Uses an in-memory H2 database
+  - Enables verbose debug logging
+  - Enables Swagger documentation
+  - Enables Actuator monitoring
+  - Redis connects to a local instance
 
 ### 2. Test Profile (test)
 - **Profile ID**: `test`
-- **默认激活**: 否
-- **用途**: 测试环境
-- **特性**:
-  - 使用H2内存数据库
-  - 减少日志输出
-  - 禁用Swagger文档
-  - 禁用Actuator监控
-  - Redis连接到本地实例
+- **Active by default**: No
+- **Purpose**: test environment
+- **Features**:
+  - Uses an in-memory H2 database
+  - Reduces log output
+  - Disables Swagger documentation
+  - Disables Actuator monitoring
+  - Redis connects to a local instance
 
 ### 3. Production Profile (prod)
 - **Profile ID**: `prod`
-- **默认激活**: 否
-- **用途**: 生产环境
-- **特性**:
-  - 使用MySQL数据库
-  - 最小化日志输出
-  - 禁用Swagger文档
-  - 启用Actuator监控
-  - Redis连接到生产服务器
+- **Active by default**: No
+- **Purpose**: production environment
+- **Features**:
+  - Uses a MySQL database
+  - Minimizes log output
+  - Disables Swagger documentation
+  - Enables Actuator monitoring
+  - Redis connects to the production servers
 
-## 使用方法
+## Usage
 
-### 1. 编译项目
+### 1. Compile the Project
 
 ```bash
 # 使用默认的dev配置文件
@@ -55,7 +57,7 @@ mvn clean compile -Ptest
 mvn clean compile -Pprod
 ```
 
-### 2. 打包项目
+### 2. Package the Project
 
 ```bash
 # 打包开发版本
@@ -68,7 +70,7 @@ mvn clean package -Ptest
 mvn clean package -Pprod
 ```
 
-### 3. 运行测试
+### 3. Run Tests
 
 ```bash
 # 使用test配置文件运行测试
@@ -78,44 +80,44 @@ mvn test -Ptest
 mvn test -Pdev
 ```
 
-## 配置属性说明
+## Configuration Properties
 
-### 数据库配置
-- `database.url`: 数据库连接URL
-- `database.username`: 数据库用户名
-- `database.password`: 数据库密码
+### Database Configuration
+- `database.url`: database connection URL
+- `database.username`: database username
+- `database.password`: database password
 
-### Redis配置
-- `redis.host`: Redis服务器地址
-- `redis.port`: Redis服务器端口
+### Redis Configuration
+- `redis.host`: Redis server address
+- `redis.port`: Redis server port
 
-### 日志配置
-- `logging.level.root`: 根日志级别
-- `logging.level.com.gallop.fastddd`: FastDDD框架日志级别
+### Logging Configuration
+- `logging.level.root`: root log level
+- `logging.level.com.gallop.fastddd`: log level for the FastDDD framework
 
-### 功能开关
-- `enable.swagger`: 是否启用Swagger文档
-- `enable.actuator`: 是否启用Actuator监控
+### Feature Switches
+- `enable.swagger`: whether Swagger documentation is enabled
+- `enable.actuator`: whether Actuator monitoring is enabled
 
-## 资源过滤
+## Resource Filtering
 
-项目配置了Maven资源过滤，会自动替换配置文件中的占位符：
+The project configures Maven resource filtering, which automatically replaces placeholders in configuration files:
 
-- `@profile.active@` → 当前激活的配置文件名称
-- `@database.url@` → 数据库连接URL
-- `@logging.level.root@` → 根日志级别
-- `@project.version@` → 项目版本号
+- `@profile.active@` → the name of the currently active profile
+- `@database.url@` → the database connection URL
+- `@logging.level.root@` → the root log level
+- `@project.version@` → the project version
 
-## 示例配置文件
+## Example Configuration File
 
-查看 `fastddd-studio-server/src/main/resources/application.yml` 文件，了解如何在Spring Boot配置中使用这些占位符。
+See the `fastddd-studio-server/src/main/resources/application.yml` file to learn how these placeholders are used in Spring Boot configuration.
 
-## 注意事项
+## Notes
 
-1. **生产环境安全**: 生产环境的数据库密码等敏感信息应通过环境变量或外部配置文件提供，而不是硬编码在pom.xml中。
+1. **Production environment security**: Sensitive information such as production database passwords should be provided through environment variables or external configuration files, not hardcoded in pom.xml.
 
-2. **配置文件优先级**: Maven属性会被Spring Boot的配置文件覆盖，确保配置的一致性。
+2. **Configuration precedence**: Maven properties are overridden by Spring Boot configuration files, which keeps the configuration consistent.
 
-3. **资源过滤范围**: 只有`.yml`、`.yaml`和`.properties`文件会进行资源过滤，其他文件保持原样。
+3. **Resource filtering scope**: Only `.yml`, `.yaml`, and `.properties` files go through resource filtering; all other files are left as-is.
 
-4. **构建缓存**: 切换配置文件后建议执行`mvn clean`清理缓存，确保配置正确应用。
+4. **Build cache**: After switching profiles, it is recommended to run `mvn clean` to clear cached output and make sure the new configuration is applied correctly.

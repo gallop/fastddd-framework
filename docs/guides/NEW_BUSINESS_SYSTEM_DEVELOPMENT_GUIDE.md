@@ -1,26 +1,30 @@
-# FastDDD 新业务系统开发规范
+# FastDDD New Business System Development Guide
 
-> 面向新建业务系统与 AI 编程助手的最小开发规范。既有系统升级请使用
-> [业务系统升级入口](../upgrade/README.md)，不要混用两套流程。
+**English** | [简体中文](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.zh-CN.md)
+
+> A minimal development specification for new business systems and AI coding assistants. To upgrade
+> an existing system, use the [Business System Upgrade entry point](../upgrade/README.md) instead;
+> do not mix the two workflows.
 >
-> 当前基线：**JDK 21、Spring Boot 3.5.16、FastDDD `io.github.gallop.fastddd:1.0.0`**
-> （内部 v1.0 正式发布，2026-09-10，tag `v1.0.0`，经内部 release 仓部署）。
+> Current baseline: **JDK 21, Spring Boot 3.5.16, FastDDD `io.github.gallop.fastddd:1.0.0`**
+> (internal v1.0 GA, 2026-09-10, tag `v1.0.0`, deployed via the internal release repository).
 
-## 1. 必读与按需参考
+## 1. Must-Read and On-Demand References
 
-新项目先阅读本文；开发中按问题检索 [Framework 完整参考](../FASTDDD_REFERENCE.md)。仅在实际使用时追加：
+New projects should read this document first; during development, look things up in the
+[complete Framework reference](../FASTDDD_REFERENCE.md) as questions arise. Add the rest only when actually used:
 
-| 能力 | 文档 |
+| Capability | Document |
 |---|---|
-| Security/JWT/权限 SPI | [安全集成指南](../security/INTEGRATION_GUIDE.md) |
-| 缓存 | [缓存指南](CACHE_GUIDE.md) |
-| 事件/Outbox/RocketMQ | [Outbox 运维指南](../devops/OUTBOX_OPS_GUIDE.md) |
-| CQRS/充血模型 | [CQRS 指南](CQRS_GUIDE.md) |
-| 搜索 | [搜索指南](SEARCH_GUIDE.md) |
+| Security/JWT/permission SPI | [Security Integration Guide](../security/INTEGRATION_GUIDE.md) |
+| Caching | [Cache Guide](CACHE_GUIDE.md) |
+| Events/Outbox/RocketMQ | [Outbox Operations Guide](../devops/OUTBOX_OPS_GUIDE.md) |
+| CQRS/rich model | [CQRS Guide](CQRS_GUIDE.md) |
+| Search | [Search Guide](SEARCH_GUIDE.md) |
 
-## 2. 基线与依赖
+## 2. Baseline and Dependencies
 
-业务项目必须 import BOM；只引入实际使用的模块，所有 `fast-ddd-*` 依赖不写版本。Tooling 的 Maven 插件是可选构建工具，Studio Pro 不是业务运行时依赖。
+Business projects must import the BOM; include only the modules actually used, and never write versions on `fast-ddd-*` dependencies. The Tooling Maven plugins are optional build tools, and Studio Pro is not a business runtime dependency.
 
 ```xml
 <properties>
@@ -47,26 +51,26 @@
 </dependencies>
 ```
 
-不要覆盖 Spring Boot、Spring、Jackson、MyBatis-Plus、Micrometer 等 BOM 已管理的版本。`1.0.0` 制品须从已配置的内部 release 仓解析，或以固定 `-Drevision=1.0.0` 从 Framework 根目录安装；不得改用 SNAPSHOT 或 `-jdk21-rc1` 冒充正式版。
+Do not override the versions the BOM already manages for Spring Boot, Spring, Jackson, MyBatis-Plus, Micrometer, and the like. The `1.0.0` artifacts must be resolved from the configured internal release repository, or installed from the Framework root with a fixed `-Drevision=1.0.0`; do not pass off a SNAPSHOT or `-jdk21-rc1` as the official release.
 
-## 3. 代码与分层规则
+## 3. Code and Layering Rules
 
-- 简单配置/后台 CRUD：使用 `PO → Mapper → Service → Controller`；实体以 `BasePO<ID>` 为基类。
-- 复杂核心业务：使用 `domain → application → infrastructure → interfaces`；领域对象不直接依赖 Web、Mapper 或数据库配置。
-- `ID` 必须贯穿 `BasePO<ID>`、`IService<T, ID>`、`BaseServiceImpl<M, T, ID>` 与 Controller；BIGINT 默认选 `Long`，不得使用原始泛型或强转掩盖类型错误。
-- 普通后台 CRUD 优先 `BaseAdminCrudController<S,T,ID>`；只读资源使用 `BaseReadOnlyController<S,T,ID>`；资金、审批、跨聚合写操作等敏感 API 显式定义端点和权限，不继承通用写端点。
-- API 的请求/响应使用 DTO，不直接把 PO 作为对外契约；异常使用 `BusinessException`/`SystemException`，统一响应使用 `ApiResponse`。
-- 一个表是否继承 `VersionedPO` 取决于是否真实存在 `version` 列；不得为了“通用”给所有表加乐观锁字段。
+- Simple configuration / back-office CRUD: use `PO → Mapper → Service → Controller`; entities extend `BasePO<ID>` as their base class.
+- Complex core business: use `domain → application → infrastructure → interfaces`; domain objects must not depend directly on Web, Mapper, or database configuration.
+- The `ID` type must flow consistently through `BasePO<ID>`, `IService<T, ID>`, `BaseServiceImpl<M, T, ID>`, and the Controller; default to `Long` for BIGINT, and never use raw generics or casts to paper over type errors.
+- Prefer `BaseAdminCrudController<S,T,ID>` for ordinary back-office CRUD; use `BaseReadOnlyController<S,T,ID>` for read-only resources; sensitive APIs — funds, approvals, cross-aggregate writes, and the like — must define endpoints and permissions explicitly instead of inheriting the generic write endpoints.
+- Use DTOs for API requests/responses; never expose a PO directly as the external contract; use `BusinessException`/`SystemException` for exceptions and `ApiResponse` as the unified response.
+- Whether a table extends `VersionedPO` depends on whether a `version` column actually exists; do not add optimistic lock columns to every table just for "generality".
 
-## 4. 配置与安全
+## 4. Configuration and Security
 
-- 受 Git 跟踪的 `application*.yml` 只允许环境变量占位符，例如 `${JWT_SECRET}`；提交无敏感值的 `.env.example`，实际 `.env` 必须被忽略。
-- 密码、JWT、LLM Key、RSA 私钥不得进入 Git、日志、文档、测试断言或生成命令。HS512 的 `JWT_SECRET` 至少 64 个 UTF-8 字节。
-- YAML 顶层键必须唯一；Boot 3.5 会拒绝重复键。
-- 启用 Security 时，最小化 `permit-all-paths`；不要使用宽泛的 `/api/auth/**`。所有写端点须明确鉴权责任。
-- Redis、MQ、搜索、LLM 等均为可选能力；未启用时不得保留无效连接配置，也不得把本地替代服务当成生产验收。
+- `application*.yml` files tracked by Git may contain only environment variable placeholders, such as `${JWT_SECRET}`; commit a `.env.example` without sensitive values, and the real `.env` must be ignored.
+- Passwords, JWTs, LLM keys, and RSA private keys must never enter Git, logs, documents, test assertions, or generator commands. An HS512 `JWT_SECRET` must be at least 64 UTF-8 bytes.
+- Top-level YAML keys must be unique; Boot 3.5 rejects duplicate keys.
+- When Security is enabled, keep `permit-all-paths` to a minimum; do not use a broad pattern like `/api/auth/**`. Every write endpoint must have a clearly assigned authorization responsibility.
+- Redis, MQ, search, LLM, and similar are optional capabilities; when one is not enabled, do not leave dead connection configuration behind, and do not treat a local stand-in service as a production acceptance test.
 
-## 5. 新项目最小验证
+## 5. Minimal Verification for New Projects
 
 ```bash
 ./mvnw -B clean compile
@@ -74,9 +78,9 @@
 ./mvnw -B clean package -DskipTests
 ```
 
-交付前至少证明：依赖树只有一个 FastDDD 版本；从实际启动模块加载本地忽略配置；端口已监听且 `/actuator/health` 返回 `UP`；数据库 CRUD、认证授权及项目实际启用的缓存/事件/消息/搜索/第三方服务关键路径通过。集成测试使用隔离环境和显式 profile，不能通过跳过失败测试宣称完成。
+Before delivery, at minimum demonstrate that: the dependency tree contains exactly one FastDDD version; locally ignored configuration is loaded from the module that actually starts; the port is listening and `/actuator/health` returns `UP`; and the critical paths pass for database CRUD, authentication and authorization, plus whichever of caching/events/messaging/search/third-party services the project actually enables. Integration tests must use an isolated environment and an explicit profile; skipping failing tests does not count as completion.
 
-## 6. 给 Claude Code 的工作约束
+## 6. Working Constraints for Claude Code
 
 ```text
 新建 FastDDD 业务系统时，先读 NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md；

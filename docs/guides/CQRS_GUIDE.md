@@ -1,18 +1,20 @@
-# FastDDD CQRS 指南
+# FastDDD CQRS Guide
 
-> 命令查询职责分离（CQRS）模式在 FastDDD 中的实现
+**English** | [简体中文](CQRS_GUIDE.zh-CN.md)
 
-## 概述
+> How the Command Query Responsibility Segregation (CQRS) pattern is implemented in FastDDD
 
-CQRS（Command Query Responsibility Segregation）是一种将命令（写操作）和查询（读操作）分离的架构模式。FastDDD 通过 `fast-ddd-application` 模块提供完整的 CQRS 支持。
+## Overview
+
+CQRS (Command Query Responsibility Segregation) is an architectural pattern that separates commands (write operations) from queries (read operations). FastDDD provides complete CQRS support through the `fast-ddd-application` module.
 
 ---
 
-## 核心概念
+## Core Concepts
 
-### Command（命令）
+### Command
 
-表示改变系统状态的意图：
+Represents an intent to change system state:
 
 ```java
 public class CreateOrderCommand extends Command {
@@ -26,9 +28,9 @@ public class CreateOrderCommand extends Command {
 }
 ```
 
-### Query（查询）
+### Query
 
-表示读取系统状态的请求：
+Represents a request to read system state:
 
 ```java
 public class GetOrderByIdQuery extends Query {
@@ -39,7 +41,7 @@ public class GetOrderByIdQuery extends Query {
 }
 ```
 
-### Handler（处理器）
+### Handler
 
 ```java
 // Command 处理器
@@ -63,9 +65,9 @@ public class GetOrderByIdQueryHandler implements QueryHandler<GetOrderByIdQuery,
 
 ---
 
-## 完整示例
+## Complete Example
 
-### 1. 定义 Command
+### 1. Define the Command
 
 ```java
 package com.example.application.order.command;
@@ -96,7 +98,7 @@ public class CreateOrderCommand extends Command {
 }
 ```
 
-### 2. 定义 Query
+### 2. Define the Query
 
 ```java
 package com.example.application.order.query;
@@ -114,7 +116,7 @@ public class GetOrderByIdQuery extends Query {
 }
 ```
 
-### 3. 实现 Command Handler
+### 3. Implement the Command Handler
 
 ```java
 package com.example.application.order.handler;
@@ -153,7 +155,7 @@ public class CreateOrderCommandHandler implements CommandHandler<CreateOrderComm
 }
 ```
 
-### 4. 实现 Query Handler
+### 4. Implement the Query Handler
 
 ```java
 package com.example.application.order.handler;
@@ -181,7 +183,7 @@ public class GetOrderByIdQueryHandler implements QueryHandler<GetOrderByIdQuery,
 }
 ```
 
-### 5. 创建 Command Controller
+### 5. Create the Command Controller
 
 ```java
 package com.example.interfaces.order;
@@ -208,7 +210,7 @@ public class OrderCommandController extends CommandController<CreateOrderCommand
 }
 ```
 
-### 6. 创建 Query Controller
+### 6. Create the Query Controller
 
 ```java
 package com.example.interfaces.order;
@@ -237,9 +239,9 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ---
 
-## API 端点
+## API Endpoints
 
-### Command 端点
+### Command Endpoint
 
 ```
 POST /api/orders
@@ -267,7 +269,7 @@ Response:
 }
 ```
 
-### Query 端点
+### Query Endpoint
 
 ```
 POST /api/orders/query
@@ -293,9 +295,9 @@ Response:
 
 ---
 
-## 高级特性
+## Advanced Features
 
-### 1. Command 元数据
+### 1. Command Metadata
 
 ```java
 CreateOrderCommand command = new CreateOrderCommand();
@@ -308,7 +310,7 @@ metadata.setUserId("user-789");
 command.setMetadata(metadata);
 ```
 
-### 2. Command 结果封装
+### 2. Command Result Wrapping
 
 ```java
 @Component
@@ -327,7 +329,7 @@ public class CreateOrderCommandHandler implements CommandHandler<CreateOrderComm
 }
 ```
 
-### 3. 复杂查询
+### 3. Complex Queries
 
 ```java
 @Data
@@ -356,9 +358,9 @@ public class OrderListQueryHandler implements QueryHandler<OrderListQuery, PageR
 
 ---
 
-## 最佳实践
+## Best Practices
 
-### 1. Command 命名规范
+### 1. Command Naming Conventions
 
 ```
 ✅ CreateOrderCommand
@@ -370,7 +372,7 @@ public class OrderListQueryHandler implements QueryHandler<OrderListQuery, PageR
 ❌ DoSomething（不明确）
 ```
 
-### 2. Query 命名规范
+### 2. Query Naming Conventions
 
 ```
 ✅ GetOrderByIdQuery
@@ -382,7 +384,7 @@ public class OrderListQueryHandler implements QueryHandler<OrderListQuery, PageR
 ❌ GetData（不明确）
 ```
 
-### 3. Handler 单一职责
+### 3. Handler Single Responsibility
 
 ```java
 // ✅ 好的设计：每个 Handler 只处理一个 Command/Query
@@ -394,7 +396,7 @@ public class UpdateOrderCommandHandler implements CommandHandler<UpdateOrderComm
 public class OrderCommandHandler implements CommandHandler<Command, OrderDto> { }
 ```
 
-### 4. 异常处理
+### 4. Exception Handling
 
 ```java
 @Component
@@ -417,21 +419,21 @@ public class CreateOrderCommandHandler implements CommandHandler<CreateOrderComm
 
 ---
 
-## 与传统 Service 的对比
+## Comparison with Traditional Services
 
-| 传统 Service | CQRS Handler |
+| Traditional Service | CQRS Handler |
 |--------------|--------------|
 | `UserService.createUser()` | `CreateUserCommandHandler.handle()` |
 | `OrderService.createOrder()` | `CreateOrderCommandHandler.handle()` |
 | `ProductService.getById()` | `GetProductByIdQueryHandler.handle()` |
-| 读写混合 | 读写分离 |
-| 返回实体或 void | 返回 DTO 或 CommandResult |
-| 事务通常在 Service 层 | 事务可以在 Application 层 |
+| Mixed reads and writes | Separated reads and writes |
+| Returns an entity or void | Returns a DTO or CommandResult |
+| Transactions usually in the Service layer | Transactions can live in the Application layer |
 
 ---
 
-## 参考资料
+## References
 
-- [架构指南](../architecture/ARCHITECTURE.md)
-- [快速开始](./QUICK_START.md)
-- [API 参考](../api/API_REFERENCE.md)
+- [Architecture Guide](../architecture/ARCHITECTURE.md)
+- [Quick Start](./QUICK_START.md)
+- [API Reference](../api/API_REFERENCE.md)

@@ -1,24 +1,26 @@
-# FastDDD API 参考文档
+# FastDDD API Reference
 
-## 目录
+**English** | [简体中文](API_REFERENCE.zh-CN.md)
 
-- [1. 应用层 API](#1-应用层-api)
-- [2. 领域层 API](#2-领域层-api)
-- [3. 基础设施层 API](#3-基础设施层-api)
-- [4. 接口层 API](#4-接口层-api)
-- [5. 事件 API](#5-事件-api)
+## Table of Contents
+
+- [1. Application Layer API](#1-application-layer-api)
+- [2. Domain Layer API](#2-domain-layer-api)
+- [3. Infrastructure Layer API](#3-infrastructure-layer-api)
+- [4. Interfaces Layer API](#4-interfaces-layer-api)
+- [5. Event API](#5-event-api)
 
 ---
 
-## 1. 应用层 API
+## 1. Application Layer API
 
-应用层提供 CQRS 模式的核心接口。
+The application layer provides the core interfaces of the CQRS pattern.
 
-### 1.1 @ApplicationService 注解
+### 1.1 @ApplicationService Annotation
 
-**位置**: `com.gallop.fastddd.application.annotation.ApplicationService`
+**Location**: `com.gallop.fastddd.application.annotation.ApplicationService`
 
-用于标记应用服务类，区别于领域服务和基础设施服务。
+Marks an application service class, distinguishing it from domain services and infrastructure services.
 
 ```java
 @Target(ElementType.TYPE)
@@ -34,7 +36,7 @@ public @interface ApplicationService {
 }
 ```
 
-**使用示例**:
+**Usage example**:
 ```java
 @ApplicationService(aggregate = Order.class)
 public class OrderApplicationService {
@@ -44,34 +46,34 @@ public class OrderApplicationService {
 
 ---
 
-### 1.2 Command 基类
+### 1.2 Command Base Class
 
-**位置**: `com.gallop.fastddd.application.command.Command`
+**Location**: `com.gallop.fastddd.application.command.Command`
 
-所有写操作的请求对象基类。
+Base class for the request objects of all write operations.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getCommandType()` | String | 获取命令类型（类名） |
-| `isValid()` | boolean | 验证命令是否有效 |
-| `getCreatedAt()` | Instant | 命令创建时间 |
-| `getMetadata()` | CommandMetadata | 命令元数据 |
+| `getCommandType()` | String | Returns the command type (class name) |
+| `isValid()` | boolean | Checks whether the command is valid |
+| `getCreatedAt()` | Instant | Time when the command was created |
+| `getMetadata()` | CommandMetadata | Command metadata |
 
-**元数据字段**:
-| 字段 | 类型 | 说明 |
+**Metadata fields**:
+| Field | Type | Description |
 |------|------|------|
-| `correlationId` | String | 关联ID（用于追踪请求链） |
-| `causationId` | String | 因果ID（表示触发当前命令的命令） |
-| `userId` | String | 用户ID |
-| `tenantId` | String | 租户ID |
+| `correlationId` | String | Correlation ID (used for request-chain tracing) |
+| `causationId` | String | Causation ID (the command that triggered this command) |
+| `userId` | String | User ID |
+| `tenantId` | String | Tenant ID |
 
 ---
 
-### 1.3 CommandHandler 接口
+### 1.3 CommandHandler Interface
 
-**位置**: `com.gallop.fastddd.application.command.CommandHandler`
+**Location**: `com.gallop.fastddd.application.command.CommandHandler`
 
-命令处理器函数式接口。
+Functional interface for command handlers.
 
 ```java
 @FunctionalInterface
@@ -85,7 +87,7 @@ public interface CommandHandler<C extends Command, R> {
 }
 ```
 
-**使用示例**:
+**Usage example**:
 ```java
 @Component
 public class CreateOrderCommandHandler
@@ -100,45 +102,45 @@ public class CreateOrderCommandHandler
 
 ---
 
-### 1.4 CommandResult 类
+### 1.4 CommandResult Class
 
-**位置**: `com.gallop.fastddd.application.command.CommandResult`
+**Location**: `com.gallop.fastddd.application.command.CommandResult`
 
-类型安全的命令执行结果封装。
+A type-safe wrapper for command execution results.
 
-| 静态方法 | 说明 |
+| Static Method | Description |
 |----------|------|
-| `success()` | 创建成功结果（无数据） |
-| `success(T data)` | 创建成功结果（带数据） |
-| `success(String message, T data)` | 创建成功结果（带消息和数据） |
-| `failure(String error)` | 创建失败结果 |
+| `success()` | Creates a success result (no data) |
+| `success(T data)` | Creates a success result (with data) |
+| `success(String message, T data)` | Creates a success result (with message and data) |
+| `failure(String error)` | Creates a failure result |
 
-| 实例方法 | 返回类型 | 说明 |
+| Instance Method | Return Type | Description |
 |----------|----------|------|
-| `isSuccess()` | boolean | 是否成功 |
-| `getData()` | Optional\<T\> | 获取数据（可能为空） |
-| `getMessage()` | String | 获取消息 |
-| `getError()` | String | 获取错误信息 |
+| `isSuccess()` | boolean | Whether the execution succeeded |
+| `getData()` | Optional\<T\> | Gets the data (may be empty) |
+| `getMessage()` | String | Gets the message |
+| `getError()` | String | Gets the error message |
 
 ---
 
-### 1.5 Query 基类
+### 1.5 Query Base Class
 
-**位置**: `com.gallop.fastddd.application.query.Query`
+**Location**: `com.gallop.fastddd.application.query.Query`
 
-所有读操作的请求对象基类。
+Base class for the request objects of all read operations.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getQueryType()` | String | 获取查询类型（类名） |
+| `getQueryType()` | String | Returns the query type (class name) |
 
 ---
 
-### 1.6 QueryHandler 接口
+### 1.6 QueryHandler Interface
 
-**位置**: `com.gallop.fastddd.application.query.QueryHandler`
+**Location**: `com.gallop.fastddd.application.query.QueryHandler`
 
-查询处理器函数式接口。
+Functional interface for query handlers.
 
 ```java
 @FunctionalInterface
@@ -156,61 +158,61 @@ public interface QueryHandler<Q extends Query, R> {
 
 ### 1.7 CommandValidationException
 
-**位置**: `com.gallop.fastddd.application.exception.CommandValidationException`
+**Location**: `com.gallop.fastddd.application.exception.CommandValidationException`
 
-命令验证异常。
+Command validation exception.
 
-| 构造方法 | 说明 |
+| Constructor | Description |
 |----------|------|
-| `CommandValidationException(String message)` | 创建验证异常 |
-| `CommandValidationException(List<String> errors)` | 批量验证错误 |
-| `CommandValidationException(String field, String message)` | 字段验证错误 |
+| `CommandValidationException(String message)` | Creates a validation exception |
+| `CommandValidationException(List<String> errors)` | Creates an exception from a batch of validation errors |
+| `CommandValidationException(String field, String message)` | Creates an exception for a field validation error |
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getErrors()` | List\<String\> | 获取所有验证错误 |
+| `getErrors()` | List\<String\> | Gets all validation errors |
 
 ---
 
-## 2. 领域层 API
+## 2. Domain Layer API
 
-领域层提供 DDD 核心模式基类。
+The domain layer provides base classes for the core DDD patterns.
 
 ### 2.1 BaseEntity\<ID\>
 
-**位置**: `com.gallop.fastddd.common.domain.BaseEntity`
+**Location**: `com.gallop.fastddd.common.domain.BaseEntity`
 
-领域实体基类。
+Base class for domain entities.
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `id` | ID | 实体唯一标识 |
-| `createdAt` | LocalDateTime | 创建时间 |
-| `updatedAt` | LocalDateTime | 更新时间 |
-| `version` | Integer | 版本号（乐观锁） |
-| `deleted` | Integer | 软删除标记 |
+| `id` | ID | Unique identifier of the entity |
+| `createdAt` | LocalDateTime | Creation time |
+| `updatedAt` | LocalDateTime | Last update time |
+| `version` | Integer | Version number (optimistic lock) |
+| `deleted` | Integer | Logical delete flag |
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getId()` | ID | 获取实体ID（抽象方法，需实现） |
-| `setId(ID id)` | void | 设置实体ID（抽象方法，需实现） |
+| `getId()` | ID | Gets the entity ID (abstract method, must be implemented) |
+| `setId(ID id)` | void | Sets the entity ID (abstract method, must be implemented) |
 
 ---
 
 ### 2.2 AggregateRoot\<ID\>
 
-**位置**: `com.gallop.fastddd.common.domain.AggregateRoot`
+**Location**: `com.gallop.fastddd.common.domain.AggregateRoot`
 
-聚合根基类，继承自 BaseEntity。
+Base class for aggregate roots, extending BaseEntity.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `addDomainEvent(AbstractDomainEvent event)` | void | 添加领域事件 |
-| `removeDomainEvent(AbstractDomainEvent event)` | void | 移除领域事件 |
-| `getDomainEvents()` | List\<AbstractDomainEvent\> | 获取所有领域事件（只读） |
-| `clearDomainEvents()` | void | 清空领域事件 |
+| `addDomainEvent(AbstractDomainEvent event)` | void | Adds a domain event |
+| `removeDomainEvent(AbstractDomainEvent event)` | void | Removes a domain event |
+| `getDomainEvents()` | List\<AbstractDomainEvent\> | Gets all domain events (read-only) |
+| `clearDomainEvents()` | void | Clears all domain events |
 
-**使用示例**:
+**Usage example**:
 ```java
 public class Order extends AggregateRoot<Long> {
     public void pay(BigDecimal amount) {
@@ -227,16 +229,16 @@ public class Order extends AggregateRoot<Long> {
 
 ### 2.3 ValueObject
 
-**位置**: `com.gallop.fastddd.common.domain.ValueObject`
+**Location**: `com.gallop.fastddd.common.domain.ValueObject`
 
-值对象基类（标记接口）。
+Base class for value objects (marker interface).
 
-值对象特点：
-- 不可变（Immutable）
-- 通过字段值判断相等性
-- 无生命周期标识
+Value object characteristics:
+- Immutable
+- Equality determined by field values
+- No lifecycle identity
 
-**使用示例**:
+**Usage example**:
 ```java
 public class Address extends ValueObject {
     private final String province;
@@ -257,50 +259,50 @@ public class Address extends ValueObject {
 
 ---
 
-### 2.4 DomainEvent 接口（旧版，已弃用）
+### 2.4 DomainEvent Interface (Legacy, Deprecated)
 
-**位置**: `com.gallop.fastddd.common.domain.DomainEvent`
+**Location**: `com.gallop.fastddd.common.domain.DomainEvent`
 
-**@Deprecated** - 请使用 `com.gallop.fastddd.event.DomainEvent`
+**@Deprecated** - Use `com.gallop.fastddd.event.DomainEvent` instead
 
 ---
 
-### 2.5 AbstractDomainEvent（旧版，已弃用）
+### 2.5 AbstractDomainEvent (Legacy, Deprecated)
 
-**位置**: `com.gallop.fastddd.common.domain.AbstractDomainEvent`
+**Location**: `com.gallop.fastddd.common.domain.AbstractDomainEvent`
 
-**@Deprecated** - 请使用 `com.gallop.fastddd.event.DomainEvent`
+**@Deprecated** - Use `com.gallop.fastddd.event.DomainEvent` instead
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getEventId()` | String | 获取事件ID |
-| `getAggregateId()` | Serializable | 获取聚合根ID |
-| `getAggregateType()` | String | 获取聚合根类型 |
-| `getEventType()` | String | 获取事件类型 |
-| `getOccurredOn()` | LocalDateTime | 获取事件发生时间 |
+| `getEventId()` | String | Gets the event ID |
+| `getAggregateId()` | Serializable | Gets the aggregate root ID |
+| `getAggregateType()` | String | Gets the aggregate root type |
+| `getEventType()` | String | Gets the event type |
+| `getOccurredOn()` | LocalDateTime | Gets the time the event occurred |
 
 ---
 
-## 3. 基础设施层 API
+## 3. Infrastructure Layer API
 
 ### 3.1 EntityRepository\<E, ID\>
 
-**位置**: `com.gallop.fastddd.crud.entity.EntityRepository`
+**Location**: `com.gallop.fastddd.crud.entity.EntityRepository`
 
-充血实体仓储接口。
+Repository interface for rich-model entities.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `save(E entity)` | E | 保存实体 |
-| `saveAndPublishEvents(E entity)` | E | 保存实体并发布领域事件 |
-| `findById(ID id)` | Optional\<E\> | 根据ID查找 |
-| `findAll()` | List\<E\> | 查找所有 |
-| `deleteById(ID id)` | void | 根据ID删除 |
-| `delete(E entity)` | void | 删除实体 |
-| `existsById(ID id)` | boolean | 判断是否存在 |
-| `count()` | long | 统计数量 |
+| `save(E entity)` | E | Saves the entity |
+| `saveAndPublishEvents(E entity)` | E | Saves the entity and publishes its domain events |
+| `findById(ID id)` | Optional\<E\> | Finds an entity by ID |
+| `findAll()` | List\<E\> | Finds all entities |
+| `deleteById(ID id)` | void | Deletes an entity by ID |
+| `delete(E entity)` | void | Deletes the entity |
+| `existsById(ID id)` | boolean | Checks whether an entity exists |
+| `count()` | long | Counts entities |
 
-**使用示例**:
+**Usage example**:
 ```java
 public interface OrderRepository extends EntityRepository<Order, Long> {
     // 扩展查询方法
@@ -313,18 +315,18 @@ public interface OrderRepository extends EntityRepository<Order, Long> {
 
 ### 3.2 EntityMapper\<E, P\>
 
-**位置**: `com.gallop.fastddd.crud.entity.EntityMapper`
+**Location**: `com.gallop.fastddd.crud.entity.EntityMapper`
 
-Entity-PO 映射器接口（基于 MapStruct）。
+Entity-PO mapper interface (based on MapStruct).
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `toEntity(P po)` | E | PO 转换为 Entity |
-| `toPo(E entity)` | P | Entity 转换为 PO |
-| `toEntityList(List\<P\> pos)` | List\<E\> | PO 列表批量转换 |
-| `toPoList(List\<E\> entities)` | List\<P\> | Entity 列表批量转换 |
+| `toEntity(P po)` | E | Converts a PO to an Entity |
+| `toPo(E entity)` | P | Converts an Entity to a PO |
+| `toEntityList(List\<P\> pos)` | List\<E\> | Batch-converts a list of POs |
+| `toPoList(List\<E\> entities)` | List\<P\> | Batch-converts a list of Entities |
 
-**使用示例**:
+**Usage example**:
 ```java
 @Mapper(componentModel = "spring")
 public interface OrderMapper extends EntityMapper<Order, OrderPO> {
@@ -342,58 +344,58 @@ public interface OrderMapper extends EntityMapper<Order, OrderPO> {
 
 ---
 
-### 3.3 IRepository\<T\>（贫血模型）
+### 3.3 IRepository\<T\> (Anemic Model)
 
-**位置**: `com.gallop.fastddd.crud.dao.IRepository**
+**Location**: `com.gallop.fastddd.crud.dao.IRepository**
 
-基础 PO 仓储接口。
+Basic PO repository interface.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `insert(T entity)` | int | 插入实体 |
-| `deleteById(Serializable id)` | int | 根据ID删除 |
-| `updateById(T entity)` | int | 根据ID更新 |
-| `selectById(Serializable id)` | T | 根据ID查询 |
-| `selectList(Wrapper\<T\> wrapper)` | List\<T\> | 条件查询列表 |
-| `selectPage(Page\<T\> page, Wrapper\<T\> wrapper)` | Page\<T\> | 分页查询 |
+| `insert(T entity)` | int | Inserts an entity |
+| `deleteById(Serializable id)` | int | Deletes by ID |
+| `updateById(T entity)` | int | Updates by ID |
+| `selectById(Serializable id)` | T | Queries by ID |
+| `selectList(Wrapper\<T\> wrapper)` | List\<T\> | Queries a list by condition |
+| `selectPage(Page\<T\> page, Wrapper\<T\> wrapper)` | Page\<T\> | Paginated query |
 
 ---
 
-### 3.4 IBaseService\<T\>（贫血模型）
+### 3.4 IBaseService\<T\> (Anemic Model)
 
-**位置**: `com.gallop.fastddd.crud.service.IBaseService`
+**Location**: `com.gallop.fastddd.crud.service.IBaseService`
 
-基础 Service 接口。
+Basic Service interface.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `insert(T entity)` | boolean | 插入实体 |
-| `deleteById(Serializable id)` | boolean | 根据ID删除 |
-| `updateById(T entity)` | boolean | 根据ID更新 |
-| `getById(Serializable id)` | T | 根据ID查询 |
-| `list(Wrapper\<T\> wrapper)` | List\<T\> | 条件查询列表 |
-| `page(Page\<T\> page, Wrapper\<T\> wrapper)` | Page\<T\> | 分页查询 |
+| `insert(T entity)` | boolean | Inserts an entity |
+| `deleteById(Serializable id)` | boolean | Deletes by ID |
+| `updateById(T entity)` | boolean | Updates by ID |
+| `getById(Serializable id)` | T | Queries by ID |
+| `list(Wrapper\<T\> wrapper)` | List\<T\> | Queries a list by condition |
+| `page(Page\<T\> page, Wrapper\<T\> wrapper)` | Page\<T\> | Paginated query |
 
 ---
 
-## 4. 接口层 API
+## 4. Interfaces Layer API
 
 ### 4.1 CommandController\<C, R\>
 
-**位置**: `com.gallop.fastddd.web.controller.CommandController`
+**Location**: `com.gallop.fastddd.web.controller.CommandController`
 
-命令控制器基类。
+Base class for command controllers.
 
-| 端点 | 方法 | 说明 |
+| Endpoint | Method | Description |
 |------|------|------|
-| `POST /` | `executeCommand(@Valid @RequestBody C command)` | 执行命令 |
-| `POST /execute` | `executeCommand(@Valid @RequestBody C command)` | 执行命令（别名） |
+| `POST /` | `executeCommand(@Valid @RequestBody C command)` | Executes a command |
+| `POST /execute` | `executeCommand(@Valid @RequestBody C command)` | Executes a command (alias) |
 
-| 继承方法 | 说明 |
+| Inherited Method | Description |
 |----------|------|
-| `getCommandHandler()` | 获取命令处理器（需实现） |
+| `getCommandHandler()` | Returns the command handler (must be implemented) |
 
-**使用示例**:
+**Usage example**:
 ```java
 @RestController
 @RequestMapping("/api/orders")
@@ -413,21 +415,21 @@ public class OrderCommandController extends CommandController<CreateOrderCommand
 
 ### 4.2 QueryController\<Q, R\>
 
-**位置**: `com.gallop.fastddd.web.controller.QueryController`
+**Location**: `com.gallop.fastddd.web.controller.QueryController`
 
-查询控制器基类。
+Base class for query controllers.
 
-| 端点 | 方法 | 说明 |
+| Endpoint | Method | Description |
 |------|------|------|
-| `POST /query` | `executeQuery(@Valid @RequestBody Q query)` | 执行查询 |
-| `POST /find-one` | `findOne(@Valid @RequestBody Q query)` | 查询单个对象 |
-| `POST /search` | `search(@Valid @RequestBody Q query)` | 搜索列表 |
+| `POST /query` | `executeQuery(@Valid @RequestBody Q query)` | Executes a query |
+| `POST /find-one` | `findOne(@Valid @RequestBody Q query)` | Queries a single object |
+| `POST /search` | `search(@Valid @RequestBody Q query)` | Searches a list |
 
-| 继承方法 | 说明 |
+| Inherited Method | Description |
 |----------|------|
-| `getQueryHandler()` | 获取查询处理器（需实现） |
+| `getQueryHandler()` | Returns the query handler (must be implemented) |
 
-**使用示例**:
+**Usage example**:
 ```java
 @RestController
 @RequestMapping("/api/orders")
@@ -445,9 +447,9 @@ public class OrderQueryController extends QueryController<GetOrderByIdQuery, Ord
 
 ---
 
-### 4.3 Controller 基类层次（贫血模型）
+### 4.3 Controller Base Class Hierarchy (Anemic Model)
 
-框架提供分层 Controller 基类，按需选择：
+The framework provides a layered set of Controller base classes; choose the one that fits your needs:
 
 ```
 AbstractBaseController              ← 基础设施（service、resolveId），无端点
@@ -456,135 +458,135 @@ AbstractBaseController              ← 基础设施（service、resolveId），
 │       └── BaseController          ← @Deprecated 兼容入口
 ```
 
-#### BaseAdminCrudController\<S, T\>（推荐）
+#### BaseAdminCrudController\<S, T\> (Recommended)
 
-**位置**: `com.gallop.fastddd.web.controller.BaseAdminCrudController`
+**Location**: `com.gallop.fastddd.web.controller.BaseAdminCrudController`
 
-管理端完整 CRUD 控制器，包含 8 个 lifecycle hooks。
+Full-CRUD controller for the admin side, with 8 lifecycle hooks.
 
-| 端点 | HTTP 方法 | 说明 |
+| Endpoint | HTTP Method | Description |
 |------|----------|------|
-| `/{id}` | GET | 根据ID查询 |
-| `/` | GET | 查询列表 |
-| `/page` | GET | 分页查询 |
-| `/` | POST | 创建 |
-| `/batch` | POST | 批量创建 |
-| `/{id}` | PUT | 根据ID更新 |
-| `/` | PUT | 条件更新 |
-| `/batch` | PUT | 批量更新 |
-| `/{id}` | DELETE | 删除 |
-| `/batch` | DELETE | 批量删除 |
+| `/{id}` | GET | Query by ID |
+| `/` | GET | Query a list |
+| `/page` | GET | Paginated query |
+| `/` | POST | Create |
+| `/batch` | POST | Batch create |
+| `/{id}` | PUT | Update by ID |
+| `/` | PUT | Update by condition |
+| `/batch` | PUT | Batch update |
+| `/{id}` | DELETE | Delete |
+| `/batch` | DELETE | Batch delete |
 
-**Lifecycle Hooks**（protected 空方法，子类按需覆写）：
+**Lifecycle Hooks** (empty protected methods that subclasses override as needed):
 
-| Hook | 触发时机 | 典型用途 |
+| Hook | When Triggered | Typical Use |
 |------|---------|---------|
-| `beforeCreate(T)` | 创建前 | 参数校验、审计字段填充 |
-| `afterCreate(T)` | 创建后 | 发送通知、事件发布 |
-| `beforeUpdate(Serializable, T)` | 更新前 | 权限检查 |
-| `afterUpdate(Serializable, T)` | 更新后 | 缓存清理 |
-| `beforeDelete(Serializable)` | 删除前 | 关联检查 |
-| `afterDelete(Serializable)` | 删除后 | 关联数据清理 |
-| `beforeCreateBatch(List<T>)` | 批量创建前 | 参数预处理 |
-| `beforeUpdateBatch(List<T>)` | 批量更新前 | 参数预处理 |
+| `beforeCreate(T)` | Before create | Parameter validation, audit field population |
+| `afterCreate(T)` | After create | Send notifications, publish events |
+| `beforeUpdate(Serializable, T)` | Before update | Permission checks |
+| `afterUpdate(Serializable, T)` | After update | Cache invalidation |
+| `beforeDelete(Serializable)` | Before delete | Referential integrity checks |
+| `afterDelete(Serializable)` | After delete | Clean up related data |
+| `beforeCreateBatch(List<T>)` | Before batch create | Parameter preprocessing |
+| `beforeUpdateBatch(List<T>)` | Before batch update | Parameter preprocessing |
 
 #### BaseReadOnlyController\<S, T\>
 
-**位置**: `com.gallop.fastddd.web.controller.BaseReadOnlyController`
+**Location**: `com.gallop.fastddd.web.controller.BaseReadOnlyController`
 
-只暴露 GET 查询端点，适合字典、下拉选项、数据展示等只读场景。
+Exposes only GET query endpoints, making it suitable for read-only scenarios such as dictionaries, dropdown options, and data display.
 
-| 端点 | HTTP 方法 | 说明 |
+| Endpoint | HTTP Method | Description |
 |------|----------|------|
-| `/{id}` | GET | 根据ID查询 |
-| `/` | GET | 查询列表 |
-| `/page` | GET | 分页查询 |
+| `/{id}` | GET | Query by ID |
+| `/` | GET | Query a list |
+| `/page` | GET | Paginated query |
 
-#### BaseController\<S, T\>（@Deprecated）
+#### BaseController\<S, T\> (@Deprecated)
 
-**位置**: `com.gallop.fastddd.web.controller.BaseController`
+**Location**: `com.gallop.fastddd.web.controller.BaseController`
 
-> **已废弃**（since 1.1），继承自 `BaseAdminCrudController`，行为不变。新项目请使用 `BaseAdminCrudController` 或 `BaseReadOnlyController`。
+> **Deprecated** (since 1.1); extends `BaseAdminCrudController` with unchanged behavior. New projects should use `BaseAdminCrudController` or `BaseReadOnlyController`.
 
 ---
 
 ### 4.4 ApiResponse\<T\>
 
-**位置**: `com.gallop.fastddd.web.response.ApiResponse`
+**Location**: `com.gallop.fastddd.web.response.ApiResponse`
 
-统一 API 响应格式。
+Unified API response format.
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `code` | int | 响应码（200=成功） |
-| `message` | String | 响应消息 |
-| `data` | T | 响应数据 |
-| `timestamp` | long | 响应时间戳 |
+| `code` | int | Response code (200 = success) |
+| `message` | String | Response message |
+| `data` | T | Response data |
+| `timestamp` | long | Response timestamp |
 
-| 静态方法 | 说明 |
+| Static Method | Description |
 |----------|------|
-| `success()` | 成功响应（无数据） |
-| `success(T data)` | 成功响应（带数据） |
-| `success(String message, T data)` | 成功响应（带消息和数据） |
-| `error(String message)` | 错误响应 |
+| `success()` | Success response (no data) |
+| `success(T data)` | Success response (with data) |
+| `success(String message, T data)` | Success response (with message and data) |
+| `error(String message)` | Error response |
 
 ---
 
-## 5. 事件 API
+## 5. Event API
 
-### 5.1 DomainEvent（新版）
+### 5.1 DomainEvent (New Version)
 
-**位置**: `com.gallop.fastddd.event.DomainEvent`
+**Location**: `com.gallop.fastddd.event.DomainEvent`
 
-领域事件抽象类（继承 Spring ApplicationEvent）。
+Abstract base class for domain events (extends Spring's ApplicationEvent).
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `getAggregateId()` | String | 获取聚合根ID |
-| `getAggregateType()` | String | 获取聚合根类型 |
-| `getOccurredOn()` | LocalDateTime | 获取事件发生时间 |
+| `getAggregateId()` | String | Gets the aggregate root ID |
+| `getAggregateType()` | String | Gets the aggregate root type |
+| `getOccurredOn()` | LocalDateTime | Gets the time the event occurred |
 
 ---
 
 ### 5.2 EventPublisher
 
-**位置**: `com.gallop.fastddd.event.EventPublisher`
+**Location**: `com.gallop.fastddd.event.EventPublisher`
 
-事件发布器接口。
+Event publisher interface.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `publishEvent(DomainEvent event)` | void | 发布单个事件 |
-| `publishEvents(Collection<? extends DomainEvent> events)` | void | 批量发布事件 |
-| `publishEventAsync(DomainEvent event)` | void | 异步发布单个事件 |
-| `publishEventsAsync(Collection<? extends DomainEvent> events)` | void | 异步批量发布事件 |
-| `hasListeners(Class<? extends DomainEvent> eventType)` | boolean | 判断是否有监听器 |
-| `getListenerCount(Class<? extends DomainEvent> eventType)` | int | 获取监听器数量 |
+| `publishEvent(DomainEvent event)` | void | Publishes a single event |
+| `publishEvents(Collection<? extends DomainEvent> events)` | void | Publishes a batch of events |
+| `publishEventAsync(DomainEvent event)` | void | Publishes a single event asynchronously |
+| `publishEventsAsync(Collection<? extends DomainEvent> events)` | void | Publishes a batch of events asynchronously |
+| `hasListeners(Class<? extends DomainEvent> eventType)` | boolean | Checks whether any listeners exist |
+| `getListenerCount(Class<? extends DomainEvent> eventType)` | int | Gets the listener count |
 
 ---
 
 ### 5.3 DomainEventBridge
 
-**位置**: `com.gallop.fastddd.event.bridge.DomainEventBridge`
+**Location**: `com.gallop.fastddd.event.bridge.DomainEventBridge`
 
-领域事件桥接器，将旧版 `AbstractDomainEvent` 桥接到新版 `DomainEvent`。
+Domain event bridge that adapts the legacy `AbstractDomainEvent` to the new `DomainEvent`.
 
-| 方法 | 返回类型 | 说明 |
+| Method | Return Type | Description |
 |------|----------|------|
-| `publishDomainEvent(AbstractDomainEvent event)` | void | 发布单个领域事件 |
-| `publishDomainEvents(Collection<? extends AbstractDomainEvent> events)` | void | 批量发布领域事件 |
-| `publishDomainEventAsync(AbstractDomainEvent event)` | void | 异步发布单个领域事件 |
-| `publishDomainEventsAsync(Collection<? extends AbstractDomainEvent> events)` | void | 异步批量发布领域事件 |
+| `publishDomainEvent(AbstractDomainEvent event)` | void | Publishes a single domain event |
+| `publishDomainEvents(Collection<? extends AbstractDomainEvent> events)` | void | Publishes a batch of domain events |
+| `publishDomainEventAsync(AbstractDomainEvent event)` | void | Publishes a single domain event asynchronously |
+| `publishDomainEventsAsync(Collection<? extends AbstractDomainEvent> events)` | void | Publishes a batch of domain events asynchronously |
 
 ---
 
 ### 5.4 @EventListener
 
-**位置**: `org.springframework.context.event.EventListener`
+**Location**: `org.springframework.context.event.EventListener`
 
-Spring 事件监听器注解。
+Spring's event listener annotation.
 
-**使用示例**:
+**Usage example**:
 ```java
 @Component
 public class OrderEventHandler {
@@ -604,7 +606,7 @@ public class OrderEventHandler {
 
 ---
 
-## 附录：完整包结构
+## Appendix: Complete Package Structure
 
 ```
 com.gallop.fastddd
@@ -652,13 +654,13 @@ com.gallop.fastddd
 
 ---
 
-## 版本说明
+## Version Notes
 
-- **框架版本**: 1.1.0-SNAPSHOT
-- **Spring Boot**: 3.2.0+
-- **Java**: 17+
+- **Framework Version**: 1.0.0
+- **Spring Boot**: 3.5.16
+- **Java**: 21+
 
-**注意事项**:
-1. `common.domain.DomainEvent` 和 `AbstractDomainEvent` 已标记为 `@Deprecated`
-2. 建议使用 `DomainEventBridge` 进行事件发布
-3. 充血模型和贫血模型可共存于同一项目
+**Notes**:
+1. `common.domain.DomainEvent` and `AbstractDomainEvent` are marked `@Deprecated`
+2. Using `DomainEventBridge` for event publishing is recommended
+3. The rich model and the anemic model can coexist in the same project

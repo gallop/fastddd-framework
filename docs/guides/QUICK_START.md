@@ -1,23 +1,25 @@
-# FastDDD 快速开始指南
+# FastDDD Quick Start Guide
 
-> 5分钟上手 FastDDD 框架的 DDD 开发模式
+**English** | [简体中文](QUICK_START.zh-CN.md)
+
+> Get hands-on with the FastDDD framework's DDD development model in 5 minutes
 >
-> 新项目请先遵循[新业务系统开发规范](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md)：本文仅保留最小示例。
+> For new projects, follow the [New Business System Development Guide](NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) first; this document keeps only the minimal example.
 
-## 概述
+## Overview
 
-FastDDD 支持两种开发模型：
+FastDDD supports two development models:
 
-| 模型 | 描述 | 适用场景 |
+| Model | Description | Best For |
 |------|------|----------|
-| **贫血模型（默认）** | PO + Service + Controller | 简单 CRUD，现有项目 |
-| **充血模型** | Entity + ApplicationService + Repository + CQRS | 复杂业务，领域驱动 |
+| **Anemic model (default)** | PO + Service + Controller | Simple CRUD, existing projects |
+| **Rich model** | Entity + ApplicationService + Repository + CQRS | Complex business logic, domain-driven |
 
 ---
 
-## 方式一：贫血模型（默认）
+## Option 1: Anemic Model (Default)
 
-### 1. 创建数据库表
+### 1. Create the Database Table
 
 ```sql
 CREATE TABLE t_user (
@@ -30,7 +32,7 @@ CREATE TABLE t_user (
 );
 ```
 
-### 2. 生成代码
+### 2. Generate Code
 
 ```bash
 mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
@@ -41,7 +43,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.tablePrefix=t_
 ```
 
-### 3. 使用生成的代码
+### 3. Use the Generated Code
 
 ```java
 @RestController
@@ -53,9 +55,9 @@ public class UserController extends BaseAdminCrudController<UserService, User, L
 
 ---
 
-## 方式二：充血模型（CQRS）
+## Option 2: Rich Model (CQRS)
 
-### 1. 定义聚合根
+### 1. Define the Aggregate Root
 
 ```java
 package com.example.domain.order;
@@ -124,7 +126,7 @@ public class Order extends AggregateRoot<Long> {
 }
 ```
 
-### 2. 定义 Command
+### 2. Define the Command
 
 ```java
 package com.example.application.order.command;
@@ -155,7 +157,7 @@ public class CreateOrderCommand extends Command {
 }
 ```
 
-### 3. 定义 Application Service
+### 3. Define the Application Service
 
 ```java
 package com.example.application.order;
@@ -200,7 +202,7 @@ public class OrderApplicationService {
 }
 ```
 
-### 4. 定义 Controller
+### 4. Define the Controller
 
 ```java
 package com.example.interfaces.order;
@@ -228,9 +230,9 @@ public class OrderCommandController extends CommandController<CreateOrderCommand
 
 ---
 
-## 代码生成（充血模型）
+## Code Generation (Rich Model)
 
-使用 Maven 插件生成充血模型代码：
+Use the Maven plugin to generate rich-model code:
 
 ```bash
 mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
@@ -242,15 +244,15 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:generate-code \
   -Dcodegen.enableCQRS=true
 ```
 
-参数说明：
-- `modelType=RICH`: 生成充血模型代码
-- `enableCQRS=true`: 启用 CQRS 模式
+Parameter notes:
+- `modelType=RICH`: generates rich-model code
+- `enableCQRS=true`: enables the CQRS pattern
 
 ---
 
-## 双轨并行
+## Running Both Tracks Side by Side
 
-FastDDD 支持在同一项目中同时使用贫血模型和充血模型：
+FastDDD supports using the anemic model and the rich model in the same project at the same time:
 
 ```
 src/main/java/com/example/
@@ -266,21 +268,21 @@ src/main/java/com/example/
 
 ---
 
-## 替换默认安全配置
+## Replacing the Default Security Configuration
 
-如果项目需要自定义安全配置（如接入 SSO、使用 Cookie 认证等）：
+If your project needs a custom security configuration (for example, integrating SSO or switching to Cookie authentication):
 
-1. **YAML 关闭默认**: `fastddd.security.jwt.enabled: false`
-2. **创建自定义 SecurityConfiguration** 定义自己的 `SecurityFilterChain` Bean
-3. **注意 `matchIfMissing=true` 陷阱** — 不显式关闭就会激活默认配置，两个 FilterChain 并存时行为不可预测
+1. **Disable the default in YAML**: `fastddd.security.jwt.enabled: false`
+2. **Create a custom SecurityConfiguration** that defines your own `SecurityFilterChain` bean
+3. **Watch out for the `matchIfMissing=true` trap** — if you do not disable it explicitly, the default configuration stays active, and with two FilterChains coexisting the behavior is unpredictable
 
-详见 [安全集成指南](../security/INTEGRATION_GUIDE.md) 和 [SPI 参考手册](./SPI_REFERENCE.md)。
+See the [Security Integration Guide](../security/INTEGRATION_GUIDE.md) and the [SPI Reference](./SPI_REFERENCE.md) for details.
 
 ---
 
-## 下一步
+## Next Steps
 
-- [架构指南](../architecture/ARCHITECTURE.md) - 了解双轨并行架构
-- [CQRS 指南](./CQRS_GUIDE.md) - 深入学习 CQRS 模式
-- [SPI 参考手册](./SPI_REFERENCE.md) - 所有 SPI 接口的定义、替换方式、示例代码
-- [迁移指南](../architecture/MIGRATION_GUIDE.md) - 从贫血模型迁移到充血模型
+- [Architecture Guide](../architecture/ARCHITECTURE.md) - learn about the dual-track architecture
+- [CQRS Guide](./CQRS_GUIDE.md) - go deeper into the CQRS pattern
+- [SPI Reference](./SPI_REFERENCE.md) - definitions of all SPI interfaces, how to replace them, and sample code
+- [Migration Guide](../architecture/MIGRATION_GUIDE.md) - migrate from the anemic model to the rich model

@@ -1,18 +1,20 @@
-# FastDDD SPI 参考手册
+# FastDDD SPI Reference
+
+**English** | [简体中文](SPI_REFERENCE.zh-CN.md)
 
 > Last verified: 2026-08-10 | Framework version: 1.0.0 | JDK 21 · Spring Boot 3.5.16
 
-本手册列出 FastDDD 所有 SPI 接口的定义、替换方式、默认行为和使用示例。
+This reference lists every SPI interface in FastDDD — its definition, how to replace it, its default behavior, and usage examples.
 
 ---
 
-## 1. Import 速查表
+## 1. Import Quick Reference
 
-常用类的 import 路径，按模块分组。避免猜错路径——直接复制使用。
+Import paths for frequently used classes, grouped by module. Avoid guessing paths — copy them directly.
 
-### common 模块 (`fast-ddd-common`)
+### common module (`fast-ddd-common`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | AggregateRoot | `com.gallop.fastddd.common.domain.AggregateRoot` |
 | BaseEntity | `com.gallop.fastddd.common.domain.BaseEntity` |
@@ -20,35 +22,35 @@
 | BusinessException | `com.gallop.fastddd.common.exception.BusinessException` |
 | SystemException | `com.gallop.fastddd.common.exception.SystemException` |
 
-### model 模块 (`fast-ddd-model`)
+### model module (`fast-ddd-model`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | BasePO | `com.gallop.fastddd.model.BasePO` |
 | VersionedPO | `com.gallop.fastddd.model.VersionedPO` |
 
-### crud 模块 (`fast-ddd-crud`)
+### crud module (`fast-ddd-crud`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | BaseRepository | `com.gallop.fastddd.crud.repository.BaseRepository` |
 | BaseServiceImpl | `com.gallop.fastddd.crud.service.impl.BaseServiceImpl` |
 | IService | `com.gallop.fastddd.crud.service.IService` |
 
-### web 模块 (`fast-ddd-web`)
+### web module (`fast-ddd-web`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | ApiResponse | `com.gallop.fastddd.web.response.ApiResponse` |
 | BaseController | `com.gallop.fastddd.web.controller.BaseController` |
 | BaseReadOnlyController | `com.gallop.fastddd.web.controller.BaseReadOnlyController` |
 | BaseAdminCrudController | `com.gallop.fastddd.web.controller.BaseAdminCrudController` |
 
-> **注意**: `com.gallop.fastddd.common.result.Result` 已标记 `@Deprecated(forRemoval = true)`，请使用 `ApiResponse`。
+> **Note**: `com.gallop.fastddd.common.result.Result` is marked `@Deprecated(forRemoval = true)` — use `ApiResponse` instead.
 
-### security-starter 模块 (`fast-ddd-security-starter`)
+### security-starter module (`fast-ddd-security-starter`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | SecurityUserDetails | `com.gallop.fastddd.security.spi.SecurityUserDetails` |
 | SecurityUserInfo | `com.gallop.fastddd.security.spi.SecurityUserInfo` |
@@ -64,18 +66,18 @@
 | CorsProperties | `com.gallop.fastddd.security.config.CorsProperties` |
 | SecurityHttpProperties | `com.gallop.fastddd.security.config.SecurityHttpProperties` |
 
-### event 模块 (`fast-ddd-event`)
+### event module (`fast-ddd-event`)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | OutboxEventRepository | `com.gallop.fastddd.event.outbox.OutboxEventRepository` |
 | OutboxEvent | `com.gallop.fastddd.event.outbox.OutboxEvent` |
 | OutboxEventStatus | `com.gallop.fastddd.event.outbox.OutboxEventStatus` |
 | EventPublisher | `com.gallop.fastddd.event.EventPublisher` |
 
-### MyBatis 相关（第三方）
+### MyBatis (third-party)
 
-| 类名 | import 路径 |
+| Class | Import path |
 |------|------------|
 | @TableName | `com.baomidou.mybatisplus.annotation.TableName` |
 | @TableId | `com.baomidou.mybatisplus.annotation.TableId` |
@@ -86,11 +88,11 @@
 
 ## 2. Security SPI
 
-### 2.1 SecurityIdentityService — 身份桥接（推荐替换）
+### 2.1 SecurityIdentityService — identity bridge (recommended replacement point)
 
-**用途**: 将你的用户体系桥接到 FastDDD 安全框架。JWT 验证通过后，框架通过此接口加载用户的 `SecurityUserDetails`。
+**Purpose**: Bridges your own user system into the FastDDD security framework. Once JWT verification succeeds, the framework loads the user's `SecurityUserDetails` through this interface.
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface SecurityIdentityService {
     SecurityUserDetails loadUserByUsername(String username);
@@ -98,11 +100,11 @@ public interface SecurityIdentityService {
 }
 ```
 
-**默认行为**: `DefaultSecurityIdentityService` — 所有方法抛 `UnsupportedOperationException`，提示"请配置 SecurityIdentityService Bean"。
+**Default behavior**: `DefaultSecurityIdentityService` — every method throws `UnsupportedOperationException` and prompts you to configure a `SecurityIdentityService` Bean.
 
-**替换方式**: `@Component` 实现即可，框架通过 `@ConditionalOnMissingBean` 自动发现。
+**How to replace**: Simply implement it as a `@Component`; the framework discovers it automatically through `@ConditionalOnMissingBean`.
 
-**示例**:
+**Example**:
 ```java
 @Component
 public class MyIdentityService implements SecurityIdentityService {
@@ -132,13 +134,13 @@ public class MyIdentityService implements SecurityIdentityService {
 }
 ```
 
-**何时需要替换**: 仅在使用 FastDDD 默认 JWT 安全流程（`fastddd.security.jwt.enabled=true`）时需要替换。如果项目已关闭默认安全配置（如使用自定义 SSO），则不需要实现此接口。
+**When to replace**: Only needed if you use the default FastDDD JWT security flow (`fastddd.security.jwt.enabled=true`). If your project turns off the default security configuration (for example, in favor of a custom SSO), you do not need to implement this interface.
 
-### 2.2 CodeLoginIdentityService — 验证码登录
+### 2.2 CodeLoginIdentityService — verification-code login
 
-**用途**: 支持通过手机号或邮箱进行验证码登录。继承 `SecurityIdentityService`，增加 `loadUserByPhone` 和 `loadUserByEmail` 方法。
+**Purpose**: Enables login with a phone number or email address via verification code. It extends `SecurityIdentityService` with the `loadUserByPhone` and `loadUserByEmail` methods.
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface CodeLoginIdentityService extends SecurityIdentityService {
     default SecurityUserDetails loadUserByPhone(String phone) {
@@ -150,15 +152,15 @@ public interface CodeLoginIdentityService extends SecurityIdentityService {
 }
 ```
 
-**替换方式**: `@Component` 实现，同 SecurityIdentityService。
+**How to replace**: Implement it as a `@Component`, same as `SecurityIdentityService`.
 
-**何时需要**: 当你的登录方式包含手机验证码或邮箱验证码时。如果只用密码登录，实现 `SecurityIdentityService` 即可。
+**When you need it**: When your login options include SMS or email verification codes. If you only log in with a password, implementing `SecurityIdentityService` is enough.
 
-### 2.3 VerificationCodeSender — 验证码发送渠道
+### 2.3 VerificationCodeSender — verification code delivery channels
 
-**用途**: 定义验证码的发送方式（短信、邮件等）。框架内置 `NoopVerificationCodeSender`（日志输出，开发用）。
+**Purpose**: Defines how verification codes are delivered (SMS, email, and so on). The framework ships with `NoopVerificationCodeSender` (logs the code; intended for development).
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface VerificationCodeSender {
     VerificationCodeType getType();   // SMS 或 EMAIL
@@ -166,24 +168,24 @@ public interface VerificationCodeSender {
 }
 ```
 
-**多 bean 发现机制**: `DefaultVerificationCodeService` 注入 `List<VerificationCodeSender>`，按 `VerificationCodeType` 建立 `EnumMap` 分发。可以注册多个 sender（一个 SMS、一个 EMAIL），框架按类型选择。
+**Multi-bean discovery**: `DefaultVerificationCodeService` injects `List<VerificationCodeSender>` and dispatches through an `EnumMap` keyed by `VerificationCodeType`. You can register multiple senders (one SMS, one EMAIL); the framework selects one by type.
 
-**枚举值**:
+**Enum values**:
 
 `VerificationCodeType`:
-| 值 | 说明 |
+| Value | Description |
 |----|------|
-| `SMS` | 短信验证码 |
-| `EMAIL` | 邮箱验证码 |
+| `SMS` | SMS verification code |
+| `EMAIL` | Email verification code |
 
 `VerificationCodePurpose`:
-| 值 | 说明 |
+| Value | Description |
 |----|------|
-| `LOGIN` | 登录（默认） |
-| `BIND` | 绑定手机/邮箱 |
-| `RESET_PASSWORD` | 重置密码 |
+| `LOGIN` | Login (default) |
+| `BIND` | Bind phone/email |
+| `RESET_PASSWORD` | Reset password |
 
-**示例 — 接入短信服务**:
+**Example — integrating an SMS provider**:
 ```java
 @Component
 @ConditionalOnProperty(prefix = "app.sms", name = "enabled", havingValue = "true")
@@ -202,11 +204,11 @@ public class SmsVerificationCodeSender implements VerificationCodeSender {
 }
 ```
 
-### 2.4 SecurityPermissionService — RBAC 权限
+### 2.4 SecurityPermissionService — RBAC permissions
 
-**用途**: 提供用户的权限码列表和角色标识列表，用于 `@PreAuthorize` 等方法级权限控制。
+**Purpose**: Provides each user's permission codes and role identifiers, used for method-level authorization such as `@PreAuthorize`.
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface SecurityPermissionService {
     List<String> getPermissionsByUserId(String userId);   // 如 ["system:user:view", "system:order:create"]
@@ -214,28 +216,28 @@ public interface SecurityPermissionService {
 }
 ```
 
-**默认行为**: `DefaultSecurityPermissionService` — 抛 `UnsupportedOperationException`。
+**Default behavior**: `DefaultSecurityPermissionService` — throws `UnsupportedOperationException`.
 
-**何时需要**: 实现动态 RBAC 权限时。V1 不需要 RBAC 的项目可忽略。
+**When you need it**: When implementing dynamic RBAC permissions. Projects that do not need RBAC in V1 can skip it.
 
-### 2.5 SecurityAuditService — 审计日志
+### 2.5 SecurityAuditService — audit logging
 
-**用途**: 持久化审计日志（`@AuditLog` 注解触发的记录）。
+**Purpose**: Persists audit log records (those triggered by the `@AuditLog` annotation).
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface SecurityAuditService {
     void persist(AuditLogEntity auditLog);
 }
 ```
 
-**默认实现**: `AuditLogServiceImpl` — 基于 JDBC 写入数据库。通常无需替换，除非需要写入消息队列。
+**Default implementation**: `AuditLogServiceImpl` — writes to the database over JDBC. Replacing it is usually unnecessary unless you need to publish records to a message queue.
 
-### 2.6 AuthStrategy — 自定义认证通道
+### 2.6 AuthStrategy — custom authentication channels
 
-**用途**: 扩展认证方式（如微信小程序登录、OAuth2 等）。
+**Purpose**: Extends authentication methods (for example, WeChat Mini Program login, OAuth2, and so on).
 
-**接口定义**:
+**Interface definition**:
 ```java
 public interface AuthStrategy {
     String getType();                                           // 如 "password", "sms", "wechat-mini"
@@ -244,15 +246,15 @@ public interface AuthStrategy {
 }
 ```
 
-**内置策略**: `PasswordAuthStrategy`（密码）、`SmsCodeAuthStrategy`（短信验证码）、`EmailCodeAuthStrategy`（邮箱验证码）。
+**Built-in strategies**: `PasswordAuthStrategy` (password), `SmsCodeAuthStrategy` (SMS verification code), `EmailCodeAuthStrategy` (email verification code).
 
-**扩展方式**: `@Component` + 实现 `getType()` 返回唯一标识，框架自动注册到认证路由。
+**How to extend**: `@Component` plus an implementation of `getType()` returning a unique identifier; the framework then registers the strategy into the authentication routing automatically.
 
 ---
 
-## 3. BusinessException 错误码
+## 3. BusinessException Error Codes
 
-`BusinessException` 支持两种构造方式：
+`BusinessException` supports two construction styles:
 
 ```java
 // 简单模式 — errorCode 默认 400
@@ -263,7 +265,7 @@ throw new BusinessException(1001, "库存不足");
 throw new BusinessException(1002, "订单已取消");
 ```
 
-**下游获取错误码**:
+**Reading the error code downstream**:
 ```java
 try {
     orderService.pay(orderId);
@@ -274,27 +276,27 @@ try {
 }
 ```
 
-**推荐错误码范围规划**:
-| 范围 | 用途 |
+**Recommended error code range plan**:
+| Range | Purpose |
 |------|------|
-| 400 | 通用业务异常（默认） |
-| 1000-1999 | 订单相关 |
-| 2000-2999 | 支付相关 |
-| 3000-3999 | 交付相关 |
-| 4000-4999 | License 相关 |
+| 400 | General business exception (default) |
+| 1000-1999 | Order related |
+| 2000-2999 | Payment related |
+| 3000-3999 | Delivery related |
+| 4000-4999 | License related |
 
-**注意**: 错误码是 `Integer` 类型。不建议在 errorMessage 中嵌入字符串前缀（如 `"ORDER_NOT_FOUND: 订单不存在"`）进行匹配——请使用 `getErrorCode()` 做结构化处理。如果确实需要字符串标识，可以创建 `BusinessException` 的子类。
+**Note**: Error codes are `Integer` values. Embedding string prefixes in errorMessage for matching (such as `"ORDER_NOT_FOUND: 订单不存在"`) is not recommended — use `getErrorCode()` for structured handling instead. If you genuinely need string identifiers, create a subclass of `BusinessException`.
 
 ---
 
-## 4. DomainEvent 与 Outbox 事件消费
+## 4. DomainEvent and Outbox Event Consumption
 
-### 4.1 DomainEvent 设计决策
+### 4.1 DomainEvent design decisions
 
-`DomainEvent` 是不可变抽象基类：
-- 构造器自动生成 `eventId`（UUID）和 `createdAt`（Instant）
-- **不提供无参构造器** — 这是有意的设计决策，保证事件不可变
-- `eventType` 返回类名（`this.getClass().getSimpleName()`）
+`DomainEvent` is an immutable abstract base class:
+- The constructor automatically generates `eventId` (UUID) and `createdAt` (Instant)
+- **No no-arg constructor is provided** — a deliberate design decision that keeps events immutable
+- `eventType` returns the class name (`this.getClass().getSimpleName()`)
 
 ```java
 // 正确: 定义事件类
@@ -310,11 +312,11 @@ public class OrderPaidEvent extends DomainEvent {
 }
 ```
 
-### 4.2 推荐 Outbox 事件消费模式
+### 4.2 Recommended Outbox event consumption pattern
 
-**核心原则**: 事件作为触发器（通知"发生了什么"），不作为数据载体。完整数据从聚合根加载。
+**Core principle**: An event is a trigger (announcing what happened), not a data carrier. Load the full data from the aggregate root.
 
-**推荐做法** — 内部 record 提取关键字段：
+**Recommended approach** — extract key fields into an inner record:
 ```java
 // 定义最小 payload record
 record EventPayload(String orderId) {}
@@ -325,19 +327,19 @@ Order order = orderRepository.findByOrderId(orderId).orElseThrow(...);
 // 用 order 的完整数据执行后续逻辑
 ```
 
-**错误做法** — 反序列化为 DomainEvent 子类：
+**Anti-pattern** — deserializing into a DomainEvent subclass:
 ```java
 // 这样做会失败! DomainEvent 无无参构造器, Jackson 报 InvalidDefinitionException
 OrderPaidEvent event = objectMapper.readValue(eventData, OrderPaidEvent.class);
 ```
 
-**原因**: DomainEvent 构造器中 `eventId = UUID.randomUUID()` 和 `createdAt = Instant.now()`，Jackson 反序列化时找不到无参构造器或 `@JsonCreator`。
+**Why**: The `DomainEvent` constructor runs `eventId = UUID.randomUUID()` and `createdAt = Instant.now()`, so Jackson can find neither a no-arg constructor nor a `@JsonCreator` during deserialization.
 
 ---
 
-## 5. 层规约自检清单
+## 5. Layer Convention Self-Check Checklist
 
-DDD 四层包结构的标准依赖方向：
+The standard dependency direction for the four DDD package layers:
 
 ```
 interfaces/ → application/ → domain/ ← infrastructure/
@@ -347,17 +349,17 @@ interfaces/ → application/ → domain/ ← infrastructure/
                                Event          PO/Mapper
 ```
 
-### 禁止的依赖方向
+### Forbidden dependency directions
 
-| 规则 | 说明 |
+| Rule | Description |
 |------|------|
-| `domain` 不依赖任何外层 | 领域层是纯净的，不 import Spring、MyBatis 等任何框架类型 |
-| `application` 不 import `infrastructure` 类型 | Service 不直接操作 PO/Mapper，通过 Repository 接口 |
-| `interfaces` 不 import `infrastructure` 类型 | Controller 不直接操作 PO/Mapper，通过 Service |
+| `domain` depends on no outer layer | The domain layer stays pure — it must not import Spring, MyBatis, or any other framework type |
+| `application` must not import `infrastructure` types | Services never touch PO/Mapper directly; they go through Repository interfaces |
+| `interfaces` must not import `infrastructure` types | Controllers never touch PO/Mapper directly; they go through Services |
 
-### Converter 位置规范
+### Converter placement
 
-**正确**: `infrastructure/persistence/`
+**Correct**: `infrastructure/persistence/`
 
 ```
 order/
@@ -377,20 +379,20 @@ order/
     └── dto/
 ```
 
-**原因**: Converter 依赖 PO（infrastructure 类型），放在 domain 层会违反依赖规则。
+**Why**: A Converter depends on POs (an infrastructure type); placing it in the domain layer would violate the dependency rules.
 
-### PayloadBuilder / Assembler 位置
+### PayloadBuilder / Assembler placement
 
-**正确**: `application/` 层（或 `interfaces/dto/` 中作为 DTO 的静态工厂方法）
+**Correct**: the `application/` layer (or as static factory methods on DTOs under `interfaces/dto/`)
 
-PayloadBuilder 组装查询结果（跨聚合数据组装），属于应用服务逻辑，不属于 infrastructure。
+A PayloadBuilder assembles query results (composing data across aggregates); that is application service logic, not infrastructure.
 
-### 自检清单
+### Self-check checklist
 
-| # | 检查项 | 如何验证 |
+| # | Check | How to verify |
 |---|--------|---------|
-| 1 | Controller 不 import PO/Mapper | grep `import.*persistence\..*PO` interfaces/ |
-| 2 | Service 不 import PO/Mapper | grep `import.*persistence\..*PO` application/ |
-| 3 | Converter 在 infrastructure/persistence/ | 检查 Converter 文件位置 |
-| 4 | Domain 不 import Spring/MyBatis | grep `import org.springframework\|import com.baomidou` domain/ |
-| 5 | PayloadBuilder 在 application/ | 检查文件位置 |
+| 1 | Controller does not import PO/Mapper | grep `import.*persistence\..*PO` interfaces/ |
+| 2 | Service does not import PO/Mapper | grep `import.*persistence\..*PO` application/ |
+| 3 | Converter lives in infrastructure/persistence/ | Check the Converter file location |
+| 4 | Domain does not import Spring/MyBatis | grep `import org.springframework\|import com.baomidou` domain/ |
+| 5 | PayloadBuilder lives in application/ | Check the file location |

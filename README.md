@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+**English** | [简体中文](README.zh-CN.md)
 
 FastDDD Framework Community is a DDD runtime foundation for Java 21 and Spring Boot 3.5. It provides the common domain model, application-layer contracts, web and unified response handling, security, domain events with Outbox, cache, search, monitoring, and optional AI integration. It does not include the commercial control-plane capabilities of FastDDD Studio Pro.
 

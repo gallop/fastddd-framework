@@ -1,30 +1,32 @@
-# FastDDD 编码规范文档
+# FastDDD Coding Standards
 
-> **作者**: gallop  
-> **创建时间**: 2025-09-01  
-> **版本**: 1.0.0
+**English** | [简体中文](CODING_STANDARDS.zh-CN.md)
 
-本文档定义了 FastDDD 框架项目的统一编码规范和命名约定，所有开发人员必须严格遵守。
+> **Author**: gallop  
+> **Created**: 2025-09-01  
+> **Version**: 1.0.0
 
-## 1. Java 编码规范
+This document defines the unified coding standards and naming conventions for the FastDDD framework project; all developers must follow them strictly.
 
-### 1.1 包命名规范
+## 1. Java Coding Standards
 
-- **格式**: `com.gallop.fastddd.{module}`
-- **规则**: 全小写，使用点号分隔
-- **示例**:
+### 1.1 Package Naming Conventions
+
+- **Format**: `com.gallop.fastddd.{module}`
+- **Rule**: all lowercase, separated by dots
+- **Examples**:
   - `com.gallop.fastddd.web`
   - `com.gallop.fastddd.crud`
   - `com.gallop.fastddd.event`
 
-### 1.2 类命名规范
+### 1.2 Class Naming Conventions
 
-- **类名**: PascalCase（首字母大写的驼峰命名）
-- **接口名**: PascalCase，可以 `I` 开头或直接使用描述性名称
-- **枚举名**: PascalCase
-- **注解名**: PascalCase
+- **Class names**: PascalCase (upper camel case)
+- **Interface names**: PascalCase; may start with `I` or use a descriptive name directly
+- **Enum names**: PascalCase
+- **Annotation names**: PascalCase
 
-**示例**:
+**Examples**:
 ```java
 // 类
 public class UserService {}
@@ -41,13 +43,13 @@ public enum UserStatus {}
 public @interface EnableApiWrapper {}
 ```
 
-### 1.3 方法和变量命名规范
+### 1.3 Method and Variable Naming Conventions
 
-- **方法名**: camelCase（小驼峰命名）
-- **变量名**: camelCase
-- **参数名**: camelCase
+- **Method names**: camelCase (lower camel case)
+- **Variable names**: camelCase
+- **Parameter names**: camelCase
 
-**示例**:
+**Examples**:
 ```java
 public class UserService {
     private UserRepository userRepository;
@@ -62,12 +64,12 @@ public class UserService {
 }
 ```
 
-### 1.4 常量命名规范
+### 1.4 Constant Naming Conventions
 
-- **格式**: `UPPER_SNAKE_CASE`
-- **规则**: 全大写，使用下划线分隔单词
+- **Format**: `UPPER_SNAKE_CASE`
+- **Rule**: all uppercase, with words separated by underscores
 
-**示例**:
+**Examples**:
 ```java
 public class Constants {
     public static final String DEFAULT_CHARSET = "UTF-8";
@@ -76,29 +78,29 @@ public class Constants {
 }
 ```
 
-## 2. 数据库命名规范
+## 2. Database Naming Conventions
 
-### 2.1 表命名规范
+### 2.1 Table Naming Conventions
 
-- **格式**: `snake_case`
-- **规则**: 全小写，使用下划线分隔单词
-- **前缀**: 可选择性添加模块前缀
+- **Format**: `snake_case`
+- **Rule**: all lowercase, with words separated by underscores
+- **Prefix**: a module prefix may optionally be added
 
-**示例**:
+**Examples**:
 - `user_info`
 - `order_detail`
 - `sys_config`
 
-### 2.2 字段命名规范
+### 2.2 Column Naming Conventions
 
-- **格式**: `snake_case`
-- **规则**: 全小写，使用下划线分隔单词
-- **主键**: 统一使用 `id`
-- **外键**: 使用 `{关联表名}_id` 格式
-- **时间字段**: 使用 `created_time`、`updated_time`
-- **逻辑删除**: 使用 `deleted`
+- **Format**: `snake_case`
+- **Rule**: all lowercase, with words separated by underscores
+- **Primary key**: always use `id`
+- **Foreign key**: use the `{related_table_name}_id` format
+- **Time fields**: use `created_time` and `updated_time`
+- **Logical delete**: use `deleted`
 
-**示例**:
+**Examples**:
 ```sql
 CREATE TABLE user_info (
     id BIGINT PRIMARY KEY,
@@ -111,34 +113,34 @@ CREATE TABLE user_info (
 );
 ```
 
-### 2.3 数据库到 Java 映射规则
+### 2.3 Database-to-Java Mapping Rules
 
-**核心规则**: 数据库 `snake_case` 自动映射到 Java `camelCase`
+**Core rule**: database `snake_case` maps automatically to Java `camelCase`
 
-| 数据库字段 | Java 属性 | 说明 |
+| Database Column | Java Property | Description |
 |-----------|-----------|------|
-| `user_id` | `userId` | 用户ID |
-| `user_name` | `userName` | 用户名 |
-| `email_address` | `emailAddress` | 邮箱地址 |
-| `phone_number` | `phoneNumber` | 手机号码 |
-| `created_time` | `createdTime` | 创建时间 |
-| `updated_time` | `updatedTime` | 更新时间 |
+| `user_id` | `userId` | User ID |
+| `user_name` | `userName` | Username |
+| `email_address` | `emailAddress` | Email address |
+| `phone_number` | `phoneNumber` | Phone number |
+| `created_time` | `createdTime` | Creation time |
+| `updated_time` | `updatedTime` | Last update time |
 
-**MyBatis Plus 配置**:
+**MyBatis Plus configuration**:
 ```yaml
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 ```
 
-## 3. 配置文件命名规范
+## 3. Configuration File Naming Conventions
 
-### 3.1 application.yml 属性命名
+### 3.1 application.yml Property Naming
 
-- **格式**: `kebab-case`
-- **规则**: 全小写，使用连字符分隔单词
+- **Format**: `kebab-case`
+- **Rule**: all lowercase, with words separated by hyphens
 
-**示例**（消费者显式 opt-in 后，框架聚合 starter 默认已开）:
+**Example** (after the consumer explicitly opts in; the framework's aggregate starter enables it by default):
 ```yaml
 spring:
   application:
@@ -154,58 +156,51 @@ fastddd:
       enabled: true   # opt-in：默认关，显式开启才施加 Long→String / 日期格式 / 枚举→name 扩展
 ```
 
-> WEB-002：响应包装与 Jackson 扩展均为 **opt-in（默认关）**。仅引入 `fast-ddd-web` 不会改写消费者
-> 既有的 JSON 契约——Long 保持数值、无 `code/data` 信封、`LocalDateTime` 为 Spring Boot 默认表示。
-> 框架聚合消费者（studio / examples / archetype 生成项目）在各自的 `application.yml` 显式 opt-in
-> 还原信封能力。门控施加在 `SmartResponseAdvice` 与 `FastDddJacksonAutoConfiguration` 的类级别
-> `@ConditionalOnProperty(..., matchIfMissing = false)`，属性是唯一开关（`@EnableApiResponseWrapper`
-> 已降级为 `@Deprecated` 源兼容标记，不再具备 opt-in 语义）。
+> WEB-002: both the response wrapper and the Jackson extensions are **opt-in (off by default)**. Merely pulling in `fast-ddd-web` does not rewrite the consumer's existing JSON contract — Long stays numeric, there is no `code/data` envelope, and `LocalDateTime` keeps the Spring Boot default representation. Framework aggregate consumers (studio / examples / archetype-generated projects) explicitly opt in within their own `application.yml` to restore the envelope behavior. The gate is applied at the class level of `SmartResponseAdvice` and `FastDddJacksonAutoConfiguration` via `@ConditionalOnProperty(..., matchIfMissing = false)`; the property is the only switch (`@EnableApiResponseWrapper` has been downgraded to a `@Deprecated` source-compatibility marker and no longer carries opt-in semantics).
 
-### 3.2 自定义配置属性
+### 3.2 Custom Configuration Properties
 
-响应包装/Jackson 扩展不提供独立的排除路径配置；不希望被包装的端点直接返回
-`ResponseEntity<ApiResponse<T>>`、`Result`、`void` 或 Reactive 类型（`Flux`/`Mono`），
-`SmartResponseAdvice` 与 OpenAPI customizer 经共享谓词 `ResponseWrapPredicate` 同源识别并跳过。
+The response wrapper / Jackson extensions provide no separate exclusion-path configuration; endpoints that should not be wrapped simply return `ResponseEntity<ApiResponse<T>>`, `Result`, `void`, or Reactive types (`Flux`/`Mono`) — `SmartResponseAdvice` and the OpenAPI customizer recognize and skip them through the shared predicate `ResponseWrapPredicate` from the same source.
 
-## 4. 基础设施命名规范
+## 4. Infrastructure Naming Conventions
 
-### 4.1 RocketMQ 命名规范
+### 4.1 RocketMQ Naming Conventions
 
-**Topic 命名**:
-- **格式**: `{project}_{module}_{business}_{event}_topic`
-- **示例**: `fastddd_order_payment_success_topic`
+**Topic naming**:
+- **Format**: `{project}_{module}_{business}_{event}_topic`
+- **Example**: `fastddd_order_payment_success_topic`
 
-**Consumer Group 命名**:
-- **格式**: `{project}_{module}_{consumer}_group`
-- **示例**: `fastddd_order_notification_group`
+**Consumer Group naming**:
+- **Format**: `{project}_{module}_{consumer}_group`
+- **Example**: `fastddd_order_notification_group`
 
-### 4.2 Elasticsearch 命名规范
+### 4.2 Elasticsearch Naming Conventions
 
-**索引命名**:
-- **格式**: `{project}_{module}_{data}_{version}`
-- **示例**: `fastddd_search_product_v1`
+**Index naming**:
+- **Format**: `{project}_{module}_{data}_{version}`
+- **Example**: `fastddd_search_product_v1`
 
-**别名命名**:
-- **格式**: `{project}_{module}_{data}`
-- **示例**: `fastddd_search_product`
+**Alias naming**:
+- **Format**: `{project}_{module}_{data}`
+- **Example**: `fastddd_search_product`
 
-### 4.3 Redis 命名规范
+### 4.3 Redis Naming Conventions
 
-**Key 命名**:
-- **格式**: `{project}:{module}:{entity}:{id}`
-- **示例**: 
+**Key naming**:
+- **Format**: `{project}:{module}:{entity}:{id}`
+- **Examples**: 
   - `fastddd:user:profile:12345`
   - `fastddd:cache:product:67890`
   - `fastddd:session:token:abc123`
 
-**缓存过期时间**:
-- **短期缓存**: 5-30分钟
-- **中期缓存**: 1-6小时  
-- **长期缓存**: 1-7天
+**Cache expiration**:
+- **Short-term cache**: 5-30 minutes
+- **Medium-term cache**: 1-6 hours  
+- **Long-term cache**: 1-7 days
 
-## 5. 代码注释规范
+## 5. Code Comment Conventions
 
-### 5.1 类注释
+### 5.1 Class Comments
 
 ```java
 /**
@@ -221,7 +216,7 @@ public class UserServiceImpl implements UserService {
 }
 ```
 
-### 5.2 方法注释
+### 5.2 Method Comments
 
 ```java
 /**
@@ -236,14 +231,14 @@ public User findUserById(Long userId) {
 }
 ```
 
-## 6. 异常处理规范
+## 6. Exception Handling Conventions
 
-### 6.1 异常类命名
+### 6.1 Exception Class Naming
 
-- **业务异常**: `{Business}Exception`
-- **系统异常**: `{System}Exception`
+- **Business exceptions**: `{Business}Exception`
+- **System exceptions**: `{System}Exception`
 
-**示例**:
+**Examples**:
 ```java
 public class UserNotFoundException extends BusinessException {
     public UserNotFoundException(String message) {
@@ -252,34 +247,34 @@ public class UserNotFoundException extends BusinessException {
 }
 ```
 
-### 6.2 异常码规范
+### 6.2 Error Code Conventions
 
-- **成功**: 200
-- **客户端错误**: 400-499
-- **服务端错误**: 500-599
-- **业务错误**: 1000-9999
+- **Success**: 200
+- **Client errors**: 400-499
+- **Server errors**: 500-599
+- **Business errors**: 1000-9999
 
-## 7. 测试代码规范
+## 7. Test Code Conventions
 
-### 7.1 测试类命名
+### 7.1 Test Class Naming
 
-- **单元测试**: `{ClassName}Test`
-- **集成测试**: `{ClassName}IntegrationTest`
+- **Unit tests**: `{ClassName}Test`
+- **Integration tests**: `{ClassName}IntegrationTest`
 
-### 7.2 测试方法命名
+### 7.2 Test Method Naming
 
-- **格式**: `should{ExpectedBehavior}_when{StateUnderTest}`
-- **示例**: `shouldReturnUser_whenValidIdProvided()`
+- **Format**: `should{ExpectedBehavior}_when{StateUnderTest}`
+- **Example**: `shouldReturnUser_whenValidIdProvided()`
 
-## 8. 版本控制规范
+## 8. Version Control Conventions
 
-### 8.1 分支命名
+### 8.1 Branch Naming
 
-- **功能分支**: `feature/{feature-name}`
-- **修复分支**: `bugfix/{bug-description}`
-- **发布分支**: `release/{version}`
+- **Feature branches**: `feature/{feature-name}`
+- **Bugfix branches**: `bugfix/{bug-description}`
+- **Release branches**: `release/{version}`
 
-### 8.2 提交信息格式
+### 8.2 Commit Message Format
 
 ```
 {type}({scope}): {subject}
@@ -289,24 +284,24 @@ public class UserNotFoundException extends BusinessException {
 {footer}
 ```
 
-**类型**:
-- `feat`: 新功能
-- `fix`: 修复bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 重构
-- `test`: 测试相关
-- `chore`: 构建过程或辅助工具的变动
+**Types**:
+- `feat`: new feature
+- `fix`: bug fix
+- `docs`: documentation updates
+- `style`: code formatting changes
+- `refactor`: refactoring
+- `test`: test-related changes
+- `chore`: changes to the build process or auxiliary tools
 
-## 9. 强制执行
+## 9. Enforcement
 
-本规范通过以下工具自动化执行：
+These standards are enforced automatically through the following tools:
 
-1. **Checkstyle**: 代码风格检查
-2. **Maven**: 构建时验证
-3. **IDE 配置**: 开发时实时检查
+1. **Checkstyle**: code style checks
+2. **Maven**: build-time validation
+3. **IDE configuration**: real-time checks during development
 
-**验证命令**:
+**Verification commands**:
 ```bash
 # 检查代码规范
 mvn validate -P checkstyle
@@ -317,4 +312,4 @@ mvn clean install
 
 ---
 
-> 本文档是 FastDDD 框架的核心规范，所有开发人员必须严格遵守。如有疑问或建议，请联系架构团队。
+> This document is the core standard of the FastDDD framework; all developers must follow it strictly. For questions or suggestions, contact the architecture team.
