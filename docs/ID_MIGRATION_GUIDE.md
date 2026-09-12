@@ -1,7 +1,7 @@
 # FastDDD 1.0 ID 迁移指南
 
-> 适用于从旧弱类型 ID 迁移至 FastDDD 1.0 强类型 ID。迁移清单与已登记例外见
-> [ID_TYPE_MIGRATION_CHECKLIST.md](architecture/ID_TYPE_MIGRATION_CHECKLIST.md)。
+> 适用于从旧弱类型 ID 迁移至 FastDDD 1.0 强类型 ID。内部迁移清单（ID_TYPE_MIGRATION_CHECKLIST.md）
+> 已于 2026-09-12 移至仓外私有档案，不随开源仓发布。
 
 ## 目标形态
 

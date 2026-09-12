@@ -5,7 +5,7 @@
 | **状态** | 已接受（Accepted）—— 2026-08-16 随 FDD-AA-05 Ratification 批准（owner gallop 签署，待签清单 R3） |
 | **日期** | 2026-08-16 |
 | **适用范围** | FastDDD Agent Access 协议制品（Contract DTO、错误码、Contract Kit）与 FastAgent v0.4 dispatch/Permit 载体的所有权边界 |
-| **关联决策** | ADR-006；`FASTDDD_AGENT_ACCESS_CONTRACT_V0.1.md` §11 条 5（「另立 ADR」程序）；`FASTDDD_AGENT_ACCESS_AA04_MODULE_AND_COMPAT_PLAN.md` §8.1（本 ADR 的直接素材）；FastAgent ADR-012 |
+| **关联决策** | ADR-006；`FASTDDD_AGENT_ACCESS_CONTRACT_V0.1.md` §11 条 5（「另立 ADR」程序）；`FASTDDD_AGENT_ACCESS_AA04_MODULE_AND_COMPAT_PLAN.md` §8.1（本 ADR 的直接素材）；FastAgent ADR-012。上述 AGENT_ACCESS 过程文档已于 2026-09-12 移至仓外私有档案 |
 | **关闭的候选** | `FASTDDD_AGENT_ACCESS_AA02_EGRESS_FIELD_MAPPING.md` §5.3「协议制品所有权候选」——自本 ADR 接受起由本文定稿替代 |
 
 ## 1. 背景与决策问题

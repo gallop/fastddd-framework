@@ -18,14 +18,14 @@
 **不要默认阅读**下列文档：
 
 - Framework 自身拆仓前整改任务和具体业务试点记录已迁出 Community 现行文档，不是消费者升级手册。
-- `RC1_RELEASE_EVIDENCE.md`、`QA_*.md`、`OSS_*.md`：发布证据/审计记录，不是操作步骤。
+- `RC1_RELEASE_EVIDENCE.md`、`QA_*.md`、`OSS_*.md`：发布证据/审计记录，不是操作步骤（已于 2026-09-12 移至仓外私有档案）。
 - `FASTDDD_REFERENCE.md`：完整 API 参考；仅在代码确实需要查询某个 API 时按需检索。
 
 ## 按功能再读（不要无差别加载）
 
 | 业务系统使用的能力 | 追加阅读的文档 |
 |---|---|
-| `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 编译报泛型/ID 问题 | [ID 类型迁移清单](../architecture/ID_TYPE_MIGRATION_CHECKLIST.md) |
+| `BasePO`、`IService`、`BaseServiceImpl`、`BaseController` 编译报泛型/ID 问题 | [ID 迁移指南](../ID_MIGRATION_GUIDE.md)（内部迁移清单已移至仓外私有档案） |
 | Security、JWT、权限 SPI | [安全集成指南](../security/INTEGRATION_GUIDE.md) |
 | Redis/Caffeine 缓存 | [缓存指南](../guides/CACHE_GUIDE.md) |
 | 事务事件、Outbox、RocketMQ | [Outbox 运维指南](../devops/OUTBOX_OPS_GUIDE.md) |
@@ -71,4 +71,4 @@ io.github.gallop.fastddd:fastddd-bom:1.0.0。
 
 ## 文档层级
 
-`docs/` 保留完整的设计、审计和发布证据，便于追溯；新业务系统升级只从本目录进入。历史文档暂不移动，避免打断已有链接和外部引用。
+`docs/` 保留现行设计、集成与升级文档；内部治理与演进过程文档已于 2026-09-12 移至仓外私有档案 `fastddd-docs-internal`（不随开源仓发布，可追溯）。新业务系统升级只从本目录进入。
