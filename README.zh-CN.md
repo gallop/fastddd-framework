@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | **简体中文**
 
 FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行时基础框架。它提供通用领域模型、应用层契约、Web 与统一响应、安全认证、领域事件（含 Outbox）、缓存、搜索、监控和可选 AI 集成，不包含 FastDDD Studio Pro 的商业控制面能力。
 
@@ -83,7 +83,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
 </dependency>
 ```
 
-指南：[快速开始](docs/guides/QUICK_START.md) · [新业务系统开发规范](docs/guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.md) · [升级指南](docs/upgrade/README.md) · [兼容矩阵](docs/COMPATIBILITY_MATRIX.md)
+指南：[快速开始](docs/guides/QUICK_START.zh-CN.md) · [新业务系统开发规范](docs/guides/NEW_BUSINESS_SYSTEM_DEVELOPMENT_GUIDE.zh-CN.md) · [升级指南](docs/upgrade/README.zh-CN.md) · [兼容矩阵](docs/COMPATIBILITY_MATRIX.zh-CN.md)
 
 ## 构建
 
@@ -95,9 +95,9 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
 
 ## 文档
 
-- 文档入口：[`docs/README.md`](docs/README.md)
+- 文档入口：[`docs/README.zh-CN.md`](docs/README.zh-CN.md)
 - 贡献说明：[`CONTRIBUTING.md`](CONTRIBUTING.md)
-- 版本变更：[`CHANGELOG.md`](CHANGELOG.md)
+- 版本变更：[`CHANGELOG.zh-CN.md`](CHANGELOG.zh-CN.md)
 
 ## 生态
 
