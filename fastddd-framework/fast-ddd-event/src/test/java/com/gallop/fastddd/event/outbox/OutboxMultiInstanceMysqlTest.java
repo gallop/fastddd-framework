@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p><b>环境门禁</b>：仅 {@code -Dfastddd.test.docker=true} 时启用（本仓库 CI 无 Docker runner，
  * 内网 Gitea）。默认休眠，不影响 {@code clean verify -Ptest}。运行命令：
  * <pre>{@code
- * export JAVA_HOME="D:/usr/local/jdk/jdk-21.0.3"
+ * export JAVA_HOME="<path-to-jdk-21>"
  * ./mvnw -B test -pl fastddd-framework/fast-ddd-event -Dtest=OutboxMultiInstanceMysqlTest -Dfastddd.test.docker=true
  * }</pre>
  * 报告与提交号关联：surefire 报告（target/surefire-reports/）+ 构建时 {@code git rev-parse HEAD}。

@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>H2 兼容映射的覆盖由 {@link OutboxEventIntegrationTest} 承载；本类为 MySQL 专有映射
  * （CHECK 约束、InnoDB 行锁、utf8mb4）的权威验证，运行命令：
  * <pre>{@code
- * export JAVA_HOME="D:/usr/local/jdk/jdk-21.0.3"
+ * export JAVA_HOME="<path-to-jdk-21>"
  * ./mvnw -B test -pl fastddd-framework/fast-ddd-event -Dtest=OutboxEventMysqlTestcontainersTest -Dfastddd.test.docker=true
  * }</pre>
  *
