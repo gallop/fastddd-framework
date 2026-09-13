@@ -10,11 +10,30 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
-## [1.0.0] - 2026-09-10
+## [1.0.0] - 2026-09-13
 
 First official release baseline: **JDK 21 + Spring Boot 3.5.16**.
 This version was driven by UPG-000 through UPG-010 of `JDK21_SPRING_BOOT_3_5_UPGRADE_PLAN.md`,
 as a deterministic upgrade from the JDK 17 / Boot 3.4.5 development snapshot.
+
+> **Re-issue note (2026-09-13, Owner decision).** The internal delivery of 1.0.0 from 2026-09-10
+> was withdrawn and re-issued in the same version slot: pre-verification confirmed the old artifacts
+> had no consumers (both pilot projects consume `com.gallop.fastddd:1.0.0-jdk21-rc1`, not this GA),
+> were never deployed, and were never delivered externally. The old tag objects, target commits and
+> artifact bytes are archived with SHA-256 fingerprints under
+> `.fastddd-releases/internal-v1.0.0-r2/evidence/withdrawn-internal-v1.0.0/`; the old internal
+> release repo is isolated and marked withdrawn. The "Re-issued additions" subsection below lists
+> what the re-issued bits add over the withdrawn bits — documentation and registration changes
+> only, **no runtime code changes**.
+
+### Re-issued additions (2026-09-13, vs the withdrawn 2026-09-10 bits)
+
+- **Added — documentation internationalization (L2)**: the root `README.md` became the English master with a new `README.zh-CN.md` mirror; P0/P1 batch — 17 reference documents received `*.zh-CN.md` counterparts (guides, API reference, compatibility matrix, upgrade documentation).
+- **Changed — governance archive relocation**: 30 internal governance / evolution documents moved out of the repository to the out-of-repo private archive `fastddd-docs-internal`; references in retained documents fixed (docs index, compatibility matrix, upgrade entry, ID-migration guide, Jackson configuration, ADR-007). The repository now carries Community-safe content only.
+- **Changed — release-status documentation** synchronized for the GA 1.0.0 coordinates: migration guide and version literals finalized.
+- **Changed — version registrations unified on `1.0.0`** (Owner decision 2026-09-13): the unpublished `1.0.0-jdk21` version plan is abandoned; the root and `fastddd-bom` default `revision` return to `1.0.0-SNAPSHOT` and the consumer-tests IT defaults follow. Historical rc1 records unchanged.
+- **Fixed — English canon** translation finalization plus adversarial-review remediation across the documentation set.
+- **Fixed — `Outbox` MySQL test javadoc**: removed a machine-local JDK path (desensitization).
 
 ### Added
 
