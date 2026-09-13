@@ -4,7 +4,9 @@
 
 > **Purpose**: This is the single entry point for upgrading an existing business system to FastDDD 1.0. Do not traverse the whole `docs/` directory first, and do not treat the Framework's renovation records as an execution manual for business systems.
 >
-> **Current official version**: `io.github.gallop.fastddd:fastddd-bom:1.0.0` (JDK 21, Spring Boot 3.5.16, internal release).
+> **Current official version (two independent axes)**: Framework `io.github.gallop.fastddd:fastddd-bom:1.0.0` (JDK 21, Spring Boot 3.5.16, internal release)
+> and Tooling `io.github.gallop.fastddd:fastddd-maven-plugin:1.0.1` (init-project plugin + templates, separate repository/axis). Never mix the two axes'
+> versions into each other's coordinates; business-project dependencies use only the Framework axis.
 > From 1.0.0 on, the Maven groupId migrated from `com.gallop.fastddd` to `io.github.gallop.fastddd` (Java package names unchanged);
 > upgrades must read [UPGRADE_GUIDE §3 coordinate migration](../UPGRADE_GUIDE.md#3-fastddd-maven-coordinate-migration-100-ga)
 > and the anti-mixing gates. Business systems must not be reverted to `1.0.0-jdk21-SNAPSHOT` or the old group coordinates.

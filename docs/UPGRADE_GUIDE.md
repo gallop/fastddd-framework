@@ -108,6 +108,12 @@ cd <fastddd-source>
 ./mvnw -B -Drevision=1.0.0 clean install -DskipTests   # 安装含 fastddd-bom 在内的全部模块
 ```
 
+> **Two version axes**: the command above installs only the **Framework axis** (`io.github.gallop.fastddd:fast-ddd-*` + `fastddd-bom`, currently 1.0.0) — the
+> dependencies a business project consumes. The code-generation tooling (`fastddd-maven-plugin`, `fastddd-templates`, currently **1.0.1**) lives in the separate
+> `fastddd-tooling` repository and is an **independent axis**: never write the tooling version into framework dependencies, nor the framework version into
+> plugin coordinates. Local source installation of the plugin is a separate `./mvnw -B -Drevision=1.0.1 clean install -DskipTests` in the tooling repo —
+> most business projects never need it when resolving from the release repository.
+
 ### Do Not Override Upstream Versions
 
 Business projects should **not** explicitly declare or override versions of Spring Boot, Spring, Jackson, Micrometer, and the like — those are jointly validated by FastDDD

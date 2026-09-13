@@ -4,7 +4,9 @@
 
 > **用途**：这是升级既有业务系统到 FastDDD 1.0 的唯一入口。不要先遍历整个 `docs/`，也不要把 Framework 的整改记录当作业务系统的执行手册。
 >
-> **当前正式版本**：`io.github.gallop.fastddd:fastddd-bom:1.0.0`（JDK 21、Spring Boot 3.5.16，内部发布）。
+> **当前正式版本（双版本轴）**：Framework 轴 `io.github.gallop.fastddd:fastddd-bom:1.0.0`（JDK 21、Spring Boot 3.5.16，内部发布）
+> 与 Tooling 轴 `io.github.gallop.fastddd:fastddd-maven-plugin:1.0.1`（init-project 插件 + 模板，独立仓库/独立版本轴）。
+> 两条轴的版本禁止互写进对方坐标；业务项目依赖只走 Framework 轴。
 > 自 1.0.0 起 Maven groupId 由 `com.gallop.fastddd` 迁移为 `io.github.gallop.fastddd`（Java 包名不变），
 > 升级必读 [UPGRADE_GUIDE 第 3 节坐标迁移](../UPGRADE_GUIDE.zh-CN.md#3-fastddd-maven-坐标迁移100-ga)
 > 与防混装门禁；不得把业务系统改回 `1.0.0-jdk21-SNAPSHOT` 或旧组坐标。
