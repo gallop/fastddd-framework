@@ -109,9 +109,9 @@ cd <fastddd-source>
 ```
 
 > **双版本轴**：上面命令安装的只是 **Framework 轴**（`io.github.gallop.fastddd:fast-ddd-*` + `fastddd-bom`，当前 1.0.0）——
-> 即业务项目消费的依赖。代码生成工具（`fastddd-maven-plugin`、`fastddd-templates`，当前 **1.0.1**）位于独立的
+> 即业务项目消费的依赖。代码生成工具（`fastddd-maven-plugin`、`fastddd-templates`，当前 **1.0.2**）位于独立的
 > `fastddd-tooling` 仓库，属于**另一条独立版本轴**：禁止把 Tooling 版本写进 framework 依赖，也禁止把 Framework
-> 版本写进插件坐标。本地源码安装插件需在 tooling 仓库另跑 `./mvnw -B -Drevision=1.0.1 clean install -DskipTests`——
+> 版本写进插件坐标。本地源码安装插件需在 tooling 仓库另跑 `./mvnw -B -Drevision=1.0.2 clean install -DskipTests`——
 > 从发布仓消费的业务项目通常无需此步。
 
 ### 禁止覆盖上游版本
