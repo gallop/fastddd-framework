@@ -13,6 +13,7 @@
 | DDD 架构 | [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md)、[`architecture/DDD_LAYERING_BEST_PRACTICES.md`](architecture/DDD_LAYERING_BEST_PRACTICES.md) |
 | 安全、缓存、搜索与事件 | [`security/INTEGRATION_GUIDE.md`](security/INTEGRATION_GUIDE.md)、[`security/AUDIT_LOG_TABLE_MIGRATION.md`](security/AUDIT_LOG_TABLE_MIGRATION.md)、[`guides/CACHE_GUIDE.zh-CN.md`](guides/CACHE_GUIDE.zh-CN.md)、[`guides/SEARCH_GUIDE.zh-CN.md`](guides/SEARCH_GUIDE.zh-CN.md)、[`devops/OUTBOX_OPS_GUIDE.md`](devops/OUTBOX_OPS_GUIDE.md) |
 | 兼容与升级 | [`COMPATIBILITY_MATRIX.zh-CN.md`](COMPATIBILITY_MATRIX.zh-CN.md)、[`UPGRADE_GUIDE.zh-CN.md`](UPGRADE_GUIDE.zh-CN.md)、[`ID_MIGRATION_GUIDE.zh-CN.md`](ID_MIGRATION_GUIDE.zh-CN.md) |
+| 身份集成（飞书）——规划中 | [`identity/README.md`](identity/README.md)——可选身份模块设计文档（v0.2 为当前方案，v0.1 与评审记录为历史）；能力尚未实现、尚未发布；2026-09-24 自 Enterprise Content OS 仓库迁入本目录为唯一维护位置 |
 | 发布门禁 | 发布门禁与验证记录（RELEASE_CHECKLIST、TECHNICAL_FREEZE_CHECKLIST、OSS_001、QA_001/002、RC1_RELEASE_EVIDENCE）已于 2026-09-12 移至仓外私有档案 `fastddd-docs-internal`，不随开源仓发布 |
 | Agent Access（Experimental） | [`../agent-access/README.md`](../agent-access/README.md) |
 | Community/Studio 产品边界 | [`PRODUCT_BOUNDARIES.md`](PRODUCT_BOUNDARIES.md) |
