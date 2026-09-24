@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.gallop.fastddd</groupId>
+        <artifactId>fastddd-framework-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>fast-ddd-identity-reference-pg</artifactId>
+    <name>fast-ddd-identity-reference-pg</name>
+    <description>FastDDD Identity Reference PG - PostgreSQL adapters for principal/binding/session/lifecycle/audit and reference DDL (main-source, not test fixtures)</description>
+
+    <!-- 契约约束（v0.2 §3）：依赖 identity-core + Spring JDBC，不依赖 starter/feishu；
+         DDL 交付于 src/main/resources/db（宿主拥有表/迁移，初始化器默认关闭）。 -->
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-identity-core</artifactId>
+        </dependency>
+
+        <!-- 适配器以 JdbcTemplate 手写 SQL 参与外层事务（同 DataSource 线程绑定连接） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <!-- 自动配置注册（spring-boot-autoconfigure 提供注解，不引入 Web/池链） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- Test Dependencies：真实 PostgreSQL（zonky embedded-postgres，专用一次性，
+             随构建下载与回收；不得以 H2/内存桩替代 PG 事务门禁） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

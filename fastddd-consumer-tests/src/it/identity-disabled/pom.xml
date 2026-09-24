@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- W2-1（§4.5/§七 装配回归）：identity starter 在 classpath 但 enabled 缺省（B 形态）的消费者。
+     断言与引入 identity 之前完全一致：JWT 验证链照常、本地认证族照常、
+     CurrentUserProvider 竞争结果不变（crud 默认胜出）、identity 功能件一概不装配。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>identity-disabled</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Identity Disabled (B preset)</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-SNAPSHOT</fastddd.version>
+    <!-- ECO-RELEASE-04/S3 安全覆盖：tomcat-embed CVE-2026-65905/65182/68525（3×CRITICAL，10.1.x 线 fix 实际发布 10.1.59）。 -->
+    <tomcat.version>10.1.59</tomcat.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.github.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- 宿主既有安全装配（JWT 默认链 + 本地认证族默认开） -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-security-starter</artifactId>
+    </dependency>
+    <!-- identity 全家桶在 classpath 但不开启：验证 B 零差异 -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-reference-pg</artifactId>
+    </dependency>
+    <!-- web+crud：与 security-local-auth-off 同底座（ApiResponse/控制器类路径条件成立） -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

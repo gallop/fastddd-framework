@@ -31,6 +31,9 @@
         <module>fast-ddd-security-starter</module>
         <module>fast-ddd-ai-spring-boot-starter</module>
         <module>fast-ddd-analyzer-spring-boot-starter</module>
+        <module>fast-ddd-identity-core</module>
+        <module>fast-ddd-identity-reference-pg</module>
+        <module>fast-ddd-identity-spring-boot-starter</module>
     </modules>
 
 </project>

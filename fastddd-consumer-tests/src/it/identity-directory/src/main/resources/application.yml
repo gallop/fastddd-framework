@@ -1,0 +1,16 @@
+# W2-1 目录单开消费者：仅 directory.enabled，不动宿主安全（JWT 默认链照常）。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+fastddd:
+  identity:
+    enabled: true
+    directory:
+      enabled: true
+  security:
+    jwt:
+      # 测试密钥（≥64 字节，仅消费者 harness 使用）：宿主链沿用
+      secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"

@@ -1,0 +1,15 @@
+# W2-1 C 模式消费者：identity 接管安全装配，双开关显式关闭（§4.3 条 2）。
+# DataSource/ExternalLoginProvider 均由测试夹具提供（zonky PG + 桩提供者），见测试源码。
+fastddd:
+  identity:
+    enabled: true
+    login:
+      mode: feishu-web
+    pg:
+      # 空库自动迁移（identity 主体/绑定/会话表）
+      initialize-schema: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

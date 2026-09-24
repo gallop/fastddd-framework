@@ -1,0 +1,12 @@
+# W2-1 B 形态消费者：identity 完全不配置（enabled 缺省 false），宿主沿用 1.0.0 默认装配。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+fastddd:
+  security:
+    jwt:
+      # 测试密钥（≥64 字节，仅消费者 harness 使用）
+      secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"

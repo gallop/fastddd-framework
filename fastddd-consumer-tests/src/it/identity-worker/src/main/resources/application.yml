@@ -1,0 +1,14 @@
+# W2-1 Worker（非 web）消费者：显式 worker + 目录（目录作业本体属 W3，此处仅装配面）。
+fastddd:
+  identity:
+    enabled: true
+    worker: true
+    directory:
+      enabled: true
+    pg:
+      initialize-schema: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

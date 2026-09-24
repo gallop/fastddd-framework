@@ -26,7 +26,7 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <!-- 只覆盖 Framework Community 消费者。FastDoc 已迁入 Tooling consumer-tests；
          Studio 隔离构建由私有跨仓契约脚本和 Studio CI 负责。 -->
-    <invoker.test>application-*,ai-*,web-*,security-*,cache-*,search-*,event-*,monitor-*,starter-*,bom-*</invoker.test>
+    <invoker.test>application-*,ai-*,web-*,security-*,identity-*,cache-*,search-*,event-*,monitor-*,starter-*,bom-*</invoker.test>
   </properties>
 
   <build>

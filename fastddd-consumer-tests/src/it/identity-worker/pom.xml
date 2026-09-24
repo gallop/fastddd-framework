@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- W2-1（§4.3 条 5）：Worker（E 形态）消费者——非 web 进程显式 worker=true：
+     Actor 桥/员工 provider/事务桥装配，登录链与用例不装配；SYSTEM_JOB 上下文
+     的身份隔离在消费者侧复核。未声明 worker 的非 web 启动失败属框架单测覆盖。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>identity-worker</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Identity Worker (E form)</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.0.0-SNAPSHOT</fastddd.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.github.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- 非 web：不引入任何 web starter，验证非 Servlet 形态装配 -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-reference-pg</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-security-starter</artifactId>
+    </dependency>
+    <!-- CurrentUserProvider 员工身份桥消费（identity starter 对 crud 为 optional 依赖） -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-crud</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.0.7</version><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
