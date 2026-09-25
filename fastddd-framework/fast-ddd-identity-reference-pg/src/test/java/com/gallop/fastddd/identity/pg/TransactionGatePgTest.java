@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * W2-1 修复轮 W21-03 门禁反例（真实 PG）：MANDATORY 门禁绑定适配器数据源——
+ * W2-1 门禁反例（真实 PG）：MANDATORY 门禁绑定适配器数据源——
  *
  * <ul>
  *   <li>事务开在另一 DataSource 上（同一 PG 集群、两个独立 DataSource 实例）：
@@ -23,6 +23,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>仅有同步绑定的连接资源而无实际事务（白盒：绑定 ConnectionHolder、
  *       全局无实际事务——如同步激活后的共享读连接）：以"无实际事务"拒绝，
  *       不以"存在绑定资源"顶替事务判据；</li>
+ *   <li><b>异源事务 + 目标源预读取（W21-03 补修，第三轮反例）</b>：事务开在 A、
+ *       B 适配器先经公开读 {@code findPrincipal} 自然绑定同步 ConnectionHolder
+ *       （autoCommit=true 的非事务连接）——门禁必须核验绑定连接真实参与事务，
+ *       在首次写入前拒绝，外层回滚后三表零残留；</li>
  *   <li>正确数据源事务异常全回滚（与 LoginIssuancePgTest 的 T2 回滚互补，
  *       这里直接经 TransactionTemplate 验证）。</li>
  * </ul>
@@ -69,6 +73,72 @@ class TransactionGatePgTest {
         assertThat(Support.count(dataSource, "external_binding")).isZero();
         assertThat(Support.count(otherDataSource, "principal")).isZero();
         assertThat(Support.count(otherDataSource, "external_binding")).isZero();
+    }
+
+    /**
+     * W21-03 补修（第三轮 §2 反例，自然触发路径，不手工设置事务标记/资源绑定）：
+     * 事务开在 A，B 适配器先经公开只读 {@code findPrincipal} 触发 Spring 同步绑定
+     * autoCommit=true 的非事务 ConnectionHolder——"全局有实际事务 + 目标源有 holder"
+     * 双条件同时满足但绑定连接未参与任何事务。门禁必须核验绑定连接的真实事务
+     * 参与，三个写端口（绑定/会话/生命周期，共享门禁）均在首次写入前以门禁消息
+     * 拒绝（不是任意异常或外层主动抛异常顶替）；外层回滚结束后两个连接面独立
+     * 查询三表零残留。
+     */
+    @Test
+    void foreignTransactionWithTargetSourcePreReadIsRejectedBeforeWriteWithZeroResidue() throws Exception {
+        PgIdentityBindingStore storeOnB =
+                new PgIdentityBindingStore(new JdbcTemplate(otherDataSource));
+        PgLocalSessionStore sessionsOnB =
+                new PgLocalSessionStore(new JdbcTemplate(otherDataSource));
+        PgIdentityLifecycleStore lifecycleOnB =
+                new PgIdentityLifecycleStore(new JdbcTemplate(otherDataSource), sessionsOnB);
+
+        var managerOnA = new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);
+        var templateOnA = new org.springframework.transaction.support.TransactionTemplate(managerOnA);
+
+        templateOnA.executeWithoutResult(status -> {
+            // 公开只读（自然触发）：Spring 为 B 绑定同步 ConnectionHolder，连接 autoCommit=true
+            assertThat(storeOnB.findPrincipal("not-present")).isEmpty();
+
+            // 前置形态断言（对应独立探针 PROBE 输出）：Spring 行为变化使触发形态不再
+            // 成立时在此失败，而不是让后续"拒绝"断言恒真
+            Object bound = TransactionSynchronizationManager.getResource(otherDataSource);
+            assertThat(bound).isInstanceOf(ConnectionHolder.class);
+            assertThat(autoCommitOf((ConnectionHolder) bound))
+                    .as("反例触发形态：B 绑定的同步连接未参与事务（autoCommit=true）")
+                    .isTrue();
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+
+            assertThatThrownBy(() -> storeOnB.findOrCreatePrincipalWithBinding(
+                            identity(), new PrincipalCreationSpec("login", "display")))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("autoCommit=true")
+                    .hasMessageContaining("参与外层事务");
+            assertThatThrownBy(() -> sessionsOnB.revokeAllSessions("any-principal"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("autoCommit=true");
+            assertThatThrownBy(() -> lifecycleOnB.deactivatePrincipal("any-principal"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("autoCommit=true");
+
+            status.setRollbackOnly();
+        });
+
+        // 外层事务结束后独立查询（A/B 两个连接面分别查三表）：拒绝发生在首次写入前，零残留
+        assertThat(Support.count(dataSource, "principal")).isZero();
+        assertThat(Support.count(dataSource, "external_binding")).isZero();
+        assertThat(Support.count(dataSource, "local_session")).isZero();
+        assertThat(Support.count(otherDataSource, "principal")).isZero();
+        assertThat(Support.count(otherDataSource, "external_binding")).isZero();
+        assertThat(Support.count(otherDataSource, "local_session")).isZero();
+    }
+
+    private static boolean autoCommitOf(ConnectionHolder holder) {
+        try {
+            return holder.getConnection().getAutoCommit();
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("无法读取绑定连接 autoCommit（前置形态断言）", e);
+        }
     }
 
     @Test
