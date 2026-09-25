@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class IdentityWorkerConsumerTest {
 
     @SpringBootApplication
-    @Import(WorkerSupport.class)
+    @Import({WorkerSupport.class, WorkerAuditedService.class})
     static class App {
     }
 
@@ -86,6 +86,57 @@ class IdentityWorkerConsumerTest {
             });
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    /**
+     * W21-04：Worker 后台业务 {@code @AuditLog} 真实贯通（生产切面织入）——
+     * SYSTEM_JOB 作业身份经统一 ActorResolver 落 legacy 列（username=作业 principalId，
+     * identity writer 词表 operation_type=IDENTITY）；缺失身份时业务前拒绝不降
+     * anonymous。
+     */
+    @Test
+    void systemJobBusinessAuditIsWiredThroughSelectedWriter() {
+        assertThat(context.getBeanNamesForType(
+                com.gallop.fastddd.security.audit.AuditLogService.class)).hasSize(1);
+        assertThat(context.containsBean("identityAuditLogService")).isTrue();
+        assertThat(context.containsBean("auditLogServiceImpl")).isFalse();
+
+        WorkerAuditedService service = context.getBean(WorkerAuditedService.class);
+        WorkerAuditedService.EXECUTIONS.set(0);
+
+        // 缺失身份：业务前拒绝（不降 anonymous、不执行业务）
+        assertThatThrownBy(service::syncBusiness)
+                .isInstanceOf(IdentityRequiredException.class);
+        assertThat(WorkerAuditedService.EXECUTIONS.get()).isZero();
+
+        // SYSTEM_JOB：审计行 username=作业 principalId（legacy 列模式，经 writer①）
+        SpringSystemJobContext.run(PrincipalId.forSystemJob("worker-audit-job"),
+                service::syncBusiness);
+        assertThat(WorkerAuditedService.EXECUTIONS.get()).isEqualTo(1);
+
+        javax.sql.DataSource dataSource = context.getBean(javax.sql.DataSource.class);
+        var rows = new org.springframework.jdbc.core.JdbcTemplate(dataSource).queryForList(
+                "SELECT username, operation_type, success FROM sys_audit_log"
+                        + " WHERE operation = ? AND username = ?",
+                "worker.audit.sync", "system-job:worker-audit-job");
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("operation_type")).isEqualTo("IDENTITY");
+        assertThat(rows.get(0).get("success")).isEqualTo(Boolean.TRUE);
+    }
+
+    /** 真实后台业务面（生产 AuditLogAspect 织入，同步落库便于断言）。 */
+    @org.springframework.stereotype.Component
+    static class WorkerAuditedService {
+
+        // 类级计数器：Bean 被 CGLIB 代理（Objenesis 不跑字段初始化），实例字段在代理上为 null
+        static final java.util.concurrent.atomic.AtomicInteger EXECUTIONS =
+                new java.util.concurrent.atomic.AtomicInteger();
+
+        @com.gallop.fastddd.security.audit.AuditLog(value = "worker.audit.sync", async = false)
+        public String syncBusiness() {
+            EXECUTIONS.incrementAndGet();
+            return "ok";
         }
     }
 }

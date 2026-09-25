@@ -8,6 +8,11 @@ fastddd:
     pg:
       # 空库自动迁移（identity 主体/绑定/会话表）
       initialize-schema: true
+      # W21-04：业务 @AuditLog 审计贯通（消费者真实业务路径验证用）
+      ensure-audit-table: true
+    audit:
+      # W21-04：actor 扩展列模式（writer② 旧列 + actor 列）
+      actor-columns: true
   security:
     jwt:
       enabled: false

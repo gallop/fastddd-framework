@@ -64,6 +64,15 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- 业务审计桥（§5.6 / W21-04）：AuditActorProvider/AuditLogService 桥仅在
+             security-starter 在 classpath 时装配（嵌套类 @ConditionalOnClass 守卫），
+             不强制 identity 消费者引入 security-starter -->
+        <dependency>
+            <groupId>io.github.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-security-starter</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
@@ -81,12 +90,8 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- C 双开关/W1-a 门控交互与旧路由旁路断言需要 security-starter 在 classpath -->
-        <dependency>
-            <groupId>io.github.gallop.fastddd</groupId>
-            <artifactId>fast-ddd-security-starter</artifactId>
-            <scope>test</scope>
-        </dependency>
+        <!-- C 双开关/W1-a 门控交互与旧路由旁路断言：security-starter 已随 optional
+             编译依赖进入测试 classpath，此处不再重复声明 -->
         <!-- 引用 PG 适配（真实端口联装；staging 场景同 consumer identity-session-postgres） -->
         <dependency>
             <groupId>io.github.gallop.fastddd</groupId>

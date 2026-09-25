@@ -53,14 +53,18 @@ public class PgIdentityBindingStore implements IdentityBindingStore {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /** 门禁绑定本适配器数据源（W21-03）：模板构造所用 DataSource 即事务绑定判据。 */
+    private final PgTransactionGate gate;
+
     public PgIdentityBindingStore(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.gate = new PgTransactionGate(jdbcTemplate.getDataSource());
     }
 
     @Override
     public VerifiedPrincipal findOrCreatePrincipalWithBinding(ExternalIdentity identity,
                                                               PrincipalCreationSpec creationSpec) {
-        PgTransactionGate.requireActiveTransaction("findOrCreatePrincipalWithBinding");
+        gate.requireActiveTransaction("findOrCreatePrincipalWithBinding");
         try {
             List<VerifiedPrincipal> existing = jdbcTemplate.query(FIND_LOCKED_SQL, PrincipalRowMapper::map,
                     identity.provider(), identity.tenantId(), identity.appScope(),

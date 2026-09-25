@@ -53,6 +53,9 @@ public class PgLocalSessionStore implements LocalSessionPort {
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
 
+    /** 门禁绑定本适配器数据源（W21-03）：模板构造所用 DataSource 即事务绑定判据。 */
+    private final PgTransactionGate gate;
+
     /** 可注入时钟（测试确定性）。 */
     public interface Clock {
         Instant now();
@@ -65,11 +68,12 @@ public class PgLocalSessionStore implements LocalSessionPort {
     public PgLocalSessionStore(JdbcTemplate jdbcTemplate, Clock clock) {
         this.jdbcTemplate = jdbcTemplate;
         this.clock = clock;
+        this.gate = new PgTransactionGate(jdbcTemplate.getDataSource());
     }
 
     @Override
     public IssuedSession issueSession(VerifiedPrincipal principal, Duration ttl) {
-        PgTransactionGate.requireActiveTransaction("issueSession");
+        gate.requireActiveTransaction("issueSession");
         Instant now = clock.now();
         // ≥256bit（32 字节）随机，base64url 不透明文本（43 字符）
         byte[] bytes = new byte[32];
@@ -109,14 +113,14 @@ public class PgLocalSessionStore implements LocalSessionPort {
 
     @Override
     public void revokeSession(SessionId sessionId) {
-        PgTransactionGate.requireActiveTransaction("revokeSession");
+        gate.requireActiveTransaction("revokeSession");
         // 幂等：已撤销行为 0 行更新，不报错
         jdbcTemplate.update(REVOKE_ONE_SQL, Timestamp.from(clock.now()), sessionId.value());
     }
 
     @Override
     public int revokeAllSessions(String principalId) {
-        PgTransactionGate.requireActiveTransaction("revokeAllSessions");
+        gate.requireActiveTransaction("revokeAllSessions");
         return jdbcTemplate.update(REVOKE_ALL_SQL, Timestamp.from(clock.now()), principalId);
     }
 

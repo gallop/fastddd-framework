@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security;
 
+import com.gallop.fastddd.security.audit.AuditActorProvider;
 import com.gallop.fastddd.security.audit.AuditLogAspect;
 import com.gallop.fastddd.security.audit.AuditLogService;
 import com.gallop.fastddd.security.audit.AuditLogServiceImpl;
@@ -154,8 +155,11 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogAspect auditLogAspect(AuditLogService auditLogService) {
-        return new AuditLogAspect(auditLogService);
+    public AuditLogAspect auditLogAspect(AuditLogService auditLogService,
+            org.springframework.beans.factory.ObjectProvider<AuditActorProvider> actorProvider) {
+        // identity C/Worker 装配 AuditActorProvider 时切面进入业务前解析统一 Actor（W21-04）；
+        // 未装配（A/B/D 与目录单开）保持旧行为
+        return new AuditLogAspect(auditLogService, actorProvider.getIfAvailable());
     }
 
     @Bean

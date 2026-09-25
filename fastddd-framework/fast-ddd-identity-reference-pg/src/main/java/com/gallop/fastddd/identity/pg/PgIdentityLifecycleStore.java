@@ -30,14 +30,18 @@ public class PgIdentityLifecycleStore implements IdentityLifecyclePort {
     private final JdbcTemplate jdbcTemplate;
     private final PgLocalSessionStore sessionStore;
 
+    /** 门禁绑定本适配器数据源（W21-03）：模板构造所用 DataSource 即事务绑定判据。 */
+    private final PgTransactionGate gate;
+
     public PgIdentityLifecycleStore(JdbcTemplate jdbcTemplate, PgLocalSessionStore sessionStore) {
         this.jdbcTemplate = jdbcTemplate;
         this.sessionStore = sessionStore;
+        this.gate = new PgTransactionGate(jdbcTemplate.getDataSource());
     }
 
     @Override
     public VerifiedPrincipal deactivatePrincipal(String principalId) {
-        PgTransactionGate.requireActiveTransaction("deactivatePrincipal");
+        gate.requireActiveTransaction("deactivatePrincipal");
         VerifiedPrincipal locked = lockPrincipal(principalId);
         if (locked.status() == com.gallop.fastddd.identity.core.domain.PrincipalStatus.DISABLED) {
             // 幂等：已停用直接成功（现状返回），不重复递增 epoch
@@ -48,7 +52,7 @@ public class PgIdentityLifecycleStore implements IdentityLifecyclePort {
 
     @Override
     public VerifiedPrincipal reactivatePrincipal(String principalId) {
-        PgTransactionGate.requireActiveTransaction("reactivatePrincipal");
+        gate.requireActiveTransaction("reactivatePrincipal");
         VerifiedPrincipal locked = lockPrincipal(principalId);
         if (locked.status() == com.gallop.fastddd.identity.core.domain.PrincipalStatus.ACTIVE) {
             return locked;

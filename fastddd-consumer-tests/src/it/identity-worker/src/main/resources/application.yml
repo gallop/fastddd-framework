@@ -7,6 +7,8 @@ fastddd:
       enabled: true
     pg:
       initialize-schema: true
+      # W21-04：后台 SYSTEM_JOB 业务 @AuditLog 审计贯通（legacy 列模式，默认 actor-columns=false）
+      ensure-audit-table: true
   security:
     jwt:
       enabled: false

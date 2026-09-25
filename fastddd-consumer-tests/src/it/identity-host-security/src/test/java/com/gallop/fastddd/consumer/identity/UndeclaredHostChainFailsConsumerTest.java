@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class UndeclaredHostChainFailsConsumerTest {
 
     @SpringBootApplication
-    @Import(HostSecuritySupport.class)
+    @Import({HostSecuritySupport.class, HostChainSupport.class})
     static class App {
     }
 

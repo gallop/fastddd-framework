@@ -39,8 +39,16 @@ public class AuditLogAspect {
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
 
+    /** identity 模式 Actor 桥（可空：A/B/D 与目录单开为 null，走旧路径）。 */
+    private final AuditActorProvider actorProvider;
+
     public AuditLogAspect(AuditLogService auditLogService) {
+        this(auditLogService, null);
+    }
+
+    public AuditLogAspect(AuditLogService auditLogService, AuditActorProvider actorProvider) {
         this.auditLogService = auditLogService;
+        this.actorProvider = actorProvider;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -48,15 +56,28 @@ public class AuditLogAspect {
     public Object around(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
         long startTime = System.currentTimeMillis();
         AuditLogEntity logEntity = new AuditLogEntity();
-        
+
         try {
+            // identity 模式（W21-04）：进入业务前解析统一 Actor——缺失身份在此抛出，
+            // 业务不执行（不降级 anonymous）；解析结果随实体捕获，异步落库不延后读取
+            AuditActorProvider.AuditActor actor = null;
+            if (actorProvider != null) {
+                actor = actorProvider.resolveActor();
+            }
+
             // 获取请求信息
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             HttpServletRequest request = attributes != null ? attributes.getRequest() : null;
-            
-            // 获取当前用户
+
+            // 获取当前用户（identity 模式下 actor.principalId 与会话 getName() 一致）
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String username = authentication != null ? authentication.getName() : "anonymous";
+            String username = actor != null ? actor.principalId()
+                    : authentication != null ? authentication.getName() : "anonymous";
+            if (actor != null) {
+                logEntity.setActorTenantId(actor.tenantId());
+                logEntity.setActorPrincipalId(actor.principalId());
+                logEntity.setActorType(actor.actorType());
+            }
             
             // 获取方法信息
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();

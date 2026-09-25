@@ -61,6 +61,16 @@ class IdentityCModeAssemblyTest {
         ExternalLoginProvider externalLoginProvider() {
             return PgTestSupport.stubLoginProvider();
         }
+
+        /**
+         * 测试夹具显式放行策略（W21-01：框架不再提供默认放行策略；放行决策
+         * 只允许存在于测试/隔离夹具——生产宿主必须自带 AdmissionPolicy）。
+         */
+        @Bean
+        com.gallop.fastddd.identity.core.port.AdmissionPolicy admissionPolicy() {
+            return principal -> {
+            };
+        }
     }
 
     @Test
@@ -131,12 +141,49 @@ class IdentityCModeAssemblyTest {
                         .getFailure().hasMessageContaining("ExternalLoginProvider"));
     }
 
+    /**
+     * W21-01：外部凭证验证成功≠宿主准入——漏配 AdmissionPolicy 时启动失败，
+     * 不能由框架默认放行悄悄签发会话（放行策略只允许存在于测试夹具）。
+     */
+    @Test
+    void missingAdmissionPolicyFailsStartupInCMode() {
+        new WebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        IdentityModeGuardAutoConfiguration.class,
+                        IdentityAutoConfiguration.class,
+                        com.gallop.fastddd.identity.spring.security.IdentitySecurityAutoConfiguration.class,
+                        FastDddIdentityPgAutoConfiguration.class))
+                .withUserConfiguration(ProviderWithoutPolicyApp.class)
+                .withPropertyValues(
+                        "fastddd.identity.enabled=true",
+                        "fastddd.identity.login.mode=feishu-web",
+                        "fastddd.security.jwt.enabled=false",
+                        "fastddd.security.local-auth.enabled=false")
+                .run(context -> assertThat(context).hasFailed()
+                        .getFailure().hasMessageContaining("AdmissionPolicy"));
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class NoProviderApp {
 
         @Bean
         DataSource dataSource() {
             return PgTestSupport.dataSource();
+        }
+    }
+
+    /** 有真实（桩）提供者但宿主未提供准入策略——漏配即失败。 */
+    @Configuration(proxyBeanMethods = false)
+    static class ProviderWithoutPolicyApp {
+
+        @Bean
+        DataSource dataSource() {
+            return PgTestSupport.dataSource();
+        }
+
+        @Bean
+        ExternalLoginProvider externalLoginProvider() {
+            return PgTestSupport.stubLoginProvider();
         }
     }
 

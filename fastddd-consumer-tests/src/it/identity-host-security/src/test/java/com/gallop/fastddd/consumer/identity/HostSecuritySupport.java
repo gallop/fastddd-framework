@@ -4,22 +4,16 @@ import com.gallop.fastddd.identity.core.domain.ExternalIdentity;
 import com.gallop.fastddd.identity.core.domain.ExternalLoginCommand;
 import com.gallop.fastddd.identity.core.domain.VerifiedExternalLogin;
 import com.gallop.fastddd.identity.core.port.ExternalLoginProvider;
-import com.gallop.fastddd.identity.spring.security.IdentitySessionAuthenticationFilter;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.sql.DataSource;
 import java.util.Map;
 
 /**
- * C+host-owned 消费者测试夹具（§五 桩边界）：zonky PG、测试登录桩与宿主自建链。
- * 宿主链复用 identity 的 {@link IdentitySessionAuthenticationFilter}（每请求权威复验），
- * CSRF/授权策略由宿主链自决——会话防护责任随 host-owned 声明显式移交宿主。
+ * C+host-owned 消费者测试夹具（§五 桩边界）：zonky PG 与测试登录桩（宿主链见
+ * {@link HostChainSupport}——恢复上下文语义的链由各测试自带，不复用无恢复链）。
  */
 @Configuration(proxyBeanMethods = false)
 class HostSecuritySupport {
@@ -51,23 +45,17 @@ class HostSecuritySupport {
         };
     }
 
-    static ExternalLoginCommand command(String externalId) {
-        return new ExternalLoginCommand(Map.of("externalId", externalId));
+    /**
+     * 测试夹具显式放行策略（W21-01：框架不再提供默认放行策略；放行决策只允许
+     * 存在于测试/隔离夹具，生产宿主必须自带）。
+     */
+    @Bean
+    com.gallop.fastddd.identity.core.port.AdmissionPolicy admissionPolicy() {
+        return principal -> {
+        };
     }
 
-    /** 宿主自建链：公共路径放行 + 其余 authenticated + 复用 identity 会话过滤器。 */
-    @Bean
-    SecurityFilterChain hostChain(HttpSecurity http, IdentitySessionAuthenticationFilter sessionFilter)
-            throws Exception {
-        http.csrf(csrf -> csrf.disable())
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/public/**").permitAll()
-                        .anyRequest().authenticated())
-                .exceptionHandling(handler -> handler.authenticationEntryPoint(
-                        (request, response, authException) -> response.sendError(401)))
-                .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter.class);
-        return http.build();
+    static ExternalLoginCommand command(String externalId) {
+        return new ExternalLoginCommand(Map.of("externalId", externalId));
     }
 }

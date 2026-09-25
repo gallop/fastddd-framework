@@ -143,7 +143,9 @@ class DeactivationAndEpochPgTest {
         LoginResult result = login();
         lifecycleUseCase.deactivate(result.principal().principalId().value());
 
-        JdbcTemplate freshJdbc = new JdbcTemplate(Support.dataSource());
+        // "重启"= 重建适配器对象，但复用同一 DataSource Bean 实例（W21-03 runner 契约：
+        // 事务与适配器必须绑定同一实例；换实例正是门禁要拒绝的错误装配）
+        JdbcTemplate freshJdbc = new JdbcTemplate(dataSource);
         PgLocalSessionStore freshSessionStore = new PgLocalSessionStore(freshJdbc);
         var freshLifecycle = new PrincipalLifecycleUseCase(
                 new PgIdentityLifecycleStore(freshJdbc, freshSessionStore), Support.runner(dataSource));

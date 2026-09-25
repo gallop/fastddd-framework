@@ -149,6 +149,27 @@ class LoginIssuancePgTest {
     }
 
     @Test
+    void existingPrincipalDeniedByHostAdmissionDoesNotGetNewSession() {
+        // W21-01：外部凭证验证成功≠宿主准入——既有主体被宿主策略拒绝时，
+        // 不签发新会话、不新增主体/绑定（既有会话行数不变）
+        LoginResult admitted = loginUseCase.login(new ExternalLoginCommand(Map.of()));
+
+        LocalLoginUseCase denied = new LocalLoginUseCase(fixedProvider(), bindingStore,
+                principal -> {
+                    throw new AdmissionDeniedException("宿主策略在既有主体上拒绝");
+                },
+                sessionStore, runner, Duration.ofHours(8));
+
+        assertThatThrownBy(() -> denied.login(new ExternalLoginCommand(Map.of())))
+                .isInstanceOf(AdmissionDeniedException.class);
+
+        assertThat(Support.count(dataSource, "principal")).isEqualTo(1);
+        assertThat(Support.count(dataSource, "external_binding")).isEqualTo(1);
+        assertThat(Support.count(dataSource, "local_session")).isEqualTo(1);
+        assertThat(sessionStore.validateSession(admitted.session().sessionId())).isPresent();
+    }
+
+    @Test
     void writePortOutsideTransactionIsRejected() {
         // MANDATORY 门禁：不经 runner 直接调用写端口必须拒绝
         assertThatThrownBy(() -> bindingStore.findOrCreatePrincipalWithBinding(

@@ -16,6 +16,13 @@ import javax.sql.DataSource;
  * 业务 DataSource（不注册为 Bean、不猜 @Primary），写端口的 MANDATORY 门禁依赖
  * 本 runner 开启的线程绑定事务。</p>
  *
+ * <p><b>自定义 runner 契约（W2-1 修复轮 W21-03）</b>：宿主替换
+ * {@code IdentityTransactionRunner} 时，必须在
+ * {@code fastddd.identity.transaction.data-source-bean} 指定的同一 {@link DataSource}
+ * <b>Bean 实例</b>上开启并提交事务——PG 写端口门禁除校验"有实际事务"外，还校验
+ * 事务性连接绑定在该实例上；事务开在别的 DataSource（即使指向同一数据库）会在
+ * 首次写入前被拒绝（见 {@code PgTransactionGate}）。</p>
+ *
  * @author gallop
  * @since 1.1.0
  */

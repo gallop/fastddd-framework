@@ -64,19 +64,18 @@ public class IdentityAutoConfiguration {
                         .requireByName(beanFactory, properties.getTransaction().getDataSourceBean()));
     }
 
-    /** 默认准入策略：放行（状态门禁由用例框架级保证），宿主可替换收紧。 */
-    @Bean
-    @ConditionalOnMissingBean(AdmissionPolicy.class)
-    AdmissionPolicy permitActiveAdmissionPolicy() {
-        return principal -> {
-        };
-    }
-
-    /** 登录用例（C 模式）：凭证验证在事务外；缺真实 ExternalLoginProvider 由终检拒绝启动。 */
+    /**
+     * 登录用例（C 模式）：凭证验证在事务外；缺真实 ExternalLoginProvider 由终检拒绝启动。
+     *
+     * <p><b>宿主准入（W2-1 修复轮 W21-01）</b>：不再提供默认放行策略——外部凭证
+     * 验证成功≠宿主准入；缺 {@link AdmissionPolicy} Bean 时登录用例不装配，且
+     * {@code IdentityModeValidator} 终检使启动失败（企业范围/成员许可必须是宿主
+     * 的显式决策；测试放行策略只允许存在于测试夹具）。</p>
+     */
     @Bean
     @Conditional(CModeConditions.class)
-    @ConditionalOnBean({ExternalLoginProvider.class, IdentityBindingStore.class,
-            LocalSessionPort.class, IdentityTransactionRunner.class})
+    @ConditionalOnBean({ExternalLoginProvider.class, AdmissionPolicy.class,
+            IdentityBindingStore.class, LocalSessionPort.class, IdentityTransactionRunner.class})
     @ConditionalOnMissingBean
     LocalLoginUseCase localLoginUseCase(ExternalLoginProvider externalLoginProvider,
                                         IdentityBindingStore bindingStore,
@@ -151,6 +150,42 @@ public class IdentityAutoConfiguration {
         com.gallop.fastddd.identity.spring.bridge.IdentityCurrentUserProvider identityCurrentUserProvider(
                 ActorResolver actorResolver) {
             return new com.gallop.fastddd.identity.spring.bridge.IdentityCurrentUserProvider(actorResolver);
+        }
+    }
+
+    /**
+     * 业务审计桥（v0.2 §5.6 / W2-1 修复轮 W21-04）：C/Worker 把 {@code @AuditLog}
+     * 业务审计接到统一 Actor 与选定 {@code IdentityAuditWriter}——
+     *
+     * <ul>
+     *   <li>切面仍由 security-starter 提供（单一切面，无新旧重复记录）；本桥提供
+     *       {@code AuditActorProvider}（进入业务前经统一 ActorResolver 解析，
+     *       身份缺失抛异常拒绝业务，不降 anonymous）与 {@code AuditLogService}
+     *       （经 IdentityAuditWriter 落库，使 security 默认 AuditLogServiceImpl
+     *       以 @CoM 退让——本类先于 FastDddSecurityAutoConfiguration 注册）；</li>
+     *   <li>Actor 在业务执行前捕获并随实体传递（异步落库不在异步线程重读上下文）；</li>
+     *   <li>目录单开（非 C/Worker）与 A/B/D 不装配：旧切面+旧服务零变化。</li>
+     * </ul>
+     * 嵌套类 + 字符串条件，security-starter 不在 classpath 时整体退让。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @Conditional(IdentityProviderConditions.class)
+    @ConditionalOnClass(name = "com.gallop.fastddd.security.audit.AuditLogService")
+    static class IdentityAuditBridgeConfiguration {
+
+        @Bean
+        @ConditionalOnBean(com.gallop.fastddd.identity.core.port.IdentityAuditWriter.class)
+        @ConditionalOnMissingBean(type = "com.gallop.fastddd.security.audit.AuditLogService")
+        com.gallop.fastddd.identity.spring.bridge.IdentityAuditLogService identityAuditLogService(
+                com.gallop.fastddd.identity.core.port.IdentityAuditWriter identityAuditWriter) {
+            return new com.gallop.fastddd.identity.spring.bridge.IdentityAuditLogService(identityAuditWriter);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(type = "com.gallop.fastddd.security.audit.AuditActorProvider")
+        com.gallop.fastddd.identity.spring.bridge.IdentityAuditActorProvider identityAuditActorProvider(
+                ActorResolver actorResolver) {
+            return new com.gallop.fastddd.identity.spring.bridge.IdentityAuditActorProvider(actorResolver);
         }
     }
 }

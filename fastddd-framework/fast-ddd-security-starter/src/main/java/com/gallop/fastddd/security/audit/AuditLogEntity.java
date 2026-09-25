@@ -87,4 +87,16 @@ public class AuditLogEntity {
      * 创建时间
      */
     private LocalDateTime createTime;
+
+    // identity 模式 Actor 捕获（W21-04）：由 AuditActorProvider 在业务执行前解析并随实体
+    // 捕获（异步落库路径同样在切面线程完成捕获）；旧列 INSERT 不读取这些字段，A/B 零影响。
+
+    /** 执行者租户（identity 模式；旧路径为 null） */
+    private String actorTenantId;
+
+    /** 执行者稳定主体标识 principalId（identity 模式；旧路径为 null） */
+    private String actorPrincipalId;
+
+    /** 执行者类型（HUMAN / SYSTEM_JOB / SYSTEM，identity 模式；旧路径为 null） */
+    private String actorType;
 }

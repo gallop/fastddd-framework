@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class HostOwnedSuccessConsumerTest {
 
     @SpringBootApplication
-    @Import({HostSecuritySupport.class, ProbeController.class})
+    @Import({HostSecuritySupport.class, HostChainSupport.class, ProbeController.class})
     static class App {
     }
 

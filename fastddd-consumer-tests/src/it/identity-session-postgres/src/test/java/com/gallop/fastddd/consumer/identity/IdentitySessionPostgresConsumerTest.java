@@ -144,6 +144,38 @@ class IdentitySessionPostgresConsumerTest {
                 .isInstanceOf(IdentityRequiredException.class);
     }
 
+    /**
+     * W21-04：真实 @AuditLog 业务（HTTP 路径，生产切面织入）——HUMAN 会话调用后
+     * sys_audit_log 落 actor 扩展列（username=principalId、actor_type=USER），
+     * 单次调用单条记录；security 默认 AuditLogServiceImpl 退让（identity 桥接）。
+     */
+    @Test
+    void auditedBusinessEndpointWritesActorColumns() throws Exception {
+        assertThat(context.getBeanNamesForType(
+                com.gallop.fastddd.security.audit.AuditLogService.class)).hasSize(1);
+        assertThat(context.containsBean("identityAuditLogService")).isTrue();
+        assertThat(context.containsBean("auditLogServiceImpl")).isFalse();
+
+        LoginResult result = localLoginUseCase.login(CModeSupport.command("ou_consumer_audit"));
+        String principalId = result.principal().principalId().value();
+
+        mockMvc.perform(get("/api/probe/audited")
+                        .cookie(new Cookie("FASTDDD_SESSION", result.session().sessionId().value())))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$").value("audited:" + principalId));
+
+        org.springframework.jdbc.core.JdbcTemplate jdbc =
+                new org.springframework.jdbc.core.JdbcTemplate(context.getBean(javax.sql.DataSource.class));
+        var rows = jdbc.queryForList(
+                "SELECT username, actor_principal_id, actor_type FROM sys_audit_log"
+                        + " WHERE operation = ? AND username = ?", "consumer.probe.audited", principalId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("username")).isEqualTo(principalId);
+        assertThat(rows.get(0).get("actor_principal_id")).isEqualTo(principalId);
+        assertThat(rows.get(0).get("actor_type")).isEqualTo("USER");
+    }
+
     @RestController
     static class ProbeController {
 
@@ -156,6 +188,14 @@ class IdentitySessionPostgresConsumerTest {
         @PostMapping("/api/probe/echo")
         public String echo() {
             return "echo";
+        }
+
+        /** 真实业务审计面（W21-04）：生产 AuditLogAspect 织入，同步落库便于断言。 */
+        @com.gallop.fastddd.security.audit.AuditLog(value = "consumer.probe.audited", async = false)
+        @GetMapping("/api/probe/audited")
+        public String audited() {
+            return "audited:" + org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication().getName();
         }
 
         @GetMapping("/api/probe/admin")

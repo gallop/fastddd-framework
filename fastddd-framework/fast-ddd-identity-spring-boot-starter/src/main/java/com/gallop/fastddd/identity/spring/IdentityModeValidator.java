@@ -23,7 +23,9 @@ import java.util.Map;
  *   <li>C 模式过滤链审计：host-owned 声明与最终链数量互证（声明却无宿主链、
  *       有宿主链却未声明，均失败）；</li>
  *   <li>C 模式必需端口：缺真实 {@code ExternalLoginProvider} 即启动失败
- *       （外部身份桩仅允许存在于测试/隔离夹具，W2-2 前宿主提供实现）。</li>
+ *       （外部身份桩仅允许存在于测试/隔离夹具，W2-2 前宿主提供实现）；
+ *       缺 {@code AdmissionPolicy}（宿主准入）同样启动失败——外部凭证验证成功
+ *       ≠宿主准入，漏配不默认放行（W21-01）。</li>
  * </ul>
  *
  * @author gallop
@@ -31,7 +33,9 @@ import java.util.Map;
  */
 public class IdentityModeValidator implements SmartInitializingSingleton {
 
-    private static final String AUTH_STRATEGY_CLASS = "com.gallop.fastddd.security.channel.AuthStrategy";
+    // W2-1 修复轮 W21-05：真实接口在 security.strategy 包（此前误写 channel 包，
+    // ClassNotFoundException 被当作"组件未引入"吞掉，残留/自定义策略漏检）
+    private static final String AUTH_STRATEGY_CLASS = "com.gallop.fastddd.security.strategy.AuthStrategy";
 
     private final ConfigurableApplicationContext applicationContext;
 
@@ -71,6 +75,14 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                     com.gallop.fastddd.identity.core.port.ExternalLoginProvider.class).isEmpty()) {
                 violations.add("login.mode=feishu-web 需要至少一个 ExternalLoginProvider bean（真实提供者；"
                         + "W2-1 不内置飞书适配器——W2-2 交付前由宿主提供，测试桩仅存在于测试/隔离夹具）");
+            }
+            // W2-1 修复轮 W21-01：宿主准入必须显式——外部凭证验证成功≠宿主准入，
+            // 漏配不默认放行（企业范围/成员许可是宿主决策；放行策略只允许存在于测试夹具）
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.AdmissionPolicy.class).isEmpty()) {
+                violations.add("login.mode=feishu-web 需要宿主提供 AdmissionPolicy bean（宿主准入："
+                        + "企业范围/成员许可的显式决策）。框架不再提供默认放行策略——"
+                        + "漏配即启动失败，不静默签发会话");
             }
         }
         if (!violations.isEmpty()) {

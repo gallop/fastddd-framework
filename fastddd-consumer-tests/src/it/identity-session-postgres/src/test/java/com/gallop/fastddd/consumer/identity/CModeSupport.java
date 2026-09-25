@@ -47,6 +47,16 @@ class CModeSupport {
         };
     }
 
+    /**
+     * 测试夹具显式放行策略（W21-01：框架不再提供默认放行策略——外部凭证验证成功
+     * ≠宿主准入；放行决策只允许存在于测试/隔离夹具，生产宿主必须自带）。
+     */
+    @Bean
+    com.gallop.fastddd.identity.core.port.AdmissionPolicy admissionPolicy() {
+        return principal -> {
+        };
+    }
+
     static ExternalLoginCommand command(String externalId) {
         return new ExternalLoginCommand(Map.of("externalId", externalId));
     }
