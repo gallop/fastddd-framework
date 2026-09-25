@@ -36,8 +36,9 @@ import java.util.Objects;
  *       必须为 false。autoCommit=true 的绑定连接不在任何受支持事务内——典型形态是
  *       事务开在另一数据源上时，先行公开读取本适配器经事务同步自然绑定了非事务
  *       连接（第三轮反例：全局有实际事务 + 目标源有 holder 双条件同时满足仍会
- *       自动提交）；写入将被拒绝而非静默自动提交。无法核验（{@link SQLException}）
- *       时同样拒绝（fail-closed，不以"无法判断"放行）。</li>
+ *       自动提交）；写入将被拒绝而非静默自动提交。无法核验（{@link SQLException}
+ *       或非受检异常，如死连接）时同样拒绝（fail-closed，不以"无法判断"放行，
+ *       原始异常保留为 cause）。</li>
  * </ul>
  *
  * <p><b>不支持/未验证边界</b>：JTA/XA、{@code TransactionAwareDataSourceProxy}
@@ -46,12 +47,28 @@ import java.util.Objects;
  * （JTA/XA 等）的通用证明。需要这些形态的宿主须自行验证装配（保证适配器解析的
  * 事务连接真实参与其事务），或使用默认 {@code SpringIdentityTransactionRunner}。</p>
  *
+ * <p><b>池预置 autoCommit=false（W21c，复评 F1）</b>：连接池预置
+ * {@code autoCommit=false} 时，第三判据失去区分力——绑定连接的 autoCommit=false
+ * 既可能来自 {@code doBegin} 的事务开始，也可能来自池预置（{@code doBegin} 对
+ * 预置 false 的连接不再调用 {@code setAutoCommit(false)}），公开 API 无法分辨
+ * （{@code isSynchronizedWithTransaction()} 在 {@code doBegin} 与普通读取同步
+ * 绑定两条路径上都被置 true；{@code doBegin} 的 mustRestoreAutoCommit 标志位于
+ * 事务管理器私有对象上）。该配置下受支持模型本身仍正常（事务开在适配器数据源
+ * 上即真实参与），但"异源事务 + 目标源预读取"形态会放行写入并随池回滚<b>静默
+ * 丢失</b>（含 {@code revokeAllSessions}）。故该配置列为不受支持边界，并由
+ * {@code FastDddIdentityPgAutoConfiguration} 在装配期对 Hikari 池直接拒绝启动
+ * （其他池/手工装配该形态同样自担风险，不宣称支持）。</p>
+ *
  * <p><b>自定义 runner 契约</b>：宿主替换 {@code IdentityTransactionRunner} 时，
  * 必须在 {@code fastddd.identity.transaction.data-source-bean} 指定的同一
  * {@link DataSource} <b>Bean 实例</b>上以受支持模型（JDBC 本地事务）开启并提交
  * 事务（与默认 {@code SpringIdentityTransactionRunner} 一致）；否则适配器首次
  * 写入前即失败。判定基于 DataSource 实例同一性——宿主若包装/代理了该 Bean，
- * 须保证事务管理器与适配器解析到同一实例。</p>
+ * 须保证事务管理器与适配器解析到同一实例。注意 {@code DataSourceTransactionManager}
+ * 对 {@code TransactionAwareDataSourceProxy} 会自动解包到目标源（holder 绑定在
+ * 裸源键上）：宿主使用该代理时"两侧都传代理"无法满足实例同一性（将被判据二
+ * 拒绝），事务管理器应持目标（裸）实例；包装形态整体不宣称支持（实测各装配
+ * 形态要么被拒绝、要么真实参与，无写入泄漏）。</p>
  *
  * @author gallop
  * @since 1.1.0
@@ -87,10 +104,13 @@ public final class PgTransactionGate {
         // W21-03 补修：绑定连接必须真实参与事务。受支持模型（DataSourceTransactionManager
         // JDBC 本地事务）下事务连接 autoCommit=false；同步绑定的非事务连接（异源事务中先行
         // 公开读取自然产生）保持 autoCommit=true——写入会自动提交、外层回滚无法带走。
+        // W21c（F3）：核验调用只此一处，SQLException 与非受检异常（如死连接代理抛出的
+        // IllegalStateException）同样以契约消息拒绝并保留原始 cause——两种形态的结局
+        // 本就都是拒绝，扩大 catch 不改变放行面，只让失败带上可诊断的契约文本。
         boolean boundConnectionAutoCommit;
         try {
             boundConnectionAutoCommit = holder.getConnection().getAutoCommit();
-        } catch (SQLException e) {
+        } catch (SQLException | RuntimeException e) {
             throw new IllegalStateException(
                     "identity PG 写端口（" + operation + "）无法核验适配器数据源绑定连接的事务参与状态"
                             + "（MANDATORY，fail-closed）：" + e.getMessage(), e);

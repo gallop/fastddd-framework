@@ -51,6 +51,9 @@ public class FastDddIdentityPgAutoConfiguration {
             @Value("${fastddd.identity.pg.ensure-audit-table:false}") boolean ensureAuditTable,
             @Value("${fastddd.identity.audit.actor-columns:false}") boolean actorColumns) {
         this.dataSource = resolveDataSource(beanFactory, dataSourceBeanName);
+        // W21c（复评 F1）：池预置 autoCommit=false 使写端口门禁第三判据失去区分力，
+        // 装配期即拒绝（fail-closed；先于任何 schema 初始化动作）
+        rejectPoolPresetAutoCommitFalse(this.dataSource, dataSourceBeanName);
         this.initializeSchema = initializeSchema;
         this.ensureAuditTable = ensureAuditTable;
         this.actorColumns = actorColumns;
@@ -98,5 +101,39 @@ public class FastDddIdentityPgAutoConfiguration {
         throw new IllegalStateException("identity 数据源显式绑定失败：Bean '" + beanName
                 + "' 不存在（可用 DataSource Bean：" + candidates
                 + "）。多数据源环境必须以 fastddd.identity.transaction.data-source-bean 显式指名，不使用 @Primary 猜测");
+    }
+
+    /**
+     * W21c（复评 F1，fail-closed）：适配器数据源（经 DelegatingDataSource 解包后）
+     * 为预置 {@code autoCommit=false} 的 Hikari 池时拒绝启动。
+     *
+     * <p>该配置下 {@code PgTransactionGate} 第三判据（绑定连接 autoCommit=false）无法
+     * 区分"因参与事务为 false"与"因池预置为 false"——异源事务 + 目标源预读取形态会
+     * 放行写入、写返回成功、数据随池回滚<b>静默丢失</b>（复评 S2a 实测，含
+     * {@code revokeAllSessions}）；门禁层不存在不误伤的公开 API 判别子（详见
+     * {@code PgTransactionGate} javadoc 边界），故处置上移到装配期。仅探测 Hikari
+     * （Boot 默认池，optional 依赖 + ClassUtils.isPresent 守卫）；其他池/深包装形态
+     * 按不支持边界处理。修正指引：移除池的 autoCommit=false 预置（恢复默认 true）——
+     * 受支持的 DataSourceTransactionManager 本地事务会自行管理自动提交，无语义损失
+     * （事务开在适配器数据源上的写入行为不变）。</p>
+     */
+    private static void rejectPoolPresetAutoCommitFalse(DataSource dataSource, String beanName) {
+        if (!org.springframework.util.ClassUtils.isPresent(
+                "com.zaxxer.hikari.HikariDataSource",
+                FastDddIdentityPgAutoConfiguration.class.getClassLoader())) {
+            return;
+        }
+        DataSource target = dataSource;
+        while (target instanceof org.springframework.jdbc.datasource.DelegatingDataSource delegating) {
+            target = delegating.getTargetDataSource();
+        }
+        if (target instanceof com.zaxxer.hikari.HikariDataSource pool && !pool.isAutoCommit()) {
+            throw new IllegalStateException("identity 适配器数据源（fastddd.identity.transaction.data-source-bean='"
+                    + beanName + "'）是预置 autoCommit=false 的 Hikari 连接池，拒绝启动：该配置下写端口事务门禁"
+                    + "无法证明绑定连接参与事务（autoCommit=false 既可能来自事务开始，也可能来自池预置），"
+                    + "异源事务预读取形态的写入会静默丢失（含 revokeAllSessions）。请移除池的 autoCommit=false"
+                    + " 预置（恢复默认 true）——受支持的 DataSourceTransactionManager 本地事务会自行管理"
+                    + "自动提交，事务开在适配器数据源上的写入行为不变");
+        }
     }
 }

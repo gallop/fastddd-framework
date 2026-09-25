@@ -34,6 +34,18 @@ final class Support {
         return PG.getDatabase("postgres", "postgres");
     }
 
+    /** 预置 autoCommit 的 Hikari 池（复评 F1/S2 形态，同一 zonky PG）；调用方负责 close。 */
+    static com.zaxxer.hikari.HikariDataSource hikariPool(boolean autoCommit, String poolName) {
+        com.zaxxer.hikari.HikariDataSource pool = new com.zaxxer.hikari.HikariDataSource();
+        pool.setJdbcUrl(PG.getJdbcUrl("postgres", "postgres"));
+        pool.setUsername("postgres");
+        pool.setPassword("postgres");
+        pool.setAutoCommit(autoCommit);
+        pool.setMaximumPoolSize(2);
+        pool.setPoolName(poolName);
+        return pool;
+    }
+
     /** 与 starter SpringIdentityTransactionRunner 同契约的测试 runner。 */
     static IdentityTransactionRunner runner(DataSource dataSource) {
         var manager = new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);

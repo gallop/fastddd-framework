@@ -24,7 +24,16 @@ import javax.sql.DataSource;
  * 实例上"外，还核验绑定连接 autoCommit=false（真实参与；异源事务中先行公开读取
  * 产生的 autoCommit=true 同步绑定连接会被拒绝）；事务开在别的 DataSource（即使
  * 指向同一数据库）同样在首次写入前被拒绝（见 {@code PgTransactionGate}）。JTA/XA、
- * 代理/包装 DataSource 形态未经门禁验证、不宣称支持。</p>
+ * 代理/包装 DataSource 形态未经门禁验证、不宣称支持——其中
+ * {@code TransactionAwareDataSourceProxy} 会被 {@code DataSourceTransactionManager}
+ * 自动解包（holder 绑定裸源键），事务管理器应持目标（裸）实例而非代理。</p>
+ *
+ * <p><b>池预置 autoCommit=false（W21c，复评 F1）</b>：连接池预置
+ * {@code autoCommit=false} 会使门禁第三判据失去区分力（无法分辨"因事务为 false"
+ * 与"因池预置为 false"），异源事务预读取形态的写入将静默丢失——该配置列为不
+ * 受支持边界，Hikari 池在 reference-pg 装配期即拒绝启动（其他池自担风险）。
+ * 保持池默认 autoCommit=true：本 runner 的 {@code DataSourceTransactionManager}
+ * 会自行管理事务连接的自动提交，宿主无语义损失。</p>
  *
  * @author gallop
  * @since 1.1.0

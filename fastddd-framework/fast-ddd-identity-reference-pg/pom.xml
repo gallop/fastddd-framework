@@ -38,6 +38,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
+        <!-- W21c（F1）：装配期探测适配器数据源是否为预置 autoCommit=false 的 Hikari 池
+             （optional：非 Hikari 宿主不强制引入，探测以 ClassUtils.isPresent 守卫） -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- Test Dependencies：真实 PostgreSQL（zonky embedded-postgres，专用一次性，
              随构建下载与回收；不得以 H2/内存桩替代 PG 事务门禁） -->

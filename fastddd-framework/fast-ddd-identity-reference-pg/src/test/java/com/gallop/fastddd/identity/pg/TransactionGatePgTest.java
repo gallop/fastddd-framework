@@ -181,4 +181,116 @@ class TransactionGatePgTest {
         assertThat(Support.count(dataSource, "external_binding")).isZero();
         assertThat(Support.count(dataSource, "local_session")).isZero();
     }
+
+    /**
+     * W21c（复评 F1/S2b，防误伤守卫）：池预置 autoCommit=false 且事务以受支持模型
+     * 开在同一 DataSource 实例（池）上——绑定连接为 {@code doBegin} 事务连接，
+     * 门禁三判据全部满足，写入随事务提交真实持久化。门禁层不得因"池预置"而拒绝
+     * 真实参与（该配置的处置在装配期检查，见 FastDddIdentityPgAutoConfigurationTest）。
+     */
+    @Test
+    void supportedTransactionOnPresetAutoCommitFalsePoolStillParticipates() {
+        try (var pool = Support.hikariPool(false, "w21c-s2b-supported")) {
+            Support.cleanIdentityTables(pool);
+            PgIdentityBindingStore store = new PgIdentityBindingStore(new JdbcTemplate(pool));
+            var manager = new org.springframework.jdbc.datasource.DataSourceTransactionManager(pool);
+            var template = new org.springframework.transaction.support.TransactionTemplate(manager);
+
+            template.executeWithoutResult(status ->
+                    store.findOrCreatePrincipalWithBinding(identity(), new PrincipalCreationSpec("login", "display")));
+
+            assertThat(Support.count(pool, "principal")).isEqualTo(1);
+            assertThat(Support.count(pool, "external_binding")).isEqualTo(1);
+        }
+    }
+
+    /**
+     * W21c（复评 S4 正式化 + F3）：绑定连接 {@code getAutoCommit()} 无法核验时
+     * fail-closed——事务开在 A，B 适配器先经公开只读自然绑定同步 holder（B 的
+     * DataSource 仅为故障注入包装：仅 {@code getAutoCommit()} 抛指定异常，其余全部
+     * 委托真实连接）。门禁必须以契约消息（"无法核验…fail-closed"）拒绝且保留
+     * 原始异常为 cause，首次写入前拒绝、外层回滚后零残留。SQLException 与非受检
+     * 异常两种形态都必须走同一 fail-closed 契约文本（非受检形态为 F3：修复前以
+     * 裸异常冒出，消息非门禁契约）。
+     */
+    @Test
+    void boundConnectionGetAutoCommitFailureIsFailClosedRejectedForBothExceptionKinds() throws Exception {
+        assertFailClosedOnGetAutoCommitFailure(java.sql.SQLException::new);
+        assertFailClosedOnGetAutoCommitFailure(IllegalStateException::new);
+    }
+
+    private void assertFailClosedOnGetAutoCommitFailure(java.util.function.Function<String, Exception> failure) throws Exception {
+        DataSource faultOnB = failingGetAutoCommitDataSource(otherDataSource, failure);
+        PgIdentityBindingStore storeOnB = new PgIdentityBindingStore(new JdbcTemplate(faultOnB));
+        PgLocalSessionStore sessionsOnB = new PgLocalSessionStore(new JdbcTemplate(faultOnB));
+
+        var managerOnA = new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);
+        var templateOnA = new org.springframework.transaction.support.TransactionTemplate(managerOnA);
+
+        templateOnA.executeWithoutResult(status -> {
+            // 公开只读（自然触发）：Spring 为 B（故障包装源）绑定同步 ConnectionHolder
+            assertThat(storeOnB.findPrincipal("not-present")).isEmpty();
+            Object bound = TransactionSynchronizationManager.getResource(faultOnB);
+            assertThat(bound).isInstanceOf(ConnectionHolder.class);
+
+            assertThatThrownBy(() -> storeOnB.findOrCreatePrincipalWithBinding(
+                            identity(), new PrincipalCreationSpec("login", "display")))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("无法核验")
+                    .hasMessageContaining("fail-closed")
+                    .hasRootCauseInstanceOf(failure.apply("probe").getClass());
+            assertThatThrownBy(() -> sessionsOnB.revokeAllSessions("any-principal"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("无法核验");
+            status.setRollbackOnly();
+        });
+
+        assertThat(Support.count(dataSource, "principal")).isZero();
+        assertThat(Support.count(dataSource, "external_binding")).isZero();
+        assertThat(Support.count(dataSource, "local_session")).isZero();
+        assertThat(Support.count(otherDataSource, "principal")).isZero();
+        assertThat(Support.count(otherDataSource, "external_binding")).isZero();
+        assertThat(Support.count(otherDataSource, "local_session")).isZero();
+    }
+
+    /** 故障注入 DataSource：仅 {@code Connection.getAutoCommit()} 抛指定异常，其余全部委托（复评 S4 探针形态）。 */
+    private static DataSource failingGetAutoCommitDataSource(DataSource delegate,
+                                                             java.util.function.Function<String, Exception> failure) {
+        return new org.springframework.jdbc.datasource.DelegatingDataSource(delegate) {
+            @Override
+            public Connection getConnection() throws java.sql.SQLException {
+                return faultInjecting(super.getConnection());
+            }
+
+            @Override
+            public Connection getConnection(String username, String password) throws java.sql.SQLException {
+                return faultInjecting(super.getConnection(username, password));
+            }
+
+            private Connection faultInjecting(Connection real) {
+                return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                        Connection.class.getClassLoader(),
+                        new Class<?>[]{Connection.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("getAutoCommit")) {
+                                throw failure.apply("autoCommit 状态不可读（模拟故障注入）");
+                            }
+                            if (method.getName().equals("equals")) {
+                                return proxy == args[0];
+                            }
+                            if (method.getName().equals("hashCode")) {
+                                return System.identityHashCode(proxy);
+                            }
+                            if (method.getName().equals("toString")) {
+                                return "FaultInjectingConnection[" + real + "]";
+                            }
+                            try {
+                                return method.invoke(real, args);
+                            } catch (java.lang.reflect.InvocationTargetException e) {
+                                throw e.getCause();
+                            }
+                        });
+            }
+        };
+    }
 }
