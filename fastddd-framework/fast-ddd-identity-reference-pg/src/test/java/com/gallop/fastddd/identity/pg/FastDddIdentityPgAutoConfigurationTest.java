@@ -68,10 +68,27 @@ class FastDddIdentityPgAutoConfigurationTest {
         runner.withBean("dataSource", DataSource.class, () -> Support.hikariPool(true, "w21c-f1-positive"))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
+                    // 缺省 retention=3600s 经装配路径构建 loginStateStore（W22-R2-N4 正向锚定）
+                    assertThat(context).hasBean("loginStateStore");
                     assertThat(context).hasBean("identityBindingStore");
                     assertThat(context).hasBean("localSessionPort");
                     assertThat(context).hasBean("identityLifecyclePort");
                     assertThat(context).hasBean("identityAuditWriter");
+                });
+    }
+
+    @Test
+    void negativeLoginStateRetentionSecondsFailsStartup() {
+        // W22-R2-N4：负值 retention 经 @Value 装配路径触发 PgLoginStateStore 构造器守卫
+        runner.withBean("dataSource", DataSource.class, () -> Support.hikariPool(true, "w22r2-n4-negative"))
+                .withPropertyValues("fastddd.identity.pg.login-state-retention-seconds=-1")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .getRootCause()
+                            .hasMessageContaining("login_state retention")
+                            .hasMessageContaining("非负");
                 });
     }
 }

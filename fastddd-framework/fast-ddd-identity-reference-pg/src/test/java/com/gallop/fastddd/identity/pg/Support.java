@@ -76,6 +76,12 @@ final class Support {
         jdbc.execute("TRUNCATE TABLE local_session, external_binding, principal CASCADE");
     }
 
+    /** 清空登录授权上下文表（W2-2 state 测试隔离；其他测试经 cleanIdentityTables 复用）。 */
+    static void cleanLoginState(DataSource dataSource) {
+        ensureIdentitySchema(dataSource);
+        new JdbcTemplate(dataSource).execute("TRUNCATE TABLE login_state");
+    }
+
     static int count(DataSource dataSource, String table) {
         return new JdbcTemplate(dataSource).queryForObject("SELECT count(*) FROM " + table, Integer.class);
     }

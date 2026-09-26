@@ -73,6 +73,9 @@ public class FastDddIdentityProperties {
     /** 登录子域：mode / 会话 TTL / 会话 cookie 名。 */
     public static class Login {
 
+        /** 站内回跳缺省与回退目标（W2-2 防开放重定向）。 */
+        public static final String DEFAULT_POST_LOGIN_REDIRECT = "/";
+
         public enum Mode {
             /** 不装身份登录链（B/目录单开/Worker）。 */
             NONE,
@@ -84,6 +87,13 @@ public class FastDddIdentityProperties {
 
         private final Session session = new Session();
 
+        /** 授权 state 有效期（W2-2：一次性，缺省 10 分钟；过期即拒绝回调）。 */
+        private Duration stateTtl = Duration.ofMinutes(10);
+
+        /** 登录成功后允许的站内回跳地址白名单（防开放重定向；缺省仅 "/"）。 */
+        private java.util.List<String> allowedPostLoginRedirects =
+                new java.util.ArrayList<>(java.util.List.of(DEFAULT_POST_LOGIN_REDIRECT));
+
         public Mode getMode() {
             return mode;
         }
@@ -94,6 +104,22 @@ public class FastDddIdentityProperties {
 
         public Session getSession() {
             return session;
+        }
+
+        public Duration getStateTtl() {
+            return stateTtl;
+        }
+
+        public void setStateTtl(Duration stateTtl) {
+            this.stateTtl = stateTtl;
+        }
+
+        public java.util.List<String> getAllowedPostLoginRedirects() {
+            return allowedPostLoginRedirects;
+        }
+
+        public void setAllowedPostLoginRedirects(java.util.List<String> allowedPostLoginRedirects) {
+            this.allowedPostLoginRedirects = allowedPostLoginRedirects;
         }
 
         /** 本地不透明会话参数（cookie 签发契约见 {@code IdentitySessionCookies}）。 */

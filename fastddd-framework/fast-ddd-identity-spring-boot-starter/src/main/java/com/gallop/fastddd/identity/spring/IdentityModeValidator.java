@@ -1,5 +1,7 @@
 package com.gallop.fastddd.identity.spring;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -32,6 +34,8 @@ import java.util.Map;
  * @since 1.1.0
  */
 public class IdentityModeValidator implements SmartInitializingSingleton {
+
+    private static final Logger LOG = LoggerFactory.getLogger(IdentityModeValidator.class);
 
     // W2-1 修复轮 W21-05：真实接口在 security.strategy 包（此前误写 channel 包，
     // ClassNotFoundException 被当作"组件未引入"吞掉，残留/自定义策略漏检）
@@ -73,8 +77,9 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
             checkSecurityFilterChainAudit(violations);
             if (applicationContext.getBeansOfType(
                     com.gallop.fastddd.identity.core.port.ExternalLoginProvider.class).isEmpty()) {
-                violations.add("login.mode=feishu-web 需要至少一个 ExternalLoginProvider bean（真实提供者；"
-                        + "W2-1 不内置飞书适配器——W2-2 交付前由宿主提供，测试桩仅存在于测试/隔离夹具）");
+                violations.add("login.mode=feishu-web 需要至少一个 ExternalLoginProvider bean（真实提供者："
+                        + "classpath 引入 fast-ddd-identity-feishu 并配置其必填项即自动装配，或宿主自行实现；"
+                        + "测试桩仅存在于测试/隔离夹具）");
             }
             // W2-1 修复轮 W21-01：宿主准入必须显式——外部凭证验证成功≠宿主准入，
             // 漏配不默认放行（企业范围/成员许可是宿主决策；放行策略只允许存在于测试夹具）
@@ -83,6 +88,26 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                 violations.add("login.mode=feishu-web 需要宿主提供 AdmissionPolicy bean（宿主准入："
                         + "企业范围/成员许可的显式决策）。框架不再提供默认放行策略——"
                         + "漏配即启动失败，不静默签发会话");
+            }
+            // W2-2：授权发起端口与状态存储成对——存在 ExternalAuthorizePort（适配器
+            // 提供，如 fast-ddd-identity-feishu）而缺 LoginStateStore 时，浏览器登录
+            // 端点不会注册（静默 404），提前失败。反向（多一个 store）无害不检。
+            boolean authorizePortPresent = !applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.ExternalAuthorizePort.class).isEmpty();
+            if (authorizePortPresent && applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.LoginStateStore.class).isEmpty()) {
+                violations.add("存在 ExternalAuthorizePort（登录授权发起）但缺少 LoginStateStore bean——"
+                        + "浏览器登录闭环需要 state 原子一次性消费存储（fast-ddd-identity-reference-pg "
+                        + "提供 PgLoginStateStore，或宿主自行实现）；否则登录端点不会注册");
+            }
+            // W22-RV-06：反向配对缺口不失败（宿主自有登录入口/仅会话复验形态合法，W2-1
+            // 既有 C 场景即无 authorize port），但该形态下登录端点不会注册——打 WARN
+            // 留诊断线索，消除"以为有登录闭环实际 404"的静默面
+            if (!authorizePortPresent) {
+                LOG.warn("[login] login.mode=feishu-web 存在 ExternalLoginProvider 但缺少 "
+                        + "ExternalAuthorizePort bean：浏览器登录端点（/api/identity/login/*）不会注册。"
+                        + "若宿主自有登录入口或仅用会话复验，此为预期形态；需要飞书授权页闭环时"
+                        + "请引入 fast-ddd-identity-feishu 或自行提供 ExternalAuthorizePort");
             }
         }
         if (!violations.isEmpty()) {

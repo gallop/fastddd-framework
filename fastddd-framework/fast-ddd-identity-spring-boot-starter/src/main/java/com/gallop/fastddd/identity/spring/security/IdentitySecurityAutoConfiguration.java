@@ -2,6 +2,7 @@ package com.gallop.fastddd.identity.spring.security;
 
 import com.gallop.fastddd.identity.core.port.LocalSessionPort;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
+import com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,6 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -60,16 +63,43 @@ public class IdentitySecurityAutoConfiguration {
                                                         IdentitySessionAuthenticationFilter sessionFilter)
                 throws Exception {
             // CSRF 启用（cookie 会话架构 → 双提交 Cookie 仓）；formLogin/httpBasic 显式关闭，
-            // 拒绝旧登录/刷新/验证码路径旁路；飞书端点独立路径（W2-2 交付浏览器回调）
+            // 拒绝旧登录/刷新/验证码路径旁路
             http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
                     .formLogin(form -> form.disable())
                     .httpBasic(basic -> basic.disable())
                     .sessionManagement(session ->
                             session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                    .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                    .authorizeHttpRequests(auth -> auth
+                            // W2-2 浏览器登录闭环的最小放行面：仅两个 GET 登录路径
+                            // （发起授权是无认证跳转；回调自行消费一次性 state + 浏览器绑定
+                            //  完成信任裁决，非匿名业务面）。其余路径维持 authenticated。
+                            // 显式 PathPatternRequestMatcher：不依赖容器是否注册 MVC
+                            // introspector（字符串+HttpMethod 重载会走 MvcRequestMatcher，
+                            // 无 MVC 装配的宿主会启动失败）。
+                            .requestMatchers(
+                                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
+                                            IdentityLoginEndpoints.AUTHORIZE_PATH),
+                                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
+                                            IdentityLoginEndpoints.CALLBACK_PATH))
+                            .permitAll()
+                            .anyRequest().authenticated())
                     .exceptionHandling(handler -> handler.authenticationEntryPoint(
                             (request, response, authException) -> response.sendError(401)))
-                    .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter.class);
+                    .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter.class)
+                    // Spring Security 6 延迟 CSRF token：cookie 只有在 token 被读取时才落盘。
+                    // 此过滤器对每个响应前触碰一次 token，保证任意 GET（含登录回调/受保护页）
+                    // 都种下 XSRF-TOKEN cookie，浏览器后续 POST（如登出）可携带双提交头。
+                    // （Spring Security 官方 SPA 模式；不改变校验语义。）
+                    .addFilterAfter((request, response, chain) -> {
+                        org.springframework.security.web.csrf.CsrfToken token =
+                                (org.springframework.security.web.csrf.CsrfToken) request
+                                        .getAttribute(org.springframework.security.web.csrf.CsrfToken.class
+                                                .getName());
+                        if (token != null) {
+                            token.getToken();
+                        }
+                        chain.doFilter(request, response);
+                    }, org.springframework.security.web.csrf.CsrfFilter.class);
             return http.build();
         }
     }

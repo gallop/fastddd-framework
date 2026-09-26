@@ -16,6 +16,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -43,13 +45,15 @@ public class FastDddIdentityPgAutoConfiguration {
     private final boolean initializeSchema;
     private final boolean ensureAuditTable;
     private final boolean actorColumns;
+    private final Duration loginStateRetention;
 
     public FastDddIdentityPgAutoConfiguration(
             ListableBeanFactory beanFactory,
             @Value("${fastddd.identity.transaction.data-source-bean:dataSource}") String dataSourceBeanName,
             @Value("${fastddd.identity.pg.initialize-schema:false}") boolean initializeSchema,
             @Value("${fastddd.identity.pg.ensure-audit-table:false}") boolean ensureAuditTable,
-            @Value("${fastddd.identity.audit.actor-columns:false}") boolean actorColumns) {
+            @Value("${fastddd.identity.audit.actor-columns:false}") boolean actorColumns,
+            @Value("${fastddd.identity.pg.login-state-retention-seconds:3600}") long loginStateRetentionSeconds) {
         this.dataSource = resolveDataSource(beanFactory, dataSourceBeanName);
         // W21c（复评 F1）：池预置 autoCommit=false 使写端口门禁第三判据失去区分力，
         // 装配期即拒绝（fail-closed；先于任何 schema 初始化动作）
@@ -57,6 +61,7 @@ public class FastDddIdentityPgAutoConfiguration {
         this.initializeSchema = initializeSchema;
         this.ensureAuditTable = ensureAuditTable;
         this.actorColumns = actorColumns;
+        this.loginStateRetention = Duration.ofSeconds(loginStateRetentionSeconds);
         if (initializeSchema) {
             PgIdentitySchema.initialize(dataSource);
         }
@@ -75,6 +80,17 @@ public class FastDddIdentityPgAutoConfiguration {
     @ConditionalOnMissingBean(LocalSessionPort.class)
     public LocalSessionPort localSessionPort() {
         return new PgLocalSessionStore(new JdbcTemplate(dataSource));
+    }
+
+    /**
+     * 登录授权上下文（state 原子一次性消费，W2-2）；schema 增量 V2 随 initialize 执行。
+     * 过期回收（W22-RV-01）：save 惰性清理越过保留窗口的行，窗口经
+     * {@code fastddd.identity.pg.login-state-retention-seconds} 配置（缺省 3600）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(com.gallop.fastddd.identity.core.port.LoginStateStore.class)
+    public com.gallop.fastddd.identity.core.port.LoginStateStore loginStateStore() {
+        return new PgLoginStateStore(new JdbcTemplate(dataSource), Instant::now, loginStateRetention);
     }
 
     @Bean

@@ -194,6 +194,12 @@
                 <artifactId>fast-ddd-identity-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- 身份域（W2-2）：飞书适配（OAuth 2.0 + PKCE 真实提供者，独立可选） -->
+            <dependency>
+                <groupId>io.github.gallop.fastddd</groupId>
+                <artifactId>fast-ddd-identity-feishu</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- ============ 第三方受管依赖（与根 pom dependencyManagement 对齐） ============ -->
             <!-- Database -->
             <dependency>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.gallop.fastddd</groupId>
+        <artifactId>fastddd-framework-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>fast-ddd-identity-feishu</artifactId>
+    <name>fast-ddd-identity-feishu</name>
+    <description>FastDDD Identity Feishu Adapter - real ExternalLoginProvider/ExternalAuthorizePort implementation over OAuth 2.0 + PKCE (JDK HttpClient, no Feishu SDK)</description>
+
+    <!-- 契约约束（v0.2 §3，W2-2 实现增补）：依赖 identity-core（端口）+ Jackson（Boot BOM 托管）；
+         HTTP 走 JDK java.net.http.HttpClient，不引入飞书 SDK/额外 HTTP 库；
+         不依赖 reference-pg 与 identity-starter（宿主按需组合）。协议依据 = W0-4（CW-01，
+         2026-09-26 编码前复核：token v3 请求体为 application/json）。
+
+         注意：本模块与方案 v0.2 §3"starter 依赖 feishu"存在受控偏差——starter 仅依赖
+         core 新端口（ExternalAuthorizePort/LoginStateStore），飞书适配保持独立可选
+         （与 reference-pg 同等待遇），宿主自选 IdP 组合不被强制绑定飞书。 -->
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-identity-core</artifactId>
+        </dependency>
+
+        <!-- 自动配置 + 属性绑定 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- v3 token JSON 请求体/响应解析（版本 Boot BOM 托管） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

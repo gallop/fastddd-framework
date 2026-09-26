@@ -41,4 +41,18 @@ public final class IdentitySessionCookies {
                 .maxAge(maxAge)
                 .build();
     }
+
+    /**
+     * 清除会话 Cookie（W2-2 登出/失败路径）：与 {@link #issue} 同名同路径同属性，
+     * maxAge=0（含 Value 置空）——不清除会使浏览器残留旧会话值。
+     */
+    public static ResponseCookie clear(String cookieName, boolean secure) {
+        return ResponseCookie.from(cookieName, "")
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+    }
 }

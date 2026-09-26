@@ -90,6 +90,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- W2-2 浏览器登录 HTTP 级测试：MockMvc + springSecurity()（CSRF/链级行为） -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- C 双开关/W1-a 门控交互与旧路由旁路断言：security-starter 已随 optional
              编译依赖进入测试 classpath，此处不再重复声明 -->
         <!-- 引用 PG 适配（真实端口联装；staging 场景同 consumer identity-session-postgres） -->

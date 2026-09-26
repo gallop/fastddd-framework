@@ -34,6 +34,7 @@
         <module>fast-ddd-identity-core</module>
         <module>fast-ddd-identity-reference-pg</module>
         <module>fast-ddd-identity-spring-boot-starter</module>
+        <module>fast-ddd-identity-feishu</module>
     </modules>
 
 </project>
