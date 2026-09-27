@@ -31,6 +31,13 @@ import java.util.List;
  *       （结果不确定：重新发起登录，不是对身份状态的判定）。</li>
  * </ul>
  *
+ * <p><b>客户端严格成功判定（W22-C1，2026-09-27）</b>：上游响应仅在"HTTP 200 + 信封
+ * 业务码为整数值且严格等于 0 + 必需字段类型正确"三者同时成立时才被接受为成功；
+ * 畸形信封/成功形状矛盾/上游过载（429/5xx）均以
+ * {@code ExternalLoginUnavailableException}（reasonCode=
+ * {@code malformed-response} / {@code http-business-conflict} / {@code upstream-system}）
+ * 进入上表第三类——本适配器对它们的映射与传输失败一致，无需分支。</p>
+ *
  * <p>凭据脱敏：异常与日志不携带 app_secret/授权码/verifier/access_token。</p>
  *
  * @author gallop

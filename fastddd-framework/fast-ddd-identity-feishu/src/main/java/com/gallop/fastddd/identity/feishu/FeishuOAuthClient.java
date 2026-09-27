@@ -26,10 +26,26 @@ import java.time.Duration;
  * {@code code} 分类，无行为影响），按端点分类表归类（{@link FeishuApiException}），
  * 上游错误消息不透传。</p>
  *
+ * <p><b>成功判定契约（W22-C1，2026-09-27）</b>：以下三条<b>同时成立</b>才算成功，
+ * 任一不成立按失败类别处置、拒绝本次登录且不据其修改任何本地状态——
+ * （1）HTTP 状态恰为 200（两端点唯一允许的成功状态）；（2）信封业务码 {@code code}
+ * 节点存在且为整数值（int/long/BigInteger，可无损承载为 long）且严格等于 0——
+ * 缺失、JSON null、字符串数字、浮点、布尔、超出 long 一律视为非法信封，绝不使用
+ * Jackson 默认值或有损转换；（3）必需字段按协议类型校验通过：token 的
+ * {@code access_token} 非空文本、{@code expires_in} 正整数（scope 宽松可选）；
+ * user_info 的 {@code data} 为对象且 {@code open_id/union_id/tenant_key} 均为
+ * 非空文本（name/en_name 宽松可选）。失败优先级：信封非法 →
+ * {@code malformed-response}；业务码=0 而 HTTP 非 200（成功形状矛盾）→
+ * {@code http-business-conflict}；HTTP 429/5xx 且信封为合法非零码（上游过载，
+ * 业务结果不可信）→ token 不重试直接 {@code upstream-system}、user_info 有界
+ * 重试后 {@code upstream-system}；其余合法非零码按端点分类表归类
+ * （{@link FeishuApiException}，code 以 long 承载、诊断不截断）。</p>
+ *
  * <p><b>重试契约（W2-2）</b>：授权码兑换<b>不重试</b>——code 一次性（5 分钟），
  * 网络超时/系统错误下首次兑换结果不确定，重试同一 code 有"已使用（20065）"错配
- * 风险，统一归"结果不确定，重新发起登录"；user_info 为幂等 GET，传输异常/系统类
- * 错误（20050/20072）按 {@code http.user-info-max-retries} 有限重试（固定退避）。</p>
+ * 风险，统一归"结果不确定，重新发起登录"；user_info 为幂等 GET，传输异常、系统类
+ * 错误（20050/20072）及 HTTP 429/5xx 按 {@code http.user-info-max-retries} 有限
+ * 重试（固定退避）；畸形信封与成功形状矛盾不重试（响应内容已确定，重试无意义）。</p>
  *
  * @author gallop
  * @since 1.1.0
@@ -78,33 +94,45 @@ final class FeishuOAuthClient {
                 .header("Content-Type", "application/json;charset=UTF-8")
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
-        JsonNode json;
-        int httpStatus;
+        ParsedResponse parsed;
         try {
-            ParsedResponse parsed = sendForJson(request, FeishuApiException.Endpoint.TOKEN);
-            json = parsed.json();
-            httpStatus = parsed.httpStatus();
+            parsed = sendForJson(request, FeishuApiException.Endpoint.TOKEN);
         } catch (IOException transport) {
             // 兑换不重试：网络层失败即结果不确定（首次兑换可能已被服务端受理）
             throw unavailable("transport", "飞书授权码兑换网络异常，结果不确定，请重新发起登录", transport);
         }
-        int bizCode = json.path("code").asInt(0);
-        if (bizCode != 0) {
-            // W22-RV-05：异常携带真实 HTTP 状态（排障区分"传输正常业务拒绝"与"上游 5xx"）
-            throw new FeishuApiException(FeishuApiException.Endpoint.TOKEN,
-                    FeishuApiException.classify(FeishuApiException.Endpoint.TOKEN, bizCode),
-                    bizCode, httpStatus);
+        int httpStatus = parsed.httpStatus();
+        Long bizCode = strictEnvelopeCode(parsed.json());
+        if (bizCode == null) {
+            throw unavailable("malformed-response",
+                    "飞书 token 响应缺少合法整型业务码（httpStatus=" + httpStatus + "），结果不确定");
         }
-        String accessToken = json.path("access_token").asText(null);
-        if (accessToken == null || accessToken.isBlank()) {
-            throw unavailable("malformed-response", "飞书 token 响应缺少 access_token（code=0），结果不确定");
+        if (bizCode == 0) {
+            if (httpStatus != 200) {
+                throw unavailable("http-business-conflict",
+                        "飞书 token 响应业务码为 0 但 HTTP 状态非成功（httpStatus=" + httpStatus + "），矛盾结果不确定");
+            }
+            String accessToken = requiredText(parsed.json(), "access_token", "token");
+            JsonNode expiresIn = parsed.json().path("expires_in");
+            if (!expiresIn.isIntegralNumber() || !expiresIn.canConvertToLong() || expiresIn.asLong() <= 0) {
+                throw unavailable("malformed-response",
+                        "飞书 token 响应 expires_in 缺失或非正整数（code=0），结果不确定");
+            }
+            return new TokenResult(accessToken, expiresIn.asLong(), textOrNull(parsed.json(), "scope"));
         }
-        return new TokenResult(accessToken, json.path("expires_in").asLong(0), json.path("scope").asText(null));
+        if (isUpstreamOverload(httpStatus)) {
+            // 429/5xx：传输层已报异常，业务结果不可信；兑换不重试 → 结果不确定
+            throw unavailable("upstream-system",
+                    "飞书 token 上游过载（httpStatus=" + httpStatus + "，业务码=" + bizCode + "），结果不确定");
+        }
+        // W22-RV-05：异常携带真实 HTTP 状态（排障区分"传输正常业务拒绝"与"上游 5xx"）
+        throw new FeishuApiException(FeishuApiException.Endpoint.TOKEN,
+                FeishuApiException.classify(FeishuApiException.Endpoint.TOKEN, bizCode),
+                bizCode, httpStatus);
     }
 
-    /** user_info 拉取（幂等 GET，有限重试：仅传输异常与系统类错误重试）。 */
+    /** user_info 拉取（幂等 GET，有限重试：传输异常/系统类错误/HTTP 429 或 5xx）。 */
     UserInfo fetchUserInfo(String accessToken) {
-        FeishuApiException lastApiError = null;
         IOException lastTransportError = null;
         int attempts = 1 + Math.max(0, properties.getHttp().getUserInfoMaxRetries());
         for (int attempt = 1; attempt <= attempts; attempt++) {
@@ -115,31 +143,43 @@ final class FeishuOAuthClient {
                     .build();
             try {
                 ParsedResponse parsed = sendForJson(request, FeishuApiException.Endpoint.USER_INFO);
-                JsonNode json = parsed.json();
-                int bizCode = json.path("code").asInt(0);
+                int httpStatus = parsed.httpStatus();
+                Long bizCode = strictEnvelopeCode(parsed.json());
+                if (bizCode == null) {
+                    throw unavailable("malformed-response",
+                            "飞书 user_info 响应缺少合法整型业务码（httpStatus=" + httpStatus + "），结果不确定");
+                }
                 if (bizCode != 0) {
-                    // W22-RV-05：真实 HTTP 状态随异常携带（非字面量 200）
                     FeishuApiException apiError = new FeishuApiException(FeishuApiException.Endpoint.USER_INFO,
                             FeishuApiException.classify(FeishuApiException.Endpoint.USER_INFO, bizCode),
-                            bizCode, parsed.httpStatus());
-                    if (apiError.category() == FeishuApiException.Category.SYSTEM && attempt < attempts) {
-                        lastApiError = apiError;
+                            bizCode, httpStatus);
+                    boolean retryable = apiError.category() == FeishuApiException.Category.SYSTEM
+                            || isUpstreamOverload(httpStatus);
+                    if (retryable && attempt < attempts) {
                         backoff();
                         continue;
                     }
+                    if (retryable) {
+                        throw unavailable("upstream-system",
+                                "飞书 user_info 上游过载/系统错误重试耗尽（httpStatus=" + httpStatus
+                                        + "，业务码=" + bizCode + "），登录结果不确定");
+                    }
                     throw apiError;
                 }
-                JsonNode data = json.path("data");
-                String openId = data.path("open_id").asText(null);
-                String unionId = data.path("union_id").asText(null);
-                String tenantKey = data.path("tenant_key").asText(null);
-                if (openId == null || unionId == null || tenantKey == null
-                        || openId.isBlank() || unionId.isBlank() || tenantKey.isBlank()) {
-                    throw unavailable("malformed-response",
-                            "飞书 user_info 响应缺少 open_id/union_id/tenant_key，结果不确定");
+                if (httpStatus != 200) {
+                    throw unavailable("http-business-conflict",
+                            "飞书 user_info 响应业务码为 0 但 HTTP 状态非成功（httpStatus=" + httpStatus + "），矛盾结果不确定");
                 }
-                return new UserInfo(openId, unionId, tenantKey,
-                        data.path("name").asText(null), data.path("en_name").asText(null));
+                JsonNode data = parsed.json().path("data");
+                if (!data.isObject()) {
+                    throw unavailable("malformed-response",
+                            "飞书 user_info 响应缺少 data 对象（code=0），结果不确定");
+                }
+                return new UserInfo(
+                        requiredText(data, "open_id", "user_info"),
+                        requiredText(data, "union_id", "user_info"),
+                        requiredText(data, "tenant_key", "user_info"),
+                        textOrNull(data, "name"), textOrNull(data, "en_name"));
             } catch (IOException transport) {
                 // 传输异常（含读超时）：幂等 GET 可安全重试
                 lastTransportError = transport;
@@ -149,11 +189,41 @@ final class FeishuOAuthClient {
                 }
             }
         }
-        if (lastApiError != null) {
-            throw unavailable("upstream-system",
-                    "飞书 user_info 系统错误重试耗尽，登录结果不确定（code=" + lastApiError.code() + "）");
-        }
         throw unavailable("transport", "飞书 user_info 网络异常重试耗尽，登录结果不确定", lastTransportError);
+    }
+
+    /**
+     * W22-C1：信封业务码严格解析——{@code code} 节点必须存在、非 JSON null、为整数值
+     * 类型（int/long/BigInteger）且可无损承载为 long；字符串数字/浮点/布尔一律非法
+     * （返回 {@code null}），不走默认值或有损转换；合法值原样返回（long 不截断）。
+     */
+    private static Long strictEnvelopeCode(JsonNode json) {
+        JsonNode code = json.path("code");
+        if (!code.isIntegralNumber() || !code.canConvertToLong()) {
+            return null;
+        }
+        return code.longValue();
+    }
+
+    /** HTTP 429/5xx：传输层已报过载/故障，业务语义不可信（与业务码无关）。 */
+    private static boolean isUpstreamOverload(int httpStatus) {
+        return httpStatus == 429 || httpStatus >= 500;
+    }
+
+    /** 必需字段：必须为非空文本——拒绝数字/布尔等其他 JSON 类型的宽松转换。 */
+    private static String requiredText(JsonNode node, String field, String endpointLabel) {
+        JsonNode value = node.path(field);
+        if (!value.isTextual() || value.asText().isBlank()) {
+            throw unavailable("malformed-response",
+                    "飞书" + endpointLabel + "响应字段 " + field + " 缺失或非文本/为空，结果不确定");
+        }
+        return value.asText();
+    }
+
+    /** 可选字段：仅接受文本（类型不对返回 null，不做宽松转换）。 */
+    private static String textOrNull(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        return value.isTextual() ? value.asText() : null;
     }
 
     /** sendForJson 产物（W22-RV-05）：真实 HTTP 状态随 JSON 一起回传，供异常与排障使用。 */

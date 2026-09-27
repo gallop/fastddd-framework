@@ -86,11 +86,12 @@ public class FeishuApiException extends RuntimeException {
 
     private final Category category;
 
-    private final int code;
+    /** W22-C1：long 承载——畸形整型业务码（如 2^32）原值入诊断，不截断成 int。 */
+    private final long code;
 
     private final int httpStatus;
 
-    public FeishuApiException(Endpoint endpoint, Category category, int code, int httpStatus) {
+    public FeishuApiException(Endpoint endpoint, Category category, long code, int httpStatus) {
         super("飞书" + endpoint.label() + "端点错误[" + category + "] code=" + code
                 + " httpStatus=" + httpStatus);
         this.endpoint = endpoint;
@@ -99,10 +100,13 @@ public class FeishuApiException extends RuntimeException {
         this.httpStatus = httpStatus;
     }
 
-    static Category classify(Endpoint endpoint, int code) {
+    static Category classify(Endpoint endpoint, long code) {
+        if (code < Integer.MIN_VALUE || code > Integer.MAX_VALUE) {
+            return Category.UNKNOWN;
+        }
         Map<Integer, Category> table =
                 endpoint == Endpoint.TOKEN ? TOKEN_CATEGORIES : USER_INFO_CATEGORIES;
-        return table.getOrDefault(code, Category.UNKNOWN);
+        return table.getOrDefault((int) code, Category.UNKNOWN);
     }
 
     public Endpoint endpoint() {
@@ -113,8 +117,8 @@ public class FeishuApiException extends RuntimeException {
         return category;
     }
 
-    /** 飞书错误码（未知码也原样携带，供审计定位）。 */
-    public int code() {
+    /** 飞书错误码（未知码也原样携带，供审计定位；W22-C1 起 long 不截断）。 */
+    public long code() {
         return code;
     }
 

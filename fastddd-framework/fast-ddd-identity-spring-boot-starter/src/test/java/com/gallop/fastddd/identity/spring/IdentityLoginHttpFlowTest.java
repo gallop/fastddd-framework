@@ -29,6 +29,7 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -39,27 +40,39 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class IdentityLoginHttpFlowTest {
 
+    /** 登录闭环共用装配（与 Boot 宿主同构的真实 MVC/Jackson 基础设施，无它则 406）。 */
+    private static Class<?>[] identityAutoConfigs() {
+        return new Class<?>[] {
+                IdentityModeGuardAutoConfiguration.class,
+                IdentityAutoConfiguration.class,
+                com.gallop.fastddd.identity.spring.security.IdentitySecurityAutoConfiguration.class,
+                com.gallop.fastddd.identity.spring.web.IdentityLoginAutoConfiguration.class,
+                FastDddIdentityPgAutoConfiguration.class,
+                org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration.class,
+                org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration.class,
+                org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class};
+    }
+
+    private static String[] identityFlowProperties() {
+        return new String[] {
+                "fastddd.identity.enabled=true",
+                "fastddd.identity.login.mode=feishu-web",
+                // 本地 HTTP 测试显式放宽 Secure（安全缺省仍为 true，见 IdentitySessionCookieTest）
+                "fastddd.identity.login.session.cookie-secure=false",
+                "fastddd.identity.login.allowed-post-login-redirects=/,/home",
+                "fastddd.security.jwt.enabled=false",
+                "fastddd.security.local-auth.enabled=false"};
+    }
+
     private final WebApplicationContextRunner runner = new WebApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(
-                    IdentityModeGuardAutoConfiguration.class,
-                    IdentityAutoConfiguration.class,
-                    com.gallop.fastddd.identity.spring.security.IdentitySecurityAutoConfiguration.class,
-                    com.gallop.fastddd.identity.spring.web.IdentityLoginAutoConfiguration.class,
-                    FastDddIdentityPgAutoConfiguration.class,
-                    // 真实 MVC/Jackson 消息转换基础设施（与 Boot 宿主装配同构；
-                    // 无它则 JSON 响应体无转换器 → 406）
-                    org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration.class,
-                    org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration.class,
-                    org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(identityAutoConfigs()))
             .withUserConfiguration(LoginApp.class)
-            .withPropertyValues(
-                    "fastddd.identity.enabled=true",
-                    "fastddd.identity.login.mode=feishu-web",
-                    // 本地 HTTP 测试显式放宽 Secure（安全缺省仍为 true，见 IdentitySessionCookieTest）
-                    "fastddd.identity.login.session.cookie-secure=false",
-                    "fastddd.identity.login.allowed-post-login-redirects=/,/home",
-                    "fastddd.security.jwt.enabled=false",
-                    "fastddd.security.local-auth.enabled=false");
+            .withPropertyValues(identityFlowProperties());
+
+    private final WebApplicationContextRunner anomalyRunner = new WebApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(identityAutoConfigs()))
+            .withUserConfiguration(AnomalyLoginApp.class)
+            .withPropertyValues(identityFlowProperties());
 
     @Configuration(proxyBeanMethods = false)
     static class LoginApp {
@@ -104,6 +117,46 @@ class IdentityLoginHttpFlowTest {
             String me() {
                 return "authenticated";
             }
+        }
+    }
+
+    /**
+     * W22-C1 专用夹具：提供者端口恒抛"上游协议异常"形态的
+     * {@link com.gallop.fastddd.identity.core.error.ExternalLoginUnavailableException}。
+     * starter 不依赖 feishu 模块（v0.2 附件边界），HTTP 形态 → 异常的映射保真度由
+     * feishu 模块契约测试证明；此处按端口契约注入，验证编排层后果。
+     */
+    @Configuration(proxyBeanMethods = false)
+    static class AnomalyLoginApp {
+
+        static final java.util.concurrent.atomic.AtomicInteger verifyCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+
+        @Bean
+        DataSource dataSource() {
+            return PgTestSupport.dataSource();
+        }
+
+        @Bean
+        ExternalLoginProvider externalLoginProvider() {
+            return command -> {
+                verifyCalls.incrementAndGet();
+                throw new com.gallop.fastddd.identity.core.error.ExternalLoginUnavailableException(
+                        "http-business-conflict",
+                        "飞书 token 响应业务码为 0 但 HTTP 状态非成功（httpStatus=503），矛盾结果不确定");
+            };
+        }
+
+        @Bean
+        AdmissionPolicy admissionPolicy() {
+            return principal -> {
+            };
+        }
+
+        @Bean
+        ExternalAuthorizePort externalAuthorizePort() {
+            return (state, challenge) -> "https://idp-stub.example/authorize?state=" + state
+                    + "&code_challenge=" + challenge + "&code_challenge_method=S256";
         }
     }
 
@@ -299,6 +352,49 @@ class IdentityLoginHttpFlowTest {
             mvc.perform(get(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.CALLBACK_PATH)
                             .queryParam("error", "access_denied").queryParam("state", errorCb.state())
                             .cookie(errorCb.binding()))
+                    .andExpect(status().isUnauthorized());
+        });
+    }
+
+    /**
+     * W22-C1 编排/PG 负向验证（2026-09-27 独立校审）：上游协议异常（成功形状矛盾/
+     * 非法信封）在提供者端口表现为"结果不确定"异常——编排层必须 503 + reason 透传、
+     * <b>不重试</b>提供者（verify 恰 1 次）、零主体/绑定/会话持久化残留、
+     * <b>不下发任何会话 Cookie</b>。state 在异常前已被消费，不复活。
+     */
+    @Test
+    void upstreamProtocolAnomalyIssuesNoSessionAndLeavesZeroPersistence() {
+        AnomalyLoginApp.verifyCalls.set(0);
+        anomalyRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+            JdbcTemplate jdbc = new JdbcTemplate(PgTestSupport.dataSource());
+
+            Begun begun = begin(mvc);
+            org.springframework.test.web.servlet.MvcResult callback = mvc
+                    .perform(get(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.CALLBACK_PATH)
+                            .queryParam("code", "ok-code").queryParam("state", begun.state())
+                            .cookie(begun.binding()))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.error").value("identity_login_unavailable"))
+                    .andExpect(jsonPath("$.reason").value("http-business-conflict"))
+                    .andReturn();
+
+            // 不下发会话 Cookie（也不复用绑定 Cookie 延续登录）
+            assertThat(cookieOf(callback, "FASTDDD_SESSION")).isNull();
+
+            // 提供者不重试：verify 恰 1 次（结果不确定类重试无意义，code 一次性）
+            assertThat(AnomalyLoginApp.verifyCalls.get()).isEqualTo(1);
+
+            // 持久化零残留：无主体/绑定/会话
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM principal", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM external_binding", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM local_session", Integer.class)).isZero();
+
+            // state 已消费：同 state 重放 → 401（不复活）
+            mvc.perform(get(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.CALLBACK_PATH)
+                            .queryParam("code", "ok-code").queryParam("state", begun.state())
+                            .cookie(begun.binding()))
                     .andExpect(status().isUnauthorized());
         });
     }
