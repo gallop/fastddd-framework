@@ -15,6 +15,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * W1-b Worker（E）与目录单开组合（§4.3 条 5/§4.5）：非 web worker 装配 Actor 桥与
  * 员工 provider、不装登录链；非 web 未声明 worker 失败；目录单开 web 沿用宿主安全、
  * 不装员工 provider。
+ *
+ * <p>W3-a 起 directory.enabled=true 为 fail-closed：三场景均提供测试替身
+ * （{@link DirectoryAssemblyDoubles}，仅测试夹具）满足 DirectorySource/
+ * DirectoryMirrorStore 要求；Worker 形态额外装配调度（守护线程），
+ * web 目录单开只装用例不装调度。</p>
  */
 class IdentityWorkerDirectoryTest {
 
@@ -22,6 +27,7 @@ class IdentityWorkerDirectoryTest {
             .withConfiguration(AutoConfigurations.of(
                     IdentityModeGuardAutoConfiguration.class,
                     IdentityAutoConfiguration.class,
+                    com.gallop.fastddd.identity.spring.directory.IdentityDirectoryAutoConfiguration.class,
                     com.gallop.fastddd.identity.pg.FastDddIdentityPgAutoConfiguration.class,
                     com.gallop.fastddd.security.FastDddSecurityAutoConfiguration.class,
                     com.gallop.fastddd.crud.FastDddCrudAutoConfiguration.class));
@@ -29,7 +35,7 @@ class IdentityWorkerDirectoryTest {
     @Test
     void workerAssemblesActorBridgeAndProviderWithoutLoginChain() {
         nonWebRunner
-                .withUserConfiguration(WorkerApp.class)
+                .withUserConfiguration(WorkerApp.class, DirectoryAssemblyDoubles.DirectoryPortsOnly.class)
                 .withPropertyValues(
                         "fastddd.identity.enabled=true",
                         "fastddd.identity.worker=true",
@@ -50,13 +56,18 @@ class IdentityWorkerDirectoryTest {
                             org.springframework.security.web.SecurityFilterChain.class);
                     assertThat(context).doesNotHaveBean(
                             org.springframework.security.core.userdetails.UserDetailsService.class);
+                    // W3-a：Worker 形态装配目录用例与调度（调度仅限 Worker）
+                    assertThat(context).hasBean("directorySyncUseCase");
+                    assertThat(context.getBeanNamesForType(
+                            com.gallop.fastddd.identity.spring.directory.DirectorySyncScheduler.class))
+                            .hasSize(1);
                 });
     }
 
     @Test
     void nonWebWithoutWorkerDeclarationFails() {
         nonWebRunner
-                .withUserConfiguration(WorkerApp.class)
+                .withUserConfiguration(WorkerApp.class, DirectoryAssemblyDoubles.DirectoryPortsOnly.class)
                 .withPropertyValues(
                         "fastddd.identity.enabled=true",
                         "fastddd.identity.directory.enabled=true",
@@ -72,13 +83,14 @@ class IdentityWorkerDirectoryTest {
                 .withConfiguration(AutoConfigurations.of(
                         IdentityModeGuardAutoConfiguration.class,
                         IdentityAutoConfiguration.class,
+                        com.gallop.fastddd.identity.spring.directory.IdentityDirectoryAutoConfiguration.class,
                         com.gallop.fastddd.identity.spring.security.IdentitySecurityAutoConfiguration.class,
                         com.gallop.fastddd.identity.pg.FastDddIdentityPgAutoConfiguration.class,
                         // 宿主默认链用 MvcRequestMatcher：需要 MVC 自动配置提供 introspector
                         org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration.class,
                         com.gallop.fastddd.security.FastDddSecurityAutoConfiguration.class,
                         com.gallop.fastddd.crud.FastDddCrudAutoConfiguration.class))
-                .withUserConfiguration(DirectoryApp.class)
+                .withUserConfiguration(DirectoryApp.class, DirectoryAssemblyDoubles.DirectoryPortsOnly.class)
                 .withPropertyValues(
                         "fastddd.identity.enabled=true",
                         "fastddd.identity.directory.enabled=true",
@@ -93,6 +105,10 @@ class IdentityWorkerDirectoryTest {
                     assertThat(context).doesNotHaveBean("identityCurrentUserProvider");
                     // Actor 桥仍可用（目录同步作业以 SYSTEM_JOB 上下文执行，W3 消费）
                     assertThat(context).hasBean("identityActorResolver");
+                    // W3-a：web 非 Worker 只装目录用例，零调度线程
+                    assertThat(context).hasBean("directorySyncUseCase");
+                    assertThat(context).doesNotHaveBean(
+                            com.gallop.fastddd.identity.spring.directory.DirectorySyncScheduler.class);
                 });
     }
 

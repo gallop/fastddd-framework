@@ -36,6 +36,8 @@ public class FastDddIdentityProperties {
     /** identity Worker（E 模式）：非 web 进程显式声明；与 login.mode=feishu-web 互斥。 */
     private boolean worker = false;
 
+    private final Admin admin = new Admin();
+
     private final Transaction transaction = new Transaction();
 
     public boolean isEnabled() {
@@ -64,6 +66,10 @@ public class FastDddIdentityProperties {
 
     public void setWorker(boolean worker) {
         this.worker = worker;
+    }
+
+    public Admin getAdmin() {
+        return admin;
     }
 
     public Transaction getTransaction() {
@@ -172,8 +178,116 @@ public class FastDddIdentityProperties {
         }
     }
 
-    /** 目录同步子域（W3 交付执行器，W2-1 交付组合校验）。 */
+    /** 目录同步子域（W3 设计 v3 §7 配置骨架，W3-a）。 */
     public static class Directory {
+
+        /** 调度缺省间隔（两侧都未显式配置时的生效值）。 */
+        public static final Duration DEFAULT_SYNC_INTERVAL = Duration.ofHours(6);
+
+        private boolean enabled = false;
+
+        /** 调度间隔；<b>null = 未显式配置</b>（cron/interval 互斥只认显式值，复评钉 ③）。 */
+        private Duration syncInterval;
+
+        /** cron 表达式（Spring {@code CronExpression} 语法）；null = 未显式配置。 */
+        private String cron;
+
+        private int pageSize = 100;
+
+        private int maxPagesPerRun = 1000;
+
+        /** 目录代租约有效期（W3-c 真实存储适配器消费；此处仅契约与校验）。 */
+        private Duration leaseTimeout = Duration.ofMinutes(10);
+
+        private final Retry retry = new Retry();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Duration getSyncInterval() {
+            return syncInterval;
+        }
+
+        public void setSyncInterval(Duration syncInterval) {
+            this.syncInterval = syncInterval;
+        }
+
+        /** 生效调度间隔：显式值或缺省 6h（cron 模式不读此值）。 */
+        public Duration getEffectiveSyncInterval() {
+            return syncInterval != null ? syncInterval : DEFAULT_SYNC_INTERVAL;
+        }
+
+        public String getCron() {
+            return cron;
+        }
+
+        public void setCron(String cron) {
+            this.cron = cron;
+        }
+
+        public int getPageSize() {
+            return pageSize;
+        }
+
+        public void setPageSize(int pageSize) {
+            this.pageSize = pageSize;
+        }
+
+        public int getMaxPagesPerRun() {
+            return maxPagesPerRun;
+        }
+
+        public void setMaxPagesPerRun(int maxPagesPerRun) {
+            this.maxPagesPerRun = maxPagesPerRun;
+        }
+
+        public Duration getLeaseTimeout() {
+            return leaseTimeout;
+        }
+
+        public void setLeaseTimeout(Duration leaseTimeout) {
+            this.leaseTimeout = leaseTimeout;
+        }
+
+        public Retry getRetry() {
+            return retry;
+        }
+
+        /**
+         * 源适配器有界重试参数（W3 设计 §5.2：重试责任在源，编排不叠加）。
+         * M1 由真实源适配器（W3-b）消费；此处冻结配置契约与校验。
+         */
+        public static class Retry {
+
+            private int maxAttempts = 2;
+
+            private Duration backoff = Duration.ofMillis(500);
+
+            public int getMaxAttempts() {
+                return maxAttempts;
+            }
+
+            public void setMaxAttempts(int maxAttempts) {
+                this.maxAttempts = maxAttempts;
+            }
+
+            public Duration getBackoff() {
+                return backoff;
+            }
+
+            public void setBackoff(Duration backoff) {
+                this.backoff = backoff;
+            }
+        }
+    }
+
+    /** 管理子域（W3 设计 v3 §7）：独立于 directory.enabled——只管管理操作准入。 */
+    public static class Admin {
 
         private boolean enabled = false;
 

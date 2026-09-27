@@ -73,6 +73,28 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                 checkNoLegacyRoutes(violations);
             }
         }
+        // W3-a：目录/管理装配终检（fail-closed）——目录开启缺端口 Bean、管理开启缺
+        // 宿主策略 Bean 均启动失败；不以空实现/默认放行冒充（配置合法性已在守卫层校验）
+        if (properties.getDirectory().isEnabled()) {
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectorySource.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.enabled=true 需要 DirectorySource bean"
+                        + "（目录读取端口：W3-b 交付飞书适配器，或宿主自行实现；"
+                        + "测试替身仅存在于测试夹具）——缺源即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryMirrorStore.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.enabled=true 需要 DirectoryMirrorStore bean"
+                        + "（镜像存储端口：W3-c 交付 PgDirectoryMirrorStore，或宿主自行实现）"
+                        + "——缺存储即拒绝启动，不静默半装配");
+            }
+        }
+        if (properties.getAdmin().isEnabled() && applicationContext.getBeansOfType(
+                com.gallop.fastddd.identity.core.port.IdentityAdminPolicy.class).isEmpty()) {
+            violations.add("fastddd.identity.admin.enabled=true 需要宿主提供 IdentityAdminPolicy bean"
+                    + "（管理操作准入：停用/启用/手动同步是宿主决策，与 directory.enabled 相互独立）"
+                    + "——框架不提供默认放行策略，漏配即启动失败");
+        }
         if (cMode) {
             checkSecurityFilterChainAudit(violations);
             if (applicationContext.getBeansOfType(

@@ -19,6 +19,14 @@ public final class IdentityModeGuard {
     static final String LOGIN_MODE = "fastddd.identity.login.mode";
     static final String WORKER = "fastddd.identity.worker";
     static final String DIRECTORY_ENABLED = "fastddd.identity.directory.enabled";
+    static final String DIRECTORY_SYNC_INTERVAL = "fastddd.identity.directory.sync-interval";
+    static final String DIRECTORY_CRON = "fastddd.identity.directory.cron";
+    static final String DIRECTORY_PAGE_SIZE = "fastddd.identity.directory.page-size";
+    static final String DIRECTORY_MAX_PAGES_PER_RUN = "fastddd.identity.directory.max-pages-per-run";
+    static final String DIRECTORY_LEASE_TIMEOUT = "fastddd.identity.directory.lease-timeout";
+    static final String DIRECTORY_RETRY_MAX_ATTEMPTS = "fastddd.identity.directory.retry.max-attempts";
+    static final String DIRECTORY_RETRY_BACKOFF = "fastddd.identity.directory.retry.backoff";
+    static final String ADMIN_ENABLED = "fastddd.identity.admin.enabled";
     static final String HOST_OWNED = "fastddd.identity.security.host-owned";
     static final String AUDIT_ACTOR_COLUMNS = "fastddd.identity.audit.actor-columns";
     static final String PG_INITIALIZE_SCHEMA = "fastddd.identity.pg.initialize-schema";
@@ -107,6 +115,91 @@ public final class IdentityModeGuard {
         }
 
         checkNoDeadDataSourceProperty();
+        if (isExplicitly(DIRECTORY_ENABLED, "true")) {
+            checkDirectoryConfiguration();
+        }
+    }
+
+    /**
+     * 目录配置契约（W3 设计 v3 §7，W3-a；复评钉 ③）：<b>cron 与 interval 互斥只认
+     * 显式配置</b>——仅当两者都被显式设置才冲突（缺省 6h 与未设置的 cron 不冲突，
+     * 区分"默认值"与"显式配置"）。另校验数值/语法合法性（非正页数、无效间隔、
+     * 非法 cron、非法重试参数均启动失败，不给静默回退值）。
+     */
+    private void checkDirectoryConfiguration() {
+        boolean cronExplicit = environment.containsProperty(DIRECTORY_CRON);
+        boolean intervalExplicit = environment.containsProperty(DIRECTORY_SYNC_INTERVAL);
+        if (cronExplicit && intervalExplicit) {
+            throw new IllegalStateException(String.format(
+                    "FastDDD identity 目录配置冲突：%s 与 %s 互斥，两者都被显式设置——"
+                            + "调度方式只能选一种（cron 或固定间隔）。",
+                    DIRECTORY_CRON, DIRECTORY_SYNC_INTERVAL));
+        }
+        if (cronExplicit) {
+            String cron = environment.getProperty(DIRECTORY_CRON);
+            try {
+                org.springframework.scheduling.support.CronExpression.parse(cron);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalStateException(String.format(
+                        "FastDDD identity 目录配置错误：%s=%s 不是合法的 cron 表达式"
+                                + "（Spring CronExpression 语法）：%s",
+                        DIRECTORY_CRON, cron, ex.getMessage()));
+            }
+        }
+        if (intervalExplicit) {
+            requirePositiveDuration(DIRECTORY_SYNC_INTERVAL, "调度间隔");
+        }
+        requirePositiveInt(DIRECTORY_PAGE_SIZE, "分页页数", 1);
+        requirePositiveInt(DIRECTORY_MAX_PAGES_PER_RUN, "单轮页数护栏", 1);
+        requirePositiveDuration(DIRECTORY_LEASE_TIMEOUT, "租约有效期");
+        requirePositiveInt(DIRECTORY_RETRY_MAX_ATTEMPTS, "源重试次数", 1);
+        String backoffRaw = environment.getProperty(DIRECTORY_RETRY_BACKOFF);
+        if (backoffRaw != null) {
+            try {
+                if (org.springframework.boot.convert.DurationStyle.detectAndParse(backoffRaw)
+                        .isNegative()) {
+                    throw new IllegalArgumentException("不得为负");
+                }
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalStateException(String.format(
+                        "FastDDD identity 目录配置错误：%s=%s 非法（须为非负时长）：%s",
+                        DIRECTORY_RETRY_BACKOFF, backoffRaw, ex.getMessage()));
+            }
+        }
+    }
+
+    private void requirePositiveInt(String property, String what, int minInclusive) {
+        String raw = environment.getProperty(property);
+        if (raw == null) {
+            return;
+        }
+        try {
+            int value = Integer.parseInt(raw.trim());
+            if (value < minInclusive) {
+                throw new IllegalArgumentException("不得小于 " + minInclusive);
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(String.format(
+                    "FastDDD identity 目录配置错误：%s=%s 非法（%s 须为 ≥%d 的整数）",
+                    property, raw, what, minInclusive));
+        }
+    }
+
+    private void requirePositiveDuration(String property, String what) {
+        String raw = environment.getProperty(property);
+        if (raw == null) {
+            return;
+        }
+        try {
+            java.time.Duration parsed = org.springframework.boot.convert.DurationStyle.detectAndParse(raw);
+            if (parsed.isNegative() || parsed.isZero()) {
+                throw new IllegalArgumentException("必须为正");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(String.format(
+                    "FastDDD identity 目录配置错误：%s=%s 非法（%s须为正时长）：%s",
+                    property, raw, what, ex.getMessage()));
+        }
     }
 
     /**
@@ -130,6 +223,9 @@ public final class IdentityModeGuard {
         }
         if (isExplicitly(DIRECTORY_ENABLED, "true")) {
             return DIRECTORY_ENABLED + "=true";
+        }
+        if (isExplicitly(ADMIN_ENABLED, "true")) {
+            return ADMIN_ENABLED + "=true";
         }
         if (isExplicitly(HOST_OWNED, "true")) {
             return HOST_OWNED + "=true";

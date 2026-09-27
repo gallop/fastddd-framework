@@ -2,3 +2,4 @@ com.gallop.fastddd.identity.spring.IdentityModeGuardAutoConfiguration
 com.gallop.fastddd.identity.spring.IdentityAutoConfiguration
 com.gallop.fastddd.identity.spring.security.IdentitySecurityAutoConfiguration
 com.gallop.fastddd.identity.spring.web.IdentityLoginAutoConfiguration
+com.gallop.fastddd.identity.spring.directory.IdentityDirectoryAutoConfiguration
