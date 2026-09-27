@@ -15,9 +15,11 @@ import java.time.Duration;
 /**
  * 飞书 OAuth HTTP 客户端（W0-4 CW-01，2026-09-26 编码前复核；JDK HttpClient，无 SDK）。
  *
- * <p><b>协议事实</b>：token v3 = {@code POST /oauth/v3/token}，请求体为
- * <b>application/json</b>（grant_type=authorization_code + client_id + client_secret +
- * code + redirect_uri + code_verifier）；user_info v1 = {@code GET
+ * <p><b>协议事实</b>：token v2 = {@code POST /open-apis/authen/v2/oauth/token}
+ * （2026-09-27 联调修订：v1 授权页 + PKCE 仅配 v2，原 v3 冻结对此类 code 一律
+ * 20049），请求体为<b>application/json</b>（grant_type=authorization_code +
+ * client_id + client_secret + code + redirect_uri + code_verifier），响应<b>平铺</b>
+ * {@code {code, access_token, expires_in, scope, …}}；user_info v1 = {@code GET
  * /open-apis/authen/v1/user_info}，Bearer user_access_token，响应信封
  * {@code {code,msg,data}}。错误信封官方现行 {@code {code,msg}}（W22-R2-N3 同步
  * W0-4 §7 勘误：首版误记 {@code {code,error,error_description}}；实现只读
@@ -49,7 +51,7 @@ final class FeishuOAuthClient {
                 .build();
     }
 
-    /** token v3 兑换结果（仅保留登录链路所需字段；refresh_token 首版不用，不外泄）。 */
+    /** token v2 兑换结果（仅保留登录链路所需字段；refresh_token 首版不用，不外泄）。 */
     record TokenResult(String accessToken, long expiresIn, String scope) {
     }
 

@@ -200,6 +200,56 @@ class IdentityLoginHttpFlowTest {
         });
     }
 
+    /**
+     * 真实浏览器双提交契约（2026-09-27 L3 联调缺陷修复回归）：浏览器只能把
+     * XSRF-TOKEN cookie 的<b>裸值</b>原样回传到 X-XSRF-TOKEN header（无法获得
+     * SS6 Xor 处理器期望的编码值）。本用例不经 {@code with(csrf())}（服务端取
+     * token，恰好绕开真实路径），按裸值回传断言 logout 放行。
+     */
+    @Test
+    void logoutAcceptsRawCookieHeaderDoubleSubmit() throws Exception {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+
+            // 发起授权：state + 绑定 Cookie + XSRF-TOKEN 种下（浏览器双提交取值的唯一来源）
+            org.springframework.test.web.servlet.MvcResult authorize = mvc
+                    .perform(get(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.AUTHORIZE_PATH))
+                    .andExpect(status().isFound())
+                    .andReturn();
+            Cookie xsrf = cookieOf(authorize, "XSRF-TOKEN");
+            assertThat(xsrf).as("authorize GET 应种下 XSRF-TOKEN cookie").isNotNull();
+            String location = authorize.getResponse().getHeader("Location");
+            String state = java.util.Arrays.stream(location.substring(location.indexOf("state=") + 6).split("&"))
+                    .findFirst().orElseThrow();
+            Cookie binding = cookieOf(authorize, IdentityLoginCookies.BINDING_COOKIE_NAME);
+            assertThat(binding).isNotNull();
+
+            org.springframework.test.web.servlet.MvcResult callback = mvc
+                    .perform(get(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.CALLBACK_PATH)
+                            .queryParam("code", "ok-code").queryParam("state", state)
+                            .cookie(binding))
+                    .andExpect(status().isFound())
+                    .andReturn();
+            Cookie session = cookieOf(callback, "FASTDDD_SESSION");
+            assertThat(session).isNotNull();
+
+            // 裸 cookie 值 → header 原样回传（真实 SPA 路径）→ 放行并撤销会话
+            org.springframework.test.web.servlet.MvcResult logout = mvc
+                    .perform(post(com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints.LOGOUT_PATH)
+                            .cookie(session)
+                            .cookie(new Cookie("XSRF-TOKEN", xsrf.getValue()))
+                            .header("X-XSRF-TOKEN", xsrf.getValue()))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            Cookie cleared = cookieOf(logout, "FASTDDD_SESSION");
+            assertThat(cleared).isNotNull();
+            assertThat(cleared.getMaxAge()).isZero();
+            assertThat(cleared.getPath()).isEqualTo("/");
+            mvc.perform(get("/api/me").cookie(session)).andExpect(status().isUnauthorized());
+        });
+    }
+
     @Test
     void stateReplayAndBindingMismatchAreRejectedWithoutSession() throws Exception {
         runner.run(context -> {

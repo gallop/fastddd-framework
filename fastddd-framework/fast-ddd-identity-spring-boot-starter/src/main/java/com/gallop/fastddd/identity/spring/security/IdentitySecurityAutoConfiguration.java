@@ -19,6 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -63,8 +64,15 @@ public class IdentitySecurityAutoConfiguration {
                                                         IdentitySessionAuthenticationFilter sessionFilter)
                 throws Exception {
             // CSRF 启用（cookie 会话架构 → 双提交 Cookie 仓）；formLogin/httpBasic 显式关闭，
-            // 拒绝旧登录/刷新/验证码路径旁路
-            http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+            // 拒绝旧登录/刷新/验证码路径旁路。
+            // 请求处理器必须显式用 plain CsrfTokenRequestAttributeHandler：SS6 默认的
+            // XorCsrfTokenRequestAttributeHandler 期望客户端回传编码值，会拒绝浏览器
+            // 「裸 XSRF-TOKEN cookie 值 → X-XSRF-TOKEN header」双提交（2026-09-27 L3
+            // 真实联调实证：Base64 解码长度不符即拒，服务端 403/401，无客户端侧可行
+            // 写法）。官方 SPA 方案：裸值常量时间比较。
+            http.csrf(csrf -> csrf
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                     .formLogin(form -> form.disable())
                     .httpBasic(basic -> basic.disable())
                     .sessionManagement(session ->

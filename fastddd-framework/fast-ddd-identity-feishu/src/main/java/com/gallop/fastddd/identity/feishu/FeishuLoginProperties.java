@@ -38,8 +38,13 @@ public class FeishuLoginProperties {
     /** 授权页端点（浏览器 302 目标，无服务端调用）。 */
     private String authorizeEndpoint = "https://accounts.feishu.cn/open-apis/authen/v1/authorize";
 
-    /** token v3 端点（JSON 请求体，W0-4 2026-09-26 编码前复核）。 */
-    private String tokenEndpoint = "https://accounts.feishu.cn/oauth/v3/token";
+    /**
+     * token v2 端点（JSON 请求体）。2026-09-27 真实联调实证修订：v1 授权页 + PKCE
+     * 官方当前仅支持搭配 v2 token 端点（authorize 文档明示「后续将尽快支持最新的
+     * Token 端点」）；原冻结的 v3 端点（accounts.feishu.cn/oauth/v3/token）对此类
+     * code 一律 20049。v2 响应为平铺信封，与客户端解析兼容（W2-2 联调 §6 实证）。
+     */
+    private String tokenEndpoint = "https://open.feishu.cn/open-apis/authen/v2/oauth/token";
 
     /** user_info v1 端点（Bearer user_access_token，幂等 GET）。 */
     private String userInfoEndpoint = "https://open.feishu.cn/open-apis/authen/v1/user_info";

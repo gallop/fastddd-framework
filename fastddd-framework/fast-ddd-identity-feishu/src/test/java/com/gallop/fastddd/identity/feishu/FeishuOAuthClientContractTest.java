@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 类别 A：飞书 HTTP 协议契约（本地 HttpServer 桩）——请求形态/错误分类/重试边界。
- * 协议依据 W0-4（CW-01，2026-09-26 复核：token v3 请求体为 application/json）。
+ * 协议依据 W0-4（CW-01，2026-09-26 复核；2026-09-27 联调修订：token v2 端点配对）。
  */
 class FeishuOAuthClientContractTest {
 
@@ -28,6 +28,22 @@ class FeishuOAuthClientContractTest {
     void setUp() throws IOException {
         stub = new FeishuStubServer();
         properties = FeishuStubServer.propertiesAgainst(stub);
+    }
+
+    /**
+     * 端点配对钉子（2026-09-27 联调实证）：v1 授权页 + PKCE 官方当前仅支持搭配
+     * v2 token 端点（v3 对此类 code 一律 20049）；user_info 保持 v1。缺省值漂移
+     * 即本用例失败。
+     */
+    @Test
+    void endpointDefaultsPinOfficialV1AuthorizePlusV2TokenPairing() {
+        FeishuLoginProperties defaults = new FeishuLoginProperties();
+        assertThat(defaults.getAuthorizeEndpoint())
+                .isEqualTo("https://accounts.feishu.cn/open-apis/authen/v1/authorize");
+        assertThat(defaults.getTokenEndpoint())
+                .isEqualTo("https://open.feishu.cn/open-apis/authen/v2/oauth/token");
+        assertThat(defaults.getUserInfoEndpoint())
+                .isEqualTo("https://open.feishu.cn/open-apis/authen/v1/user_info");
     }
 
     @AfterEach
