@@ -1,4 +1,6 @@
-# W2-1 Worker（非 web）消费者：显式 worker + 目录（目录作业本体属 W3，此处仅装配面）。
+# W2-1 Worker（非 web）消费者：显式 worker + 目录。
+# W3-a 起 directory.enabled=true 为 fail-closed：缺 DirectorySource/DirectoryMirrorStore
+# 拒绝启动——W3A-04 起本场景以测试范围端口替身满足端口要求（真实源/存储属 W3-b/W3-c）。
 fastddd:
   identity:
     enabled: true

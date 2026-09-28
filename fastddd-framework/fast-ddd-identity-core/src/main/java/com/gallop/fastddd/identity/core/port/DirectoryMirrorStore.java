@@ -15,9 +15,11 @@ import java.util.List;
  * 目录镜像存储端口（W3 设计 §2/§4/§5/§6；PG 实现 = W3-c）：代状态机、
  * 租约联合校验、观察快照与受保护事实层的全部持久化语义。
  *
- * <p><b>事务责任</b>：每个方法 = 一个短事务（经 {@code IdentityTransactionRunner}
- * 加入，写方法 MANDATORY）；handle 的联合校验与写入同事务原子。全部远程调用
- * 在事务外（本端口零远程）。</p>
+ * <p><b>事务责任（W3A-01 补修后口径）</b>：每个方法 = 一个短事务——由编排用例
+ * {@code DirectorySyncUseCase} 经 {@code IdentityTransactionRunner} 逐方法独立
+ * 执行（本端口自身不开启事务）；写方法 MANDATORY（无活动事务即拒绝），
+ * handle 的联合校验与写入同事务原子。全部远程调用在事务外（本端口零远程）。
+ * 实现方按"方法运行于活动短事务内"的假设编写，勿在方法内部自行开事务。</p>
  *
  * <p><b>联合校验（每个写方法，§6.1）</b>：
  * {@code metadata.lease_token == handle.leaseToken ∧ lease_expires_at > now() ∧ 代状态前置}

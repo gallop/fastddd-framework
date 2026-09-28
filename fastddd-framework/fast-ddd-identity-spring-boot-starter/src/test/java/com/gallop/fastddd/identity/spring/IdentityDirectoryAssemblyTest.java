@@ -99,7 +99,8 @@ class IdentityDirectoryAssemblyTest {
                     assertThat(context.getBeanNamesForType(IdentityChangePublisher.class)).isEmpty();
 
                     // 配置页数传导：3 部门按 pageSize=2 切两页（write:2d → write:1d），
-                    // 完整契约顺序经上下文真实 Bean 走通
+                    // 完整契约顺序经上下文真实 Bean 走通（W3A-03 后：除全局首次源
+                    // 调用外，每次源调用前与末页转 completePaging 前按进度续租）
                     DirectoryAssemblyDoubles.RecordingMirrorStore store =
                             context.getBean(DirectoryAssemblyDoubles.RecordingMirrorStore.class);
                     context.getBean(DirectorySyncUseCase.class)
@@ -107,8 +108,8 @@ class IdentityDirectoryAssemblyTest {
                                     "tenant", "app"));
                     assertThat(store.calls).containsExactly(
                             "begin", "write:2d/0p", "renew", "write:1d/0p",
-                            "write:0d/0p", "write:0d/0p", "write:0d/0p",
-                            "completePaging", "validate", "publish");
+                            "renew", "write:0d/0p", "renew", "write:0d/0p", "renew", "write:0d/0p",
+                            "renew", "completePaging", "validate", "publish");
                 });
     }
 
@@ -226,6 +227,34 @@ class IdentityDirectoryAssemblyTest {
                     DirectorySyncScheduler scheduler = context.getBean(DirectorySyncScheduler.class);
                     // SmartLifecycle：refresh 后已启动（守护线程，间隔缺省 6h——首轮不抢跑）
                     assertThat(scheduler.isRunning()).isTrue();
+                });
+    }
+
+    /**
+     * 复评反例（W3-a 实现独立复评意见 W3A-02）：Worker + 合法 cron（如
+     * {@code 0 0 3 * * *}）的真实生命周期。旧实现对 {@code Instant} 求 cron
+     * 下一时刻，抛 {@code UnsupportedTemporalTypeException: Unsupported field:
+     * DayOfWeek}，SmartLifecycle 启动失败、整个上下文刷新失败；且失败后 running
+     * 残留 true、执行器线程泄漏。修复后以带时区日历时间计算下一时刻（宿主默认
+     * 时区），启动/停止生命周期正常。
+     */
+    @Test
+    void workerWithLegalCron_startsStopsRealLifecycleWithoutFailure() {
+        nonWebRunner
+                .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class)
+                .withPropertyValues(
+                        "fastddd.identity.enabled=true",
+                        "fastddd.identity.worker=true",
+                        "fastddd.identity.directory.enabled=true",
+                        "fastddd.identity.directory.cron=0 0 3 * * *",
+                        "fastddd.security.jwt.enabled=false",
+                        "fastddd.security.local-auth.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    DirectorySyncScheduler scheduler = context.getBean(DirectorySyncScheduler.class);
+                    assertThat(scheduler.isRunning()).isTrue();
+                    scheduler.stop();
+                    assertThat(scheduler.isRunning()).isFalse();
                 });
     }
 

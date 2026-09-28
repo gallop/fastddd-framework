@@ -35,7 +35,7 @@ final class DirectoryAssemblyDoubles {
     }
 
     /** 事务桩：泛型 SAM 不能用 lambda，匿名类直通（装配测试免真实 DataSource）。 */
-    private static IdentityTransactionRunner txRunner() {
+    static IdentityTransactionRunner txRunner() {
         return new IdentityTransactionRunner() {
             @Override
             public <T> T inTransaction(IdentityTransactionCallback<T> callback) {

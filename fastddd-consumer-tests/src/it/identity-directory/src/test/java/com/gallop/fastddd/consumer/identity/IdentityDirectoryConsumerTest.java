@@ -105,13 +105,14 @@ class IdentityDirectoryConsumerTest {
         assertThat(context.getBeanNamesForType(IdentityChangePublisher.class)).isEmpty();
 
         // 经上下文真实 Bean 跑一轮：2 部门 + 1 人员 → 替身记录完整契约序列并发布
+        //（W3A-03 后：除全局首次源调用外，每次源调用前与末页转 completePaging 前续租）
         RecordingStore store = context.getBean(RecordingStore.class);
         DirectoryPublication publication =
                 directorySyncUseCase.runFullSync(new DirectoryScope("consumer", "app"));
         assertThat(publication.generationId()).isEqualTo("consumer-gen-1");
         assertThat(store.calls).containsExactly(
-                "begin", "write:2d/0p", "write:0d/1p", "write:0d/0p",
-                "completePaging", "validate", "publish");
+                "begin", "write:2d/0p", "renew", "write:0d/1p", "renew", "write:0d/0p",
+                "renew", "completePaging", "validate", "publish");
     }
 
     @Test

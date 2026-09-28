@@ -48,6 +48,14 @@ public class IdentityDirectoryAutoConfiguration {
      * 目录同步用例：分页页数与单轮页数护栏来自配置（非法值已被
      * {@code IdentityModeGuard} fail-fast；此处构造参数再做防线校验）。
      * 缺 source/store 时 Bean 不装配 + 终检失败，不会以空实现冒充。
+     *
+     * <p><b>事务所有者（W3A-01）</b>：注入既有 {@code IdentityTransactionRunner}
+     * ——每个存储步骤经它独立短事务执行（写端口 MANDATORY 由此满足），源调用在
+     * 事务外，宿主已有事务在首个存储步骤即被 runner 契约拒绝。identity 开启的
+     * 上下文恒有 runner 定义（宿主自定义或
+     * {@code IdentityAutoConfiguration#springIdentityTransactionRunner} 兜底，
+     * 二者 @ConditionalOnMissingBean 互斥），参数解析期必然可满足，不额外加
+     * @ConditionalOnBean 条件。</p>
      */
     @Bean
     @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
@@ -55,10 +63,11 @@ public class IdentityDirectoryAutoConfiguration {
     @ConditionalOnMissingBean
     DirectorySyncUseCase directorySyncUseCase(DirectorySource directorySource,
                                               DirectoryMirrorStore directoryMirrorStore,
+                                              com.gallop.fastddd.identity.core.port.IdentityTransactionRunner transactionRunner,
                                               FastDddIdentityProperties properties) {
         FastDddIdentityProperties.Directory cfg = properties.getDirectory();
         return new DirectorySyncUseCase(directorySource, directoryMirrorStore,
-                cfg.getPageSize(), cfg.getMaxPagesPerRun());
+                transactionRunner, cfg.getPageSize(), cfg.getMaxPagesPerRun());
     }
 
     /**

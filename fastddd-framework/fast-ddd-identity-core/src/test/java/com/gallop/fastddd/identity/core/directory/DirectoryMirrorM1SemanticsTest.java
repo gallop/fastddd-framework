@@ -9,6 +9,7 @@ import com.gallop.fastddd.identity.core.domain.ProtectedFactView;
 import com.gallop.fastddd.identity.core.error.DirectoryInvalidGenerationStateException;
 import com.gallop.fastddd.identity.core.error.DirectoryLeaseExpiredException;
 import com.gallop.fastddd.identity.core.error.DirectoryLeaseLostException;
+import com.gallop.fastddd.identity.core.port.IdentityTransactionRunner;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,14 @@ class DirectoryMirrorM1SemanticsTest {
 
     private static final DirectoryScope SCOPE = new DirectoryScope("tenant-a", "app-1");
 
+    /** 直通事务 runner（事务所有者语义在 starter 层验证，本类只验存储协议）。 */
+    private static final IdentityTransactionRunner DIRECT_TX = new IdentityTransactionRunner() {
+        @Override
+        public <T> T inTransaction(IdentityTransactionCallback<T> callback) {
+            return callback.doInTransaction();
+        }
+    };
+
     private final AtomicReference<Instant> now =
             new AtomicReference<>(Instant.parse("2026-09-28T00:00:00Z"));
     private final InMemoryDirectoryMirrorStore store =
@@ -51,7 +60,7 @@ class DirectoryMirrorM1SemanticsTest {
                         Map.Entry::getKey,
                         e -> e.getValue().stream()
                                 .map(id -> person(id, e.getKey())).toList())));
-        return new DirectorySyncUseCase(source, store, 100, 100).runFullSync(SCOPE);
+        return new DirectorySyncUseCase(source, store, DIRECT_TX, 100, 100).runFullSync(SCOPE);
     }
 
     private ProtectedFactView personFact(String openId) {
@@ -195,7 +204,7 @@ class DirectoryMirrorM1SemanticsTest {
     void validatedGeneration_rejectsLateWriteBatch_andPublishIsIdempotent() {
         ScriptedDirectorySource source = new ScriptedDirectorySource(SCOPE,
                 List.of(root("D1")), Map.of("D1", List.of(person("P1", "D1"))));
-        DirectorySyncUseCase useCase = new DirectorySyncUseCase(source, store, 100, 100);
+        DirectorySyncUseCase useCase = new DirectorySyncUseCase(source, store, DIRECT_TX, 100, 100);
         DirectoryPublication publication = useCase.runFullSync(SCOPE);
 
         GenerationHandle stale = new GenerationHandle(SCOPE, publication.generationId(),
