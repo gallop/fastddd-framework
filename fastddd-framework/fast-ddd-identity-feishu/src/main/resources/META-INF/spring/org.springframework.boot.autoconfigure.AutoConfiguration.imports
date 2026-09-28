@@ -1,1 +1,2 @@
 com.gallop.fastddd.identity.feishu.FeishuIdentityAutoConfiguration
+com.gallop.fastddd.identity.feishu.FeishuDirectoryAutoConfiguration
