@@ -118,18 +118,36 @@ class IdentityDirectoryAssemblyTest {
     @Test
     void adminEnabled_withoutPolicyFailsStartup() {
         webRunner
-                .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class)
+                .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class,
+                        DirectoryAssemblyDoubles.AuditWriterDouble.class)
                 .withPropertyValues("fastddd.identity.enabled=true",
                         "fastddd.identity.admin.enabled=true")
                 .run(context -> assertThat(context).hasFailed()
                         .getFailure().hasMessageContaining("IdentityAdminPolicy bean"));
     }
 
+    /**
+     * W3-c 终检扩展（§9.3 fail-closed，对齐 W21-01 先例）：admin.enabled=true 而
+     * 缺 {@code IdentityAuditWriter} bean——审计行是成功契约一部分，不以静默
+     * 跳过审计冒充，拒绝启动。
+     */
+    @Test
+    void adminEnabled_withoutAuditWriterFailsStartup() {
+        webRunner
+                .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class,
+                        DirectoryAssemblyDoubles.AdminPolicyDouble.class)
+                .withPropertyValues("fastddd.identity.enabled=true",
+                        "fastddd.identity.admin.enabled=true")
+                .run(context -> assertThat(context).hasFailed()
+                        .getFailure().hasMessageContaining("IdentityAuditWriter bean"));
+    }
+
     @Test
     void adminEnabled_withPolicyLoadsIndependentlyOfDirectory() {
         webRunner
                 .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class,
-                        DirectoryAssemblyDoubles.AdminPolicyDouble.class)
+                        DirectoryAssemblyDoubles.AdminPolicyDouble.class,
+                        DirectoryAssemblyDoubles.AuditWriterDouble.class)
                 .withPropertyValues("fastddd.identity.enabled=true",
                         "fastddd.identity.admin.enabled=true")
                 .run(context -> {
@@ -143,7 +161,8 @@ class IdentityDirectoryAssemblyTest {
     void adminAndDirectoryTogetherLoadWithBothRequirementsMet() {
         webRunner
                 .withUserConfiguration(DirectoryAssemblyDoubles.DirectoryPorts.class,
-                        DirectoryAssemblyDoubles.AdminPolicyDouble.class)
+                        DirectoryAssemblyDoubles.AdminPolicyDouble.class,
+                        DirectoryAssemblyDoubles.AuditWriterDouble.class)
                 .withPropertyValues("fastddd.identity.enabled=true",
                         "fastddd.identity.admin.enabled=true",
                         "fastddd.identity.directory.enabled=true")

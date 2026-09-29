@@ -82,6 +82,14 @@ final class Support {
         new JdbcTemplate(dataSource).execute("TRUNCATE TABLE login_state");
     }
 
+    /** 清空目录镜像六表（W3-c 目录测试隔离；单条 TRUNCATE 原子清空，schema 复用）。 */
+    static void cleanDirectoryTables(DataSource dataSource) {
+        ensureIdentitySchema(dataSource);
+        new JdbcTemplate(dataSource).execute(
+                "TRUNCATE TABLE directory_fact, directory_relation_mirror, directory_department_mirror, "
+                        + "directory_person_mirror, directory_generation, directory_publish_metadata");
+    }
+
     static int count(DataSource dataSource, String table) {
         return new JdbcTemplate(dataSource).queryForObject("SELECT count(*) FROM " + table, Integer.class);
     }

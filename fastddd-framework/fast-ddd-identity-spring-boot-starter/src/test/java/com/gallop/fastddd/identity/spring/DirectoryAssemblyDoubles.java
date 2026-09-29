@@ -117,6 +117,17 @@ final class DirectoryAssemblyDoubles {
         }
     }
 
+    /** 审计写入桩（W3-c §9.3：admin.enabled 终检要求 IdentityAuditWriter bean，fail-closed）。 */
+    @Configuration(proxyBeanMethods = false)
+    static class AuditWriterDouble {
+
+        @Bean
+        com.gallop.fastddd.identity.core.port.IdentityAuditWriter identityAuditWriter() {
+            return record -> {
+            };
+        }
+    }
+
     /**
      * 功能性源替身：固定 3 部门，按 query.pageSize() 切页（页大小传导断言依据）；
      * 人员流恒空页。游标 "c&lt;n&gt;" = 已消费页序号。

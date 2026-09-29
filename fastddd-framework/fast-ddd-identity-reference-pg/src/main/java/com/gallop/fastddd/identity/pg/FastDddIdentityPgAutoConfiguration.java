@@ -1,5 +1,6 @@
 package com.gallop.fastddd.identity.pg;
 
+import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.IdentityAuditWriter;
 import com.gallop.fastddd.identity.core.port.IdentityBindingStore;
 import com.gallop.fastddd.identity.core.port.IdentityLifecyclePort;
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.convert.DurationStyle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -46,6 +48,7 @@ public class FastDddIdentityPgAutoConfiguration {
     private final boolean ensureAuditTable;
     private final boolean actorColumns;
     private final Duration loginStateRetention;
+    private final Duration directoryLeaseTimeout;
 
     public FastDddIdentityPgAutoConfiguration(
             ListableBeanFactory beanFactory,
@@ -53,7 +56,8 @@ public class FastDddIdentityPgAutoConfiguration {
             @Value("${fastddd.identity.pg.initialize-schema:false}") boolean initializeSchema,
             @Value("${fastddd.identity.pg.ensure-audit-table:false}") boolean ensureAuditTable,
             @Value("${fastddd.identity.audit.actor-columns:false}") boolean actorColumns,
-            @Value("${fastddd.identity.pg.login-state-retention-seconds:3600}") long loginStateRetentionSeconds) {
+            @Value("${fastddd.identity.pg.login-state-retention-seconds:3600}") long loginStateRetentionSeconds,
+            @Value("${fastddd.identity.directory.lease-timeout:10m}") String directoryLeaseTimeout) {
         this.dataSource = resolveDataSource(beanFactory, dataSourceBeanName);
         // W21c（复评 F1）：池预置 autoCommit=false 使写端口门禁第三判据失去区分力，
         // 装配期即拒绝（fail-closed；先于任何 schema 初始化动作）
@@ -62,6 +66,14 @@ public class FastDddIdentityPgAutoConfiguration {
         this.ensureAuditTable = ensureAuditTable;
         this.actorColumns = actorColumns;
         this.loginStateRetention = Duration.ofSeconds(loginStateRetentionSeconds);
+        // W3-c：与 starter 规范键同源（单一旋钮），解析口径与 IdentityModeGuard
+        // requirePositiveDuration 一致（DurationStyle：10m/30s/PT10M）
+        try {
+            this.directoryLeaseTimeout = DurationStyle.detectAndParse(directoryLeaseTimeout);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("fastddd.identity.directory.lease-timeout 非法："
+                    + directoryLeaseTimeout + "（须为正时长，如 10m/30s/PT10M）", ex);
+        }
         if (initializeSchema) {
             PgIdentitySchema.initialize(dataSource);
         }
@@ -106,6 +118,20 @@ public class FastDddIdentityPgAutoConfiguration {
         return actorColumns
                 ? new PgActorColumnIdentityAuditWriter(jdbcTemplate, dataSource)
                 : new PgLegacyIdentityAuditWriter(jdbcTemplate);
+    }
+
+    /**
+     * 目录镜像存储 PG 参考适配器（W3 设计 v3 §5/§6，W3-c）：schema 增量 V3 随
+     * initialize 执行。租约 TTL 绑定与 starter 相同的规范键
+     * {@code fastddd.identity.directory.lease-timeout}（缺省 10m；W3-b 复评 N2
+     * 携带条件：宽租约按"最宽单层子部门数 × read timeout × (1+maxRetries)"
+     * 评估调大）。写方法 MANDATORY——编排经 starter runner 的外层事务调用，
+     * 与登录/生命周期端口同一数据源绑定（§8.3a）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryMirrorStore.class)
+    public DirectoryMirrorStore directoryMirrorStore() {
+        return new PgDirectoryMirrorStore(new JdbcTemplate(dataSource), Instant::now, directoryLeaseTimeout);
     }
 
     private static DataSource resolveDataSource(ListableBeanFactory beanFactory, String beanName) {

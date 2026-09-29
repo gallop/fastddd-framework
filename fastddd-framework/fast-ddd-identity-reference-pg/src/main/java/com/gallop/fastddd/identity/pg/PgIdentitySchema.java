@@ -20,6 +20,8 @@ public final class PgIdentitySchema {
     static final String CORE_DDL_PATH = "db/identity/V1__identity_core.sql";
     /** W2-2 追加式增量（state 上下文列；不改写 V1，已跑过 V1 的库可安全追加）。 */
     static final String LOGIN_STATE_DDL_PATH = "db/identity/V2__login_state_browser_binding.sql";
+    /** W3-c 目录镜像六表（幂等；不依赖 V2，已跑过 V1/V2 的库可安全追加）。 */
+    static final String DIRECTORY_DDL_PATH = "db/identity/V3__directory_mirror.sql";
     static final String AUDIT_ACTOR_DDL_PATH = "db/identity/optional/V1__sys_audit_log_actor_columns.sql";
 
     /** 基表形态与 security-starter AuditLogServiceImpl 一致（PG 方言直书）。 */
@@ -44,10 +46,11 @@ public final class PgIdentitySchema {
     private PgIdentitySchema() {
     }
 
-    /** 初始化身份核心表（幂等；V1 后执行 V2 追加增量）。 */
+    /** 初始化身份核心表（幂等；V1 后依次执行 V2/V3 追加增量）。 */
     public static void initialize(DataSource dataSource) {
         executeScript(dataSource, CORE_DDL_PATH);
         executeScript(dataSource, LOGIN_STATE_DDL_PATH);
+        executeScript(dataSource, DIRECTORY_DDL_PATH);
     }
 
     /** 初始化审计基表 + 可选 actor 列（幂等；供测试/空库消费者，宿主可自行管理迁移）。 */

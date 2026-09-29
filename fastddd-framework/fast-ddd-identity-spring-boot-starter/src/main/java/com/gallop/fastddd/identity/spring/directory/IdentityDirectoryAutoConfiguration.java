@@ -2,9 +2,11 @@ package com.gallop.fastddd.identity.spring.directory;
 
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
+import com.gallop.fastddd.identity.core.port.IdentityAdminPolicy;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
 import com.gallop.fastddd.identity.spring.IdentityAutoConfiguration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.AllNestedConditions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -16,11 +18,13 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 目录同步装配骨架（W3 设计 v3 §7，W3-a）：
+ * 目录同步装配骨架（W3 设计 v3 §7，W3-a；W3-c 追加手动触发与差异报表组件）：
  * {@code fastddd.identity.directory.enabled=true} 时装配
  * {@link DirectorySyncUseCase}（要求宿主/引用适配器提供
  * {@link DirectorySource} 与 {@link DirectoryMirrorStore} Bean——缺任一由
- * {@code IdentityModeValidator} 终检使启动失败，fail-closed 不静默半装配）。
+ * {@code IdentityModeValidator} 终检使启动失败，fail-closed 不静默半装配）、
+ * {@link DirectorySyncManualTrigger}（§9.4）与 {@link DirectoryDiffReporter}
+ * （§6.6 管理视图）。
  *
  * <p><b>边界（W3-a 不提前交付项）</b>：</p>
  * <ul>
@@ -68,6 +72,38 @@ public class IdentityDirectoryAutoConfiguration {
         FastDddIdentityProperties.Directory cfg = properties.getDirectory();
         return new DirectorySyncUseCase(directorySource, directoryMirrorStore,
                 transactionRunner, cfg.getPageSize(), cfg.getMaxPagesPerRun());
+    }
+
+    /**
+     * 手动同步触发组件（W3 设计 §9.4，W3-c）：{@code directory.enabled=true} 的
+     * 任意形态进程装配（web 只装用例+本组件供管理入口调用，调度线程仍限 worker）。
+     * <b>条件引用端口而非用例</b>（与调度嵌套类同理）：端口来自宿主/引用适配器，
+     * 先于自动配置注册；{@link DirectorySyncUseCase} 参数在实例化期解析（同条件
+     * 的用例 Bean 定义届时必已就绪）。{@link ObjectProvider} 惰性解析
+     * {@link IdentityAdminPolicy}——交互式入口逐操作裁决，无策略 bean 形态
+     * （admin.enabled=false）下运维入口 {@code runFullSync()} 仍可用。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean({DirectorySource.class, DirectoryMirrorStore.class})
+    @ConditionalOnMissingBean
+    DirectorySyncManualTrigger directorySyncManualTrigger(DirectorySyncUseCase useCase,
+                                                          DirectorySource directorySource,
+                                                          ObjectProvider<IdentityAdminPolicy> adminPolicy) {
+        return new DirectorySyncManualTrigger(useCase, directorySource, adminPolicy);
+    }
+
+    /**
+     * 差异报表组件（W3 设计 §6.6 差异报表=管理视图，W3-c）：观察侧对事实侧实时
+     * 比对 + 待核对清单呈现。只依赖镜像存储读契约；不裁决准入（§9.3 授权由
+     * 宿主入口负责），待核对消解属 M2。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean(DirectoryMirrorStore.class)
+    @ConditionalOnMissingBean
+    DirectoryDiffReporter directoryDiffReporter(DirectoryMirrorStore directoryMirrorStore) {
+        return new DirectoryDiffReporter(directoryMirrorStore);
     }
 
     /**

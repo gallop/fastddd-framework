@@ -95,6 +95,15 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                     + "（管理操作准入：停用/启用/手动同步是宿主决策，与 directory.enabled 相互独立）"
                     + "——框架不提供默认放行策略，漏配即启动失败");
         }
+        // W3-c（§9.3 审计行是成功契约一部分，fail-closed 对齐 W21-01 先例）：
+        // 管理开关开启而缺审计写入端口 = 成功响应可能无审计归属，拒绝启动——
+        // 不以静默跳过审计冒充（reference-pg 提供 IdentityAuditWriter，或宿主自行实现）
+        if (properties.getAdmin().isEnabled() && applicationContext.getBeansOfType(
+                com.gallop.fastddd.identity.core.port.IdentityAuditWriter.class).isEmpty()) {
+            violations.add("fastddd.identity.admin.enabled=true 需要 IdentityAuditWriter bean"
+                    + "（管理操作审计：成功响应必伴随操作人审计行落库，§9.3——"
+                    + "与 W2-1 桥同一终端 writer，缺审计即拒绝启动，不静默跳过）");
+        }
         if (cMode) {
             checkSecurityFilterChainAudit(violations);
             if (applicationContext.getBeansOfType(
