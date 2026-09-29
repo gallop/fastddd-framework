@@ -11,8 +11,10 @@
 |---------|-------------------|-------------|-------|------|
 | Pre-upgrade development snapshot | 17 | 3.4.5 | 3.9.x | 🔒 archived as Git tag `baseline/jdk17-boot3.4.5` only, **unmaintained** |
 | **1.0.x** | **21** | **3.5.x** (currently 3.5.16) | 3.9.x (wrapper pin 3.9.5) | ✅ **current stable line** (internal v1.0 released: `1.0.0`, tag `v1.0.0`, 2026-09-10; public-GA gate material moved to a private out-of-repository archive) |
-| 1.1.x | 21 | 3.5.x | 3.9.x | 📋 planned (compatibility hardening: japicmp/Revapi, BOM single source, templates switching to the BOM) |
+| 1.1.x | 21 | 3.5.x (currently 3.5.16) | 3.9.x (wrapper pin 3.9.5) | 🚧 **in development** — adds the optional Feishu identity integration (4 default-off modules, see note below); milestone `1.1.0-M1` in preparation on branch `feat/feishu-identity` (not yet tagged/released); the line's compatibility hardening (japicmp/Revapi, BOM single source, templates switching to the BOM) remains planned |
 | 2.0.x | TBD | 4.x | TBD | 🔭 future plan (Spring Boot 4 / Spring Framework 7 / Jackson 3 migration) |
+
+> **1.1.x optional identity capability (compatibility note)**: the 1.1.x line adds four optional modules — `fast-ddd-identity-core`, `fast-ddd-identity-reference-pg`, `fast-ddd-identity-spring-boot-starter`, `fast-ddd-identity-feishu` — all managed by `fastddd-bom`. The capability is wholly gated by `fastddd.identity.enabled` (default **off** — `IdentityAutoConfiguration` registers nothing unless explicitly enabled), so **a consumer that imports no `fast-ddd-identity-*` dependency sees zero behavior change relative to 1.0.0**. Enabling it additionally requires the mode/feature switches (`fastddd.identity.login.mode`, `fastddd.identity.worker`, `fastddd.identity.directory.*`, `fastddd.identity.admin.enabled`) and, for the reference PG adapter, the host-owned schema migrations V1–V3; the full switch family and M1 boundary statements live in `docs/identity/`.
 
 ## Key Dependency Matrix (1.0.x line, verified via `dependency:tree`)
 
@@ -45,18 +47,21 @@ ADR-005 §3.2 established that **independent per-product versioning is a post-sp
 
 | Studio | Tooling | Framework | Status |
 |--------|---------|-----------|------|
-| 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | ✅ current (first lock-step candidate after the split) |
+| 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 🔒 superseded — first lock-step candidate after the split; followed by per-product GA releases (Framework `1.0.0` 2026-09-10, Tooling `1.0.2` 2026-09-14) |
 
-At build time, `VersionGovernanceContractTest#currentReactorTupleIsRegisteredInMatrix_step6` asserts that the current reactor tuple `(revision, revision, revision)` is present in the table; after the split, adding a tuple row enables a new independent combination.
+> The Framework 1.1.x line (identity integration) is under development on branch `feat/feishu-identity`; its compatible-tuple row is to be registered via the Tooling-side machine-readable matrix before that line's GA — not asserted unilaterally here.
+
+At build time, `VersionGovernanceContractTest#currentToolingFrameworkPairIsRegisteredInMatrix_step6` asserts that the current reactor tuple is present in the table; after the split, adding a tuple row enables a new independent combination. **Attribution**: that test is a Tooling-repo guard (`fastddd-tooling`, shipped with `fastddd-tooling-api`) — **no such test exists in the Framework repo**; the Framework-repo build-time guard is `FrameworkBomAllowlistTest` (BOM 18-member allowlist).
 
 ### Framework platform manifest (framework-lines)
 
-Each Framework version line carries a platform dependency baseline, asserted at build time by `VersionGovernanceContractTest#matrixManifestMatchesBaseline_step1` to match the "Key Dependency Matrix" above:
+Each Framework version line carries a platform dependency baseline. The matrix↔manifest assertion `VersionGovernanceContractTest#matrixManifestMatchesBaseline_step1` is a **Tooling-repo guard** (attribution above) — in this repository the enforced part is the BOM artifact set (`FrameworkBomAllowlistTest`); the table below is hand-maintained to match the "Key Dependency Matrix":
 
 | Framework line | Status | Java | Spring Boot | Spring AI | SpringDoc | Knife4j |
 |--------------|------|------|-------------|-----------|-----------|---------|
 | 1.0.0 | current-stable (internal release 2026-09-10, tag `v1.0.0`) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 | 1.0.1 | patch (audit success judgment fix, tag `v1.0.1`, 2026-10-05; staged — `current-stable` stays on 1.0.0 until the release sync updates the generation-channel pin) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+| 1.1.0-M1 | 🚧 milestone candidate in preparation (identity integration, branch `feat/feishu-identity`; not yet tagged) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 
 ### How generation channels pick the target Framework version (VER-001 step 5)
 
@@ -92,9 +97,7 @@ mvn verify -pl fastddd-consumer-tests -Pstudio-isolation -B
 
 This invoker build clones the real `fastddd-studio` tree inside an isolated forked process and builds `fastddd-studio-server` — its framework/tooling dependencies resolve only from the local repository (published RC artifacts), proving that "studio-server still builds independently after removing root-reactor aggregation."
 
-**Build-time guards** (part of the real `clean verify` gate, `VersionGovernanceContractTest`):
-- `studioParentRevisionMatchesRoot_step3`: root pom == BOM == studio-parent agree on `<revision>`.
-- `studioParentDoesNotInheritFastdddRoot_step1`: studio-parent `<parent>` is not the fastddd root + imports fastddd-bom.
+**Build-time guards**: `studioParentRevisionMatchesRoot_step3` (root pom == BOM == studio-parent agree on `<revision>`) and `studioParentDoesNotInheritFastdddRoot_step1` (studio-parent `<parent>` is not the fastddd root + imports fastddd-bom) were **pre-split monorepo guards (`VersionGovernanceContractTest`) that did not migrate into the Framework repo on the split** — the studio-side equivalents now live with the Studio/Tooling products; in this repository root/BOM `<revision>` sync is hand discipline and the BOM artifact set is guarded by `FrameworkBomAllowlistTest`.
 
 ## Change Boundaries (semantic versioning commitments)
 
@@ -131,9 +134,9 @@ To avoid "shipping breaking changes as ordinary minor upgrades," FastDDD commits
 
 ## Version-switching Procedure (VER-001 step 8)
 
-FastDDD uses CI-friendly version governance (a single `${revision}` property + flatten-maven-plugin); switching versions requires no module-pom edits — just override the `revision` property. **The `-jdk21` qualifier is the JDK 21 product-line signal and must be preserved when switching versions** (established by UPG-010 + this matrix).
+FastDDD uses CI-friendly version governance (a single `${revision}` property + flatten-maven-plugin); switching versions requires no module-pom edits — just override the `revision` property. **The `-jdk21` qualifier was the product-line signal of the pre-GA lock-step-candidate era; since the internal v1.0 GA the version axis is unqualified** (`1.0.0` released; development line `1.0.0-SNAPSHOT`, switched to `1.1.0-SNAPSHOT` from 2026-09-29 with the 1.1.x identity-integration line). Historical tags such as `1.0.0-jdk21-rc1` keep the qualifier.
 
-> Note: internal v1.0 was released on 2026-09-10 (`1.0.0`, tag `v1.0.0`, deployed to the internal release repository; not pushed to GitHub / Maven Central / unsigned — owner decision recorded in the tag notes). The working-tree `<revision>` stays on the next development line `1.0.0-jdk21-SNAPSHOT`; the procedures below apply to subsequent patch/RC/GA switches.
+> Note: internal v1.0 was released on 2026-09-10 (`1.0.0`, tag `v1.0.0`, deployed to the internal release repository; not pushed to GitHub / Maven Central / unsigned — owner decision recorded in the tag notes). The working-tree `<revision>` is `1.1.0-SNAPSHOT` (switched 2026-09-29 by the identity-integration W4-a step; root pom + BOM pom hand-synced); the procedures below apply to subsequent milestone/RC/GA switches.
 
 ### Switching an RC candidate
 
@@ -141,25 +144,23 @@ FastDDD uses CI-friendly version governance (a single `${revision}` property + f
 # JDK 21 硬前置
 export JAVA_HOME=<path-to-jdk-21>; export PATH="$JAVA_HOME/bin:$PATH"
 
-# 覆盖 revision → RC 字面量；flatten 在 install/deploy 时字面量化产物
-./mvnw -B clean verify -Ptest -Drevision=1.0.0-jdk21-rc1
-./mvnw -B install -DskipTests -Drevision=1.0.0-jdk21-rc1
+# 覆盖 revision → 候选字面量（示例：1.1.0-M1 里程碑候选）；flatten 在 install/deploy 时字面量化产物
+./mvnw -B clean verify -Ptest -Drevision=1.1.0-M1
+./mvnw -B install -DskipTests -Drevision=1.1.0-M1
 ```
 
-After switching an RC, **synchronize**:
-1. `fastddd-compatibility-matrix.yaml`'s `framework-lines[].revision` + `compatible-tuples[].framework/tooling/studio`;
-2. `FastdddVersionDefaults.CURRENT` (the Studio fallback literal);
-3. `VersionGovernanceContractTest#matrixManifestMatchesBaseline_step1` / `FastdddVersionDefaultsContractTest` automatically
-   catch drift between the matrix and the reactor (step 6/7 guards).
+After switching a candidate, **synchronize**:
+1. `fastddd-compatibility-matrix.yaml`'s `framework-lines[].revision` + `compatible-tuples[].framework/tooling/studio` — **Tooling repo** (shipped in `fastddd-tooling-api`);
+2. `FastdddVersionDefaults.CURRENT` — **Studio-side** fallback literal;
+3. the drift guards `VersionGovernanceContractTest` / `FastdddVersionDefaultsContractTest` are **Tooling/Studio-side mechanisms and do not run against this repository**; in the Framework repo the BOM artifact set is guarded by `FrameworkBomAllowlistTest` and root/BOM `<revision>` sync is hand discipline.
 
-### Switching to the next product line (e.g. 1.1.0-jdk21-SNAPSHOT)
+### Switching to the next product line (e.g. 1.1.0-SNAPSHOT; executed 2026-09-29 by the W4-a step)
 
 ```bash
-# 1. 根 pom + BOM pom 的 <revision> 属性改为新字面量（BOM 无 parent，须手工同步——步骤 7 测试守护）
-# 2. 矩阵新增 framework-line + compatible-tuple 行
-# 3. 更新 FastdddVersionDefaults.CURRENT
+# 1. 根 pom + BOM pom 的 <revision> 属性改为新字面量（BOM 无 parent，须手工同步——拆仓后无本仓测试守护）
+# 2. 矩阵新增 framework-line + compatible-tuple 行（compatible-tuple 经 Tooling 侧机器可读矩阵登记）
+# 3. 更新 FastdddVersionDefaults.CURRENT（Studio 侧）
 # 4. 全量门禁：./mvnw -B clean verify -Ptest
 ```
 
-`rootRevisionMatchesBomRevision_step7` asserts that the root pom and BOM `<revision>` literals are equal;
-`scripts/verify-version-consistency.py` scans all poms in the repository asserting that no module hardcodes version literals (versions must flow through `${revision}`).
+Historical guards, both currently **without a carrier in this repository**: `rootRevisionMatchesBomRevision_step7` (root pom == BOM `<revision>` literals) was a pre-split guard that did not migrate — the sync is hand discipline now; `scripts/verify-version-consistency.py` (no-hardcoded-version scan) is referenced declaratively by CI, but the script is currently absent from both split repos (restoration registered in the W4-a execution record). The invariants stand: versions must flow through `${revision}`.

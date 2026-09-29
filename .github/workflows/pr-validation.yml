@@ -45,8 +45,11 @@ jobs:
 
     # VER-001 步骤 6 —— 版本一致性扫描（声明式；无 CI runner 时本地强制）。
     # 守护：reactor 内模块 pom 的 <version>/<parent><version> 必须经 ${revision}，
-    # 不得硬编码 1.0.0-jdk21-SNAPSHOT（UPG-010 + VER-001 不变量）。
-    # <revision> 属性声明属合法唯一来源（VersionGovernanceContractTest 同步守护两处一致）。
+    # 不得硬编码版本字面量（UPG-010 + VER-001 不变量；-jdk21 限定符为拆仓前历史形态，
+    # 自 1.0.0 GA 起版本轴不带限定符）。
+    # <revision> 属性声明属合法唯一来源；根/BOM 两处同步为手工纪律（原 step7 守卫与
+    # VersionGovernanceContractTest 属拆仓前/Tooling 仓机制，未随拆仓迁入本仓；
+    # 本仓 BOM 制品清单由 FrameworkBomAllowlistTest 守护）。
     - name: Verify version consistency (VER-001)
       run: |
         python scripts/verify-version-consistency.py
