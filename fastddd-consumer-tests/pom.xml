@@ -39,8 +39,10 @@
           <!-- 把 src/it/<scenario> 复制到 target/its/<scenario> 后在副本里执行，保留 build.log -->
           <cloneProjectsTo>${project.build.directory}/its</cloneProjectsTo>
           <projectsDirectory>src/it</projectsDirectory>
-          <!-- 用默认本地仓库（~/.m2）：forked 构建从已 install 的 fast-ddd-* 制品解析，
-               模拟真实外部消费者；不设 localRepositoryPath 以避免空仓库解析失败。 -->
+          <!-- 本地仓库策略（W4-b b1 注释口径更新）：默认 = 日常本地仓库（forked 构建从已 install
+               的 fast-ddd-* 制品解析，模拟真实外部消费者）；候选模式经用户属性启用——顶层
+               -Dinvoker.localRepositoryPath=<隔离仓> 将 forked 本地仓切至隔离候选仓（W4 拆分 v2 b1；
+               不设该属性时本文件行为零变化，等价性证据见 W4-b 执行记录 b1）。 -->
           <!--
             RC/GA 候选必须把当前 revision 显式传入 forked Maven。
             否则各最小消费者 POM 中的开发线默认值会继续解析 SNAPSHOT，导致“候选消费者验证”
@@ -76,6 +78,28 @@
       <properties>
         <invoker.skip>false</invoker.skip>
       </properties>
+    </profile>
+    <!-- W4-b b7：候选模式 forked 离线证据 run（W4 拆分 v2 b7 首选通道）。仅显式 -Pcandidate-offline
+         激活时，经 invoker environmentVariables 给 forked Maven 传 MAVEN_ARGS=-o（forked 进程离线；
+         外层构建不受影响）；开发线与常规候选 run（b1/b6）不激活本 profile，行为零变化。
+         用法：mvn verify -pl fastddd-consumer-tests -Pconsumer-tests -Pcandidate-offline -B
+               -Drevision=1.1.0-M1 -Dinvoker.localRepositoryPath=<隔离仓>（先经 b6 在线 run 预热第三方依赖）。 -->
+    <profile>
+      <id>candidate-offline</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-invoker-plugin</artifactId>
+            <version>${maven-invoker-plugin.version}</version>
+            <configuration>
+              <environmentVariables>
+                <MAVEN_ARGS>-o</MAVEN_ARGS>
+              </environmentVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 </project>
