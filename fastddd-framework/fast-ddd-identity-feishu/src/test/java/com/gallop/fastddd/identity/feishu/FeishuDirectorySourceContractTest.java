@@ -314,10 +314,14 @@ class FeishuDirectorySourceContractTest {
 
     // ------------------ 瞬时族：有界重试后 Unavailable ------------------
 
-    /** 限流/上游过载：幂等 GET 有界重试（1 + maxAttempts=2 次共 3 击），耗尽 → Unavailable。 */
+    /**
+     * 限流/上游过载：幂等 GET 有界重试（1 + maxAttempts=2 次共 3 击），耗尽 → Unavailable。
+     * 〔M1-TAG-02 relabel〕首行 429+99991400 原期望 {@code rate-limited}——过载优先
+     * 重排后 HTTP 429 先于业务码解释，改判 {@code upstream-system}（重试次数与终点不变）。
+     */
     @ParameterizedTest
     @CsvSource({
-            "429, 99991400, rate-limited",
+            "429, 99991400, upstream-system",
             "200, 99991400, rate-limited",
             "503, 20051, upstream-system",
             "500, 20051, upstream-system"})
@@ -371,6 +375,42 @@ class FeishuDirectorySourceContractTest {
         assertThat(stub.childrenHits.get()).isEqualTo(1);
     }
 
+    // ------------------ M1-TAG-02：HTTP 过载优先于业务码解释 ------------------
+
+    /**
+     * M1-TAG-02 反例（打标签评审 2026-10-01）：429/5xx × 40008 不得按"部门不存在"
+     * 解释——传输层失败时信封不可信，先按 upstream-system 有界重试（1 + 2 次共 3 击），
+     * 耗尽 → Unavailable（整代废弃信号），不得转成空页/跳过父部门。
+     */
+    @ParameterizedTest
+    @CsvSource({"429", "500", "503"})
+    void overloadWithDepartmentGoneCodeIsUpstreamSystemNeverEmptyResult(int status) {
+        stub.setChildrenHandler(exchange ->
+                FeishuStubServer.respondJson(exchange, status, FeishuStubServer.contactError(40008)));
+        FeishuDirectorySource source = source();
+        String cursor = childrenCursor(source);
+
+        assertThatThrownBy(() -> source.departments(new DirectoryPageQuery(cursor, 50)))
+                .isInstanceOf(DirectorySourceUnavailableException.class)
+                .extracting(e -> ((DirectorySourceUnavailableException) e).reasonCode())
+                .isEqualTo("upstream-system");
+        assertThat(stub.childrenHits.get()).isEqualTo(3);
+    }
+
+    /** M1-TAG-02 人员流同样覆盖（评审反例即在 persons 端点把 503/429+40008 吞成空终页）。 */
+    @ParameterizedTest
+    @CsvSource({"429", "500", "503"})
+    void overloadWithDepartmentGoneCodeOnPersonsIsUpstreamSystemNeverEmptyPage(int status) {
+        stub.setPersonsHandler(exchange ->
+                FeishuStubServer.respondJson(exchange, status, FeishuStubServer.contactError(40008)));
+
+        assertThatThrownBy(() -> source().persons("od-gone", firstPage(50)))
+                .isInstanceOf(DirectorySourceUnavailableException.class)
+                .extracting(e -> ((DirectorySourceUnavailableException) e).reasonCode())
+                .isEqualTo("upstream-system");
+        assertThat(stub.personsHits.get()).isEqualTo(3);
+    }
+
     // ------------------ 畸形/矛盾响应：一律不重试 ------------------
 
     /** 非法信封（非 JSON/码非整型/缺码，随 5xx 网关页到达）→ malformed-response，不重试。 */
@@ -408,6 +448,57 @@ class FeishuDirectorySourceContractTest {
                 .extracting(e -> ((DirectorySourceUnavailableException) e).reasonCode())
                 .isEqualTo("malformed-response");
         assertThat(stub.childrenHits.get()).isEqualTo(1);
+    }
+
+    /**
+     * M1-TAG-01 反例（打标签评审 2026-10-01）：has_more 非布尔（字符串/数字/null）与
+     * items 缺失不得默认"完整空末页"——分页完整性不确定一律 malformed-response 拒绝、
+     * 不重试。前四形态携带 page_token + 空 items，证明旧实现会静默丢弃续页游标提前终止
+     * 扫描；后两形态证明 data 缺分页字段同样不可当完整空目录。
+     * 正对照（合法空终页/合法多页）见 {@link #departmentWithoutUsersIsLegalEmptyLastPage}、
+     * {@link #emptyTreeYieldsOnlySyntheticRoot} 与
+     * {@link #departmentsMidParentPaginationKeepsParentAndTerminates}。
+     * （"has_more=false 携 token"形态在官方契约之外——契约明示 has_more=false 不返回
+     * page_token——全测试面未构造该形态，保留宽松忽略属防御性兼容；补修执行记录 §4.1
+     * 〔复评补记 P3-N2〕。）
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":\"true\",\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":1,\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":null,\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":false}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{}}"})
+    void nonBooleanHasMoreOrMissingItemsIsMalformedNeverEmptyLastPage(String body) {
+        stub.setChildrenHandler(exchange -> FeishuStubServer.respondJson(exchange, 200, body));
+        FeishuDirectorySource source = source();
+        String cursor = childrenCursor(source);
+
+        assertThatThrownBy(() -> source.departments(new DirectoryPageQuery(cursor, 50)))
+                .isInstanceOf(DirectorySourceUnavailableException.class)
+                .extracting(e -> ((DirectorySourceUnavailableException) e).reasonCode())
+                .isEqualTo("malformed-response");
+        assertThat(stub.childrenHits.get()).isEqualTo(1);
+    }
+
+    /** M1-TAG-01 人员流同样覆盖（children/persons 两接口共用分页契约）。 */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":\"true\",\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":1,\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":null,\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"page_token\":\"next-1\",\"items\":[]}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{\"has_more\":false}}",
+            "{\"code\":0,\"msg\":\"ok\",\"data\":{}}"})
+    void nonBooleanHasMoreOrMissingItemsOnPersonsIsMalformedNeverEmptyLastPage(String body) {
+        stub.setPersonsHandler(exchange -> FeishuStubServer.respondJson(exchange, 200, body));
+
+        assertThatThrownBy(() -> source().persons("od-a", firstPage(50)))
+                .isInstanceOf(DirectorySourceUnavailableException.class)
+                .extracting(e -> ((DirectorySourceUnavailableException) e).reasonCode())
+                .isEqualTo("malformed-response");
+        assertThat(stub.personsHits.get()).isEqualTo(1);
     }
 
     /** 业务码 0 但 HTTP 5xx：矛盾结果不重试（http-business-conflict）。 */

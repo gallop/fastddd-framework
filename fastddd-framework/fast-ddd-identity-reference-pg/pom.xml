@@ -64,5 +64,14 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- M1-TAG 补修（打标签评审 2026-10-01 两项 P2）：真实 FeishuDirectorySource ×
+             真实 PG 全链回归入册（评审关闭证据要求"不得仅在替身 source 上抛异常"）。
+             仅 test 范围——生产契约不变：compile 级仍只依赖 identity-core + Spring JDBC、
+             不依赖 feishu（上方注释维持；feishu 亦不依赖本模块，无循环）。 -->
+        <dependency>
+            <groupId>io.github.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-identity-feishu</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

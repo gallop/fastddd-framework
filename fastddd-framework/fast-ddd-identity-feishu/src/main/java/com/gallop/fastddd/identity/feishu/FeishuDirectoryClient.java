@@ -25,19 +25,23 @@ import java.util.function.Supplier;
  * departments/:id/children（GET，{@code fetch_child=false} 逐层）、
  * users/find_by_department（GET）。
  *
- * <p><b>成功判定（沿用 W22-C1 严格口径）</b>：HTTP 200 + 信封业务码为整数值
- * 且严格等于 0 + 必需字段类型正确，三者同时成立才算成功。信封非法 →
- * {@code malformed-response} 不重试；业务码 0 而 HTTP 非 200 →
- * {@code http-business-conflict} 不重试；HTTP 429/5xx 且信封为合法非零码 →
- * 可重试（幂等 GET）。</p>
+ * <p><b>成功判定（沿用 W22-C1 严格口径；M1-TAG-01 收紧分页字段）</b>：HTTP 200 +
+ * 信封业务码为整数值且严格等于 0 + 必需字段类型正确，三者同时成立才算成功；
+ * 目录分页响应的 {@code items} 必须为在场的数组、{@code has_more} 必须为在场的
+ * 布尔（缺失/类型错误一律 {@code malformed-response}，不得默认空集/末页——分页
+ * 完整性不确定即整代废弃）。信封非法 → {@code malformed-response} 不重试；
+ * 业务码 0 而 HTTP 非 200 → {@code http-business-conflict} 不重试。</p>
  *
- * <p><b>错误分类（W0-4 §3 目录族）</b>：230002/40004/40014/41050/42008 →
+ * <p><b>错误分类（W0-4 §3 目录族；M1-TAG-02 过载优先）</b>：<b>HTTP 429/5xx 先于
+ * 一切业务码解释</b>——传输层失败时信封不可信（与 tenant token 获取同序），一律
+ * {@code upstream-system} 可重试，耗尽后 Unavailable 令编排整代废弃；仅非过载
+ * 状态下的业务码才进入语义解释：230002/40004/40014/41050/42008 →
  * {@link DirectorySourceForbiddenException}（fail-fast，零重试——禁止退避风暴，
- * 禁止当离职/删除）；99991400 → {@code rate-limited} 可重试；429/5xx →
- * {@code upstream-system} 可重试；传输异常（含读超时/中断）→ {@code transport}
- * 可重试；40008（部门不存在）→ 内部信号 {@link DepartmentGoneSignal}（源侧按
- * 空页/跳过处置，不上抛、不解释为删除）；其余合法非零码 → {@code feishu-error}
- * 不重试（确定失败，本次同步废弃，下轮调度重来）。</p>
+ * 禁止当离职/删除）；99991400 → {@code rate-limited} 可重试；传输异常（含读超时/
+ * 中断）→ {@code transport} 可重试；40008（部门不存在）→ 内部信号
+ * {@link DepartmentGoneSignal}（源侧按空页/跳过处置，不上抛、不解释为删除）；
+ * 其余合法非零码 → {@code feishu-error} 不重试（确定失败，本次同步废弃，下轮
+ * 调度重来）。</p>
  *
  * <p><b>重试（W3 设计 §2：源侧有界、责任不叠加）</b>：仅幂等 GET（children/
  * find_by_department）与 tenant token 获取（官方语义：有效期内重复获取幂等返回）
@@ -242,6 +246,13 @@ final class FeishuDirectoryClient {
                     "飞书" + label + "响应缺少合法整型业务码（httpStatus=" + httpStatus + "）");
         }
         if (bizCode != 0) {
+            // M1-TAG-02：HTTP 429/5xx 属传输层失败，此时响应体（含业务码信封）不可信，
+            // 过载判定先于一切业务码解释——与 fetchTenantToken 过载优先同序。否则
+            // 40008 会把过载响应转成"部门不存在"空页/跳过，权限码会 fail-fast 误报，
+            // 未完成扫描被当正常结果放行（打标签评审反例：503/429 × 40008 → 空终页发布）。
+            if (isUpstreamOverload(httpStatus)) {
+                throw new RetryableSignal("upstream-system");
+            }
             if (bizCode == CODE_DEPARTMENT_NOT_EXIST) {
                 throw new DepartmentGoneSignal();
             }
@@ -252,9 +263,6 @@ final class FeishuDirectoryClient {
             }
             if (bizCode == CODE_TOO_MANY_REQUESTS) {
                 throw new RetryableSignal("rate-limited");
-            }
-            if (isUpstreamOverload(httpStatus)) {
-                throw new RetryableSignal("upstream-system");
             }
             throw unavailable("feishu-error",
                     "飞书" + label + "返回未核对错误码（code=" + bizCode
@@ -289,17 +297,26 @@ final class FeishuDirectoryClient {
 
     private static <T> FeishuPage<T> pageOf(JsonNode data, java.util.function.Function<JsonNode, T> mapper) {
         JsonNode items = data.path("items");
-        List<T> mapped = new ArrayList<>();
-        if (!items.isMissingNode()) {
-            if (!items.isArray()) {
-                throw unavailable("malformed-response", "飞书目录响应 items 非数组（code=0）");
-            }
-            for (JsonNode item : items) {
-                mapped.add(mapper.apply(item));
-            }
+        if (!items.isArray()) {
+            // M1-TAG-01：items 必为数组且必须在场（官方两分页端点契约均为数组字段）。
+            // 缺失/null/非数组形态下分页完整性不确定，不得当"完整空目录"消费——
+            // 否则未完成扫描会被当末页接受，不完整观察进入发布链。
+            throw unavailable("malformed-response",
+                    "飞书目录响应 items 缺失或非数组（code=0）——分页完整性不确定，不得当完整空目录");
+        }
+        List<T> mapped = new ArrayList<>(items.size());
+        for (JsonNode item : items) {
+            mapped.add(mapper.apply(item));
         }
         JsonNode hasMoreNode = data.path("has_more");
-        boolean hasMore = hasMoreNode.isBoolean() && hasMoreNode.asBoolean();
+        if (!hasMoreNode.isBoolean()) {
+            // M1-TAG-01：has_more 必须为布尔且必须在场。存在但类型错误（字符串/数字）
+            // 或缺失/null 一律拒绝，不得默认 false——默认末页会静默丢弃 page_token
+            // 提前终止扫描（打标签评审反例：has_more:"true"/1/null 被吞成空末页发布）。
+            throw unavailable("malformed-response",
+                    "飞书目录响应 has_more 缺失或非布尔（code=0）——分页完整性不确定，不得默认末页");
+        }
+        boolean hasMore = hasMoreNode.asBoolean();
         String pageToken = textOrNull(data, "page_token");
         if (hasMore && !notBlank(pageToken)) {
             throw unavailable("malformed-response",
