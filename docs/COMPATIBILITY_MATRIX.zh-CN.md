@@ -14,7 +14,7 @@
 | 1.1.x | 21 | 3.5.x（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | 🚧 **开发中**——新增可选飞书身份集成（4 个默认关闭模块，见下方注）；里程碑 `1.1.0-M1` 在 `feat/feishu-identity` 分支筹备中（尚未打标/发布）；该线的兼容性增强（japicmp/Revapi、BOM 单一来源、模板切 BOM）仍为规划项 |
 | 2.0.x | 待定 | 4.x | 待定 | 🔭 未来规划（Spring Boot 4 / Spring Framework 7 / Jackson 3 迁移） |
 
-> **1.1.x 可选身份能力（兼容性注记）**：1.1.x 线新增四个可选模块——`fast-ddd-identity-core`、`fast-ddd-identity-reference-pg`、`fast-ddd-identity-spring-boot-starter`、`fast-ddd-identity-feishu`——全部由 `fastddd-bom` 受管。该能力整体由 `fastddd.identity.enabled` 门控（**默认关闭**——未显式开启时 `IdentityAutoConfiguration` 不注册任何组件），因此**不引入任何 `fast-ddd-identity-*` 依赖的消费者相对 1.0.0 零行为变化**。启用另需模式/功能开关（`fastddd.identity.login.mode`、`fastddd.identity.worker`、`fastddd.identity.directory.*`、`fastddd.identity.admin.enabled`），reference PG 适配器另需宿主自有 schema 迁移 V1–V3；完整开关族与 M1 边界声明见 `docs/identity/`。
+> **1.1.x 可选身份能力（兼容性注记）**：1.1.x 线新增四个可选模块——`fast-ddd-identity-core`、`fast-ddd-identity-reference-pg`、`fast-ddd-identity-spring-boot-starter`、`fast-ddd-identity-feishu`——全部由 `fastddd-bom` 受管。该能力整体由 `fastddd.identity.enabled` 门控（**默认关闭**——未显式开启时 `IdentityAutoConfiguration` 不注册任何组件），因此**不引入任何 `fast-ddd-identity-*` 依赖的消费者相对 1.0.0 零行为变化**。启用另需模式/功能开关（`fastddd.identity.login.mode`、`fastddd.identity.worker`、`fastddd.identity.directory.*`、`fastddd.identity.admin.enabled`），reference PG 适配器另需宿主自有 schema 迁移 V1–V3；完整开关族与 M1 边界声明见 `docs/identity/`（M1 发布说明、迁移交付说明、五类典型配置样例与恢复声明/回退演练：`docs/identity/W4-d M1 发布说明.md` 等）。**制品仓形态限制（M1，按 W4-c c3 转发）**：内部制品仓当前为 file:// 目录形态，无服务端 staging/promote/同坐标不可覆盖——M1 证据以流程等价物承载（候选目录冻结只读 + SHA-256 清单锚定 → SHA 核对后目录晋升至发布代际）；真实制品仓（服务端 staging/promote、同坐标不可覆盖）登记为 W6 门禁。
 
 ## 关键依赖矩阵（1.0.x 线，经 `dependency:tree` 实证）
 
