@@ -10,6 +10,15 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.0.1] - 2026-10-05
+
+### Fixed
+
+- **Audit success semantics for failed business requests** (`fast-ddd-security-starter`, behavior change — read before upgrading): the `@AuditLog` aspect now judges the audited method's return envelope after a normal return. A returned `ApiResponse` — directly or as the body of a one-layer `ResponseEntity` wrapper — with `code != 200` (per `ApiResponse#isSuccess()`'s hard 200 check; `null` code counts as failure) is recorded as `success = 0`, and the envelope message is carried into `error_message` when non-blank. Previously the aspect set `success = true` unconditionally after a normal return, so controllers that catch business exceptions and translate them into failure envelopes (HTTP 200/400 returned normally, no exception thrown) were **always audited as successes** — most visibly, failed logins on the framework's built-in `/api/auth/login` endpoint.
+  - Judgment boundary: only the two explicit envelope shapes above are judged. Non-envelope returns (raw DTOs, `String`), `ResponseEntity` bodies that are `null` or not an `ApiResponse`, and async return types whose eventual result is not settled at aspect time keep the legacy `success = true`.
+  - The guard never affects the audited request path: any failure inside the guard (including envelope subclasses overriding `isFailure()`/`getMessage()` to throw) falls back to legacy `success = true` with a debug log; and when `fast-ddd-web` is absent from the consumer classpath (optional dependency) the guard stays dormant.
+  - **Rollback switch**: set `fastddd.security.audit.result-judging.enabled=false` to restore 1.0.0 always-success semantics (default `true`). The key is matched by `@Value` with no relaxed binding — use the exact kebab-case literal above; camelCase variants silently fall back to the default.
+
 ## [1.0.0] - 2026-09-13
 
 First official release baseline: **JDK 21 + Spring Boot 3.5.16**.

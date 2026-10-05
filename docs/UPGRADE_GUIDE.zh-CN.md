@@ -521,6 +521,12 @@ Boot 3.5 的 SnakeYAML 对**重复 YAML 顶层键**由宽容改为严格拒绝�
 Druid 在 Boot 3.5 下的自动配置由 `druid-spring-boot-3-starter` 提供，确认 starter 坐标正确（见上节）后，
 原 `spring.datasource.druid.*` 配置无需改动。
 
+### 1.0.1 补丁注记：审计 success 判型（行为变更，附回退开关）
+
+FastDDD 1.0.1 修复 `@AuditLog` 切面对失败业务请求的失真（此前 controller 正常返回失败信封时恒记 `success=1`——最显性=`/api/auth/login` 失败登录被记成功）。升级 1.0.1 后，返回的 `ApiResponse` 失败信封（直返或一层 `ResponseEntity` body，`code != 200` 含 `null`）记 `success=0` 且信封 message 非空白时落 `error_message`；非信封与异步返回维持既有语义，守卫绝不影响被审计请求路径（完整判型边界见 `CHANGELOG.zh-CN.md` 的 `[1.0.1]` 条目）。
+
+若消费方须暂时保持 1.0.0 恒成功语义，置 `fastddd.security.audit.result-judging.enabled=false`（缺省 `true`；键须 kebab-case 全字面量——`@Value` 无宽松绑定）。该开关定位为过渡措施，下游审计消费面对齐修正语义后应移除。
+
 ### 本地秘密配置与启动前检查
 
 受跟踪的 `application-*.yml` 只能引用环境变量，例如 `${JWT_SECRET}`；实际值放在被忽略的 `.env`、受管密钥服务或 IDE/CI 环境变量中。建议提交 `.env.example`，但其中不得有可用秘密。

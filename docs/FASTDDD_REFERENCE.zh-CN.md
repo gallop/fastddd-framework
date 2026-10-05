@@ -1210,6 +1210,7 @@ mybatis-plus:
 | `fastddd.security.jwt` | security | JWT 配置 (secret, expiration, channel) |
 | `fastddd.security.cors` | security | CORS 配置 (origins, methods, headers) |
 | `fastddd.security.http` | security | HTTP 安全 (permit-all-paths) |
+| `fastddd.security.audit` | security | 审计 success 判型（`result-judging.enabled`，缺省 `true`）：`@AuditLog` 对返回的 `ApiResponse` 失败信封（直返或一层 `ResponseEntity` body；`code != 200` 含 `null`）记 `success=0`+信封 message（非空白时）；非信封/异步返回维持 `success=true`；`false` 回退 1.0.0 恒成功语义。键须全字面量——`@Value` 无宽松绑定 |
 | `fastddd.cache` | cache | 两级缓存 (L1 Caffeine + L2 Redis, per-cache 配置) |
 | `fastddd.search` | search | 全文搜索 (backend: sql/meilisearch, SQL 全文策略, Meilisearch 连接配置, 按索引定制) |
 | `fastddd.jackson` | web | JSON 序列化 (日期格式, Long→String)。⚠️ **默认关**：`FastDddJacksonAutoConfiguration` 类级 `@ConditionalOnProperty(enabled, matchIfMissing=false)`，须 `fastddd.jackson.enabled=true` 才装配，否则 Long→String / 日期格式均不生效 |

@@ -1,13 +1,18 @@
 package com.gallop.fastddd.security.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gallop.fastddd.web.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
 
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -109,7 +114,8 @@ public class AuditLogAspect {
                 }
             }
             
-            logEntity.setSuccess(true);
+            // v1.0.1 判型守卫：按返回值信封判定 success（守卫自身异常兜底恒真，绝不污染被审计请求）
+            applyResultSuccessSemantics(logEntity, result);
             return result;
             
         } catch (Exception e) {
@@ -160,7 +166,85 @@ public class AuditLogAspect {
         if (ip != null && ip.contains(",")) {
             ip = ip.split(",")[0].trim();
         }
-        
+
         return ip;
+    }
+
+    /**
+     * fast-ddd-web 在场探针：web 系 starter 的 optional 依赖（消费者可不携带），
+     * 判型守卫引用 {@link ApiResponse} 前必须先探在场，缺席时整体退回 1.0.0
+     * 恒 success=true 语义（探针用本类类加载器，不依赖 TCCL）。
+     */
+    private static final boolean API_RESPONSE_PRESENT = ClassUtils.isPresent(
+            "com.gallop.fastddd.web.response.ApiResponse", AuditLogAspect.class.getClassLoader());
+
+    /**
+     * v1.0.1 判型守卫开关：true（缺省）=判型语义生效；false=整体回退 1.0.0 恒 true 语义。
+     * 经 @Value setter 注入（键须用 kebab-case 全字面量——@Value 无宽松绑定，
+     * camelCase 变体会静默落缺省值 true）。
+     */
+    private volatile boolean resultJudgingEnabled = true;
+
+    @Value("${fastddd.security.audit.result-judging.enabled:true}")
+    public void setResultJudgingEnabled(boolean resultJudgingEnabled) {
+        this.resultJudgingEnabled = resultJudgingEnabled;
+    }
+
+    /**
+     * v1.0.1 判型守卫：proceed() 正常返回后按返回值信封判定审计 success。
+     *
+     * <p>1.0.0 语义在 controller 承接业务异常转失败信封（HTTP 200/400 正常返回、
+     * 异常不出抛）时恒记 success=1，对失败请求失真（最显性=框架自带
+     * {@code /api/auth/login} 失败登录曾被记成功）。本守卫仅判两类显式信封形：
+     * 方法直返 {@link ApiResponse}，或 {@code ResponseEntity} 一层包裹 ApiResponse
+     * （取 body）；其余形态（非信封对象、ResponseEntity 空 body 或 body 非信封、
+     * 异步返回体在 proceed 时刻未定形）维持 success=true——与 1.0.0 一致。
+     * code != 200（含 null，沿 ApiResponse#isSuccess 200 硬判定契约）即记失败，
+     * 失败时 errorMessage 承载信封 message（空白不覆写）。
+     *
+     * <p>守卫自身的任何异常（含信封子类覆写 isFailure/getMessage 抛出的 Exception 或
+     * Error——try 块仅调信封只读检查方法、无资源语义，吞 Throwable 安全）兜底记
+     * success=true 并降级 debug 日志——审计守卫绝不改变被审计请求的成败与路径。
+     * 开关 {@code fastddd.security.audit.result-judging.enabled=false} 可整体回退
+     * 1.0.0 语义；fast-ddd-web 缺席时守卫恒休眠（在场探针短路）。
+     */
+    private void applyResultSuccessSemantics(AuditLogEntity logEntity, Object result) {
+        if (!resultJudgingEnabled || !API_RESPONSE_PRESENT) {
+            logEntity.setSuccess(true);
+            return;
+        }
+        try {
+            ApiResponse<?> envelope = extractApiResponse(result);
+            if (envelope == null) {
+                logEntity.setSuccess(true);
+                return;
+            }
+            if (envelope.isFailure()) {
+                logEntity.setSuccess(false);
+                if (StringUtils.hasText(envelope.getMessage())) {
+                    logEntity.setErrorMessage(envelope.getMessage());
+                }
+            } else {
+                logEntity.setSuccess(true);
+            }
+        } catch (Throwable e) {
+            // 判型链路任何异常（含信封子类覆写方法抛出的 Error）不改变 1.0.0 语义与请求路径——
+            // try 块仅调信封只读检查方法、无资源语义，吞 Throwable 安全
+            log.debug("Audit result-judging fell back to legacy success=true: {}", e.getMessage());
+            logEntity.setSuccess(true);
+        }
+    }
+
+    /**
+     * 独立私有方法承载 ApiResponse 引用（懒解析隔离）：仅当 API_RESPONSE_PRESENT
+     * 为真时才被调用——方法签名与 instanceof 涉及的 ApiResponse 常量池解析随首次
+     * 执行触发，web 缺席消费者永不调用本方法即永不解析，零 NoClassDefFoundError。
+     */
+    private ApiResponse<?> extractApiResponse(Object result) {
+        Object payload = result;
+        if (payload instanceof ResponseEntity<?> entity) {
+            payload = entity.getBody();
+        }
+        return payload instanceof ApiResponse<?> api ? api : null;
     }
 }

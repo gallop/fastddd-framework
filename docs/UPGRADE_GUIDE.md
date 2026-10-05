@@ -521,6 +521,12 @@ Boot 3.5's SnakeYAML moves from tolerating to strictly rejecting **duplicate top
 Druid's auto-configuration under Boot 3.5 is provided by `druid-spring-boot-3-starter`; once the starter coordinates are correct (see the previous section),
 the existing `spring.datasource.druid.*` configuration needs no changes.
 
+### 1.0.1 patch note: audit success judgment (behavior change with rollback switch)
+
+FastDDD 1.0.1 fixes the `@AuditLog` aspect's distortion of failed business requests (previously always audited `success=1` when the controller returned a failure envelope normally — e.g. failed logins on `/api/auth/login`). After upgrading to 1.0.1, returned `ApiResponse` failure envelopes (direct or one-layer `ResponseEntity` body, `code != 200` incl. `null`) are audited as `success=0` with the envelope message in `error_message` when non-blank; non-envelope and async returns keep the legacy semantics, and the guard never affects the audited request path (see the `[1.0.1]` entry in `CHANGELOG.md` for the full boundary).
+
+If a consumer must keep 1.0.0 always-success semantics temporarily, set `fastddd.security.audit.result-judging.enabled=false` (default `true`; exact kebab-case literal — `@Value` has no relaxed binding). Treat this as a transitional switch and remove it once downstream audit consumers are aligned with the corrected semantics.
+
 ### Local Secret Configuration and Pre-Startup Checks
 
 Tracked `application-*.yml` files may only reference environment variables, for example `${JWT_SECRET}`; actual values live in the ignored `.env`, a managed secret service, or IDE/CI environment variables. Committing an `.env.example` is recommended, but it must contain no usable secrets.

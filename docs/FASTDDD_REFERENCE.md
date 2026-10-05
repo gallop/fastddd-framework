@@ -1204,6 +1204,7 @@ mybatis-plus:
 | `fastddd.security.jwt` | security | JWT configuration (secret, expiration, channel) |
 | `fastddd.security.cors` | security | CORS configuration (origins, methods, headers) |
 | `fastddd.security.http` | security | HTTP security (permit-all-paths) |
+| `fastddd.security.audit` | security | Audit success judgment (`result-judging.enabled`, default `true`): `@AuditLog` records `success=0` + envelope message (when non-blank) for returned `ApiResponse` failure envelopes (direct or one-layer `ResponseEntity` body; `code != 200` incl. `null`); non-envelope/async returns stay `success=true`; `false` restores 1.0.0 always-success semantics. Exact key literal — `@Value` has no relaxed binding |
 | `fastddd.cache` | cache | Two-level cache (L1 Caffeine + L2 Redis, per-cache configuration) |
 | `fastddd.search` | search | Full-text search (backend: sql/meilisearch, SQL full-text strategy, Meilisearch connection settings, per-index customization) |
 | `fastddd.jackson` | web | JSON serialization (date format, Long→String). ⚠️ **Off by default**: `FastDddJacksonAutoConfiguration` is class-level `@ConditionalOnProperty(enabled, matchIfMissing=false)`; it assembles only with `fastddd.jackson.enabled=true`, otherwise neither Long→String nor the date format takes effect |

@@ -1,0 +1,10 @@
+{
+  "properties": [
+    {
+      "name": "fastddd.security.audit.result-judging.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether @AuditLog judges success from the returned ApiResponse envelope (direct return or one-layer ResponseEntity wrapper; code != 200 records success=false and carries the envelope message into error_message). Set false to restore 1.0.0 always-success semantics. Exact key literal (kebab-case) — @Value has no relaxed binding."
+    }
+  ]
+}

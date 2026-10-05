@@ -10,6 +10,15 @@
 
 ---
 
+## [1.0.1] - 2026-10-05
+
+### Fixed
+
+- **失败业务请求的审计 success 语义**（`fast-ddd-security-starter`，行为变更——升级前请阅读）：`@AuditLog` 切面在目标方法正常返回后按返回值信封判定 success。返回的 `ApiResponse`（方法直返，或作为一层 `ResponseEntity` 包裹的 body）且 `code != 200`（沿 `ApiResponse#isSuccess()` 的 200 硬判定；`code` 为 `null` 亦计失败）记为 `success = 0`，信封 message 非空白时写入 `error_message`。此前切面在正常返回后无条件置 `success = true`，凡 controller 承接业务异常转失败信封（HTTP 200/400 正常返回、异常不出抛）的请求**恒被记为成功**——最显性=框架自带 `/api/auth/login` 端点的失败登录曾被记为成功。
+  - 判型边界：仅判上两类显式信封形。非信封返回（裸 DTO、`String`）、`ResponseEntity` body 为 `null` 或非 `ApiResponse`、异步返回体在切面时刻尚未定形——均维持既有 `success = true`。
+  - 守卫绝不污染被审计请求路径：守卫自身任何异常（含信封子类覆写 `isFailure()`/`getMessage()` 抛出）兜底记 `success = true` 并降级 debug 日志；消费者类路径缺席 `fast-ddd-web`（optional 依赖）时守卫恒休眠。
+  - **回退开关**：置 `fastddd.security.audit.result-judging.enabled=false` 可整体回退 1.0.0 恒成功语义（缺省 `true`）。该键经 `@Value` 匹配、**无宽松绑定**——须用上述 kebab-case 全字面量；camelCase 变体会静默落缺省值 `true`。
+
 ## [1.0.0] - 2026-09-13
 
 首个正式发布版本基线：**JDK 21 + Spring Boot 3.5.16**。
