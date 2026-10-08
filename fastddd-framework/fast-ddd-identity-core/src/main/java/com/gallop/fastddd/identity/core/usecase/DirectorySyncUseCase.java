@@ -1,8 +1,10 @@
 package com.gallop.fastddd.identity.core.usecase;
 
 import com.gallop.fastddd.identity.core.domain.Actor;
+import com.gallop.fastddd.identity.core.domain.ChangeLogEntry;
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryGenerationActivatedEvent;
 import com.gallop.fastddd.identity.core.domain.DirectoryPage;
 import com.gallop.fastddd.identity.core.domain.DirectoryPageQuery;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
@@ -11,12 +13,15 @@ import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.GenerationHandle;
 import com.gallop.fastddd.identity.core.domain.PrincipalId;
 import com.gallop.fastddd.identity.core.domain.PrincipalType;
+import com.gallop.fastddd.identity.core.domain.Ulids;
 import com.gallop.fastddd.identity.core.error.DirectoryContractViolationException;
 import com.gallop.fastddd.identity.core.error.DirectoryLeaseHeldException;
 import com.gallop.fastddd.identity.core.error.DirectorySourceForbiddenException;
 import com.gallop.fastddd.identity.core.error.DirectorySourceUnavailableException;
+import com.gallop.fastddd.identity.core.port.DirectoryChangeLog;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
+import com.gallop.fastddd.identity.core.port.IdentityChangePublisher;
 import com.gallop.fastddd.identity.core.port.IdentityTransactionRunner;
 import com.gallop.fastddd.identity.core.system.SystemJobPrincipalContext;
 
@@ -62,8 +67,13 @@ import java.util.function.Supplier;
  *   <li><b>系统任务身份显式</b>：全程运行于 SYSTEM_JOB 上下文
  *       （principalId = {@code system-job:directory-sync}）——审计与下游 Actor
  *       解析取到系统作业身份，<b>不把缺失员工身份静默降级</b>；</li>
- *   <li><b>M1 无 publisher</b>：本用例不依赖 {@code IdentityChangePublisher}
- *       （端口冻结，装配零要求——见 {@code DirectoryMirrorStore.publish} javadoc）。</li>
+ *   <li><b>T8 组合（W5-b）</b>：publish 与代激活日志条目、代激活事件<b>同一短事务</b>
+ *       ——{@code store.publish} 后 {@code DirectoryChangeLog.append}
+ *       （GENERATION_ACTIVATED，预铸 ULID——P2-5）+ {@code IdentityChangePublisher}
+ *       发布（changeLogRef 指向载体条目）；{@code hasGenerationActivation} 命中则
+ *       no-op 跳过 append 与事件（B-5）。changeLog/publisher 均为 null 的 M1 形态
+ *       零行为变化——不 append 不发事件（装配零要求，见
+ *       {@code DirectoryMirrorStore.publish} javadoc）。</li>
  * </ul>
  *
  * <p>内存中保留本代部门全集用于人员流遍历（M1 规模假设下的最小可用取舍；
@@ -91,10 +101,27 @@ public class DirectorySyncUseCase {
     private final IdentityTransactionRunner txRunner;
     private final int pageSize;
     private final int maxPagesPerRun;
+    private final DirectoryChangeLog changeLog;
+    private final IdentityChangePublisher publisher;
 
+    /** M1 形态（W5-b 保留）：无变更日志、无通知——不 append 不发事件，行为与 W3 等价。 */
     public DirectorySyncUseCase(DirectorySource source, DirectoryMirrorStore store,
                                 IdentityTransactionRunner txRunner,
                                 int pageSize, int maxPagesPerRun) {
+        this(source, store, txRunner, pageSize, maxPagesPerRun, null, null);
+    }
+
+    /**
+     * W5-b T8 组合形态：publish 与代激活日志条目、代激活事件同事务
+     * （任一失败整体回滚——先库后信）。
+     *
+     * @throws IllegalArgumentException publisher 非 null 而 changeLog 为 null
+     *         ——事件 changeLogRef 契约（须指向不可变载体条目）无法满足
+     */
+    public DirectorySyncUseCase(DirectorySource source, DirectoryMirrorStore store,
+                                IdentityTransactionRunner txRunner,
+                                int pageSize, int maxPagesPerRun,
+                                DirectoryChangeLog changeLog, IdentityChangePublisher publisher) {
         this.source = Objects.requireNonNull(source, "source");
         this.store = Objects.requireNonNull(store, "store");
         this.txRunner = Objects.requireNonNull(txRunner, "txRunner");
@@ -106,6 +133,12 @@ public class DirectorySyncUseCase {
         }
         this.pageSize = pageSize;
         this.maxPagesPerRun = maxPagesPerRun;
+        if (publisher != null && changeLog == null) {
+            throw new IllegalArgumentException(
+                    "publisher 非 null 时 changeLog 不能为 null（事件 changeLogRef 须指向不可变载体条目）");
+        }
+        this.changeLog = changeLog;
+        this.publisher = publisher;
     }
 
     /**
@@ -136,7 +169,7 @@ public class DirectorySyncUseCase {
             progress.beforeFinalization();
             txRun(() -> store.completePaging(handle));
             txRun(() -> store.validate(handle));
-            return txGet(() -> store.publish(handle));
+            return publishWithChangeLog(handle);
         } catch (Throwable failure) {
             // 清理失败不掩盖原始异常；被接管后 abandon 被拒（保护新持有者）也走 suppressed；
             // abandon 自身也在独立短事务中执行（W3A-01）
@@ -244,6 +277,47 @@ public class DirectorySyncUseCase {
                         "目录页游标未前进（流：" + stream + "，cursor=" + next + "）——契约违反，整代废弃");
             }
         }
+    }
+
+    /**
+     * T8 组合（W5 设计 §5.2，W5-b）：publish → 变更日志 append → 代激活事件，
+     * 三者同一短事务（任一失败整体回滚）。changeLog 为 null = M1 形态仅 publish。
+     * no-op 判据 = {@code hasGenerationActivation}（同 scope 同代
+     * GENERATION_ACTIVATED 行已存在 → 跳过 append 与事件——B-5；
+     * factsInserted=0 非判据，A-9 空差异首发布亦为 0）。包私有以供同包测试直驱
+     * （runFullSync 每轮新开代，no-op 重发布路径不可由公开入口触达）。
+     */
+    DirectoryPublication publishWithChangeLog(GenerationHandle handle) {
+        if (changeLog == null) {
+            return txGet(() -> store.publish(handle));
+        }
+        return txGet(() -> {
+            // P2-5：预铸条目 id——append 载体行与事件 changeLogRef 共用该值。
+            String entryId = Ulids.newUlid();
+            DirectoryPublication publication = store.publish(handle);
+            if (changeLog.hasGenerationActivation(handle.scope(), handle.generationId())) {
+                return publication;
+            }
+            changeLog.append(new ChangeLogEntry(entryId, handle.scope(),
+                    ChangeLogEntry.Kind.GENERATION_ACTIVATED, handle.generationId(),
+                    publication.committedSeqAfter(), summaryOf(publication)));
+            if (publisher != null) {
+                publisher.publishGenerationActivated(new DirectoryGenerationActivatedEvent(
+                        DirectoryGenerationActivatedEvent.eventIdFor(handle.scope(), handle.generationId()),
+                        handle.scope(), handle.generationId(),
+                        publication.committedSeqAfter(), entryId));
+            }
+            return publication;
+        });
+    }
+
+    /** 紧凑 JSON 摘要（无 PII；core 零依赖手工拼装——全数值字段，无需转义）。 */
+    private static String summaryOf(DirectoryPublication publication) {
+        return "{\"kind\":\"GENERATION_ACTIVATED\""
+                + ",\"committedSeqBefore\":" + publication.committedSeqBefore()
+                + ",\"committedSeqAfter\":" + publication.committedSeqAfter()
+                + ",\"appliedSeq\":" + publication.appliedSeq()
+                + ",\"factsInserted\":" + publication.factsInserted() + "}";
     }
 
     /** 存储步骤短事务执行（W3A-01）：每个存储方法经 runner 各自独立短事务，远程调用永不进入。 */

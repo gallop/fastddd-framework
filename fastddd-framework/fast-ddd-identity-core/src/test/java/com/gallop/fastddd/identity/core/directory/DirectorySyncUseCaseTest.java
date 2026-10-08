@@ -18,13 +18,12 @@ import com.gallop.fastddd.identity.core.error.DirectoryLeaseLostException;
 import com.gallop.fastddd.identity.core.error.DirectorySourceForbiddenException;
 import com.gallop.fastddd.identity.core.error.DirectorySourceUnavailableException;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
-import com.gallop.fastddd.identity.core.port.IdentityChangePublisher;
+import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityTransactionRunner;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Parameter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -42,7 +41,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * W3-a 编排用例测试（W3 设计 §2/§5.2/§6.5；复评钉住事项：编排以测试替身验证，
  * 不伪称 PG 并发协议已成立）。覆盖：正常多页流程与调用顺序、空目录、
  * 分页失败/页数护栏/游标异常、validate 失败不发布、租约占用/过期/丢失、
- * 无 handle 不 abandon、清理失败不掩盖原始异常、系统作业身份、M1 无 publisher。
+ * 无 handle 不 abandon、清理失败不掩盖原始异常、系统作业身份、M1 形态零要求钉
+ * （W5-b T8 演进，见 m1FormConstructorRemainsZeroRequirement）。
  */
 class DirectorySyncUseCaseTest {
 
@@ -511,16 +511,23 @@ class DirectorySyncUseCaseTest {
     }
 
     @Test
-    void useCaseHasNoPublisherDependency() {
-        // M1 冻结契约钉：编排用例不依赖 IdentityChangePublisher（装配零要求）
+    void m1FormConstructorRemainsZeroRequirement() {
+        // W5-b T8 演进（W5 设计 §12 ⑤）：5 参 M1 构造形态保留、签名不变——
+        // 既有装配（starter/宿主）零改动零新增依赖。W3-a「构造参数与字段不得
+        // 出现 publisher」钉随 T8 组合解除（usecase 包 T8 组合测试钉行为面：
+        // M1 形态不 append 不发事件）。
+        boolean m1FormFound = false;
         for (Constructor<?> constructor : DirectorySyncUseCase.class.getDeclaredConstructors()) {
-            for (Parameter parameter : constructor.getParameters()) {
-                assertThat(parameter.getType())
-                        .as("DirectorySyncUseCase 构造参数不得出现 publisher")
-                        .isNotEqualTo(IdentityChangePublisher.class);
-            }
+            Class<?>[] types = constructor.getParameterTypes();
+            m1FormFound |= types.length == 5
+                    && types[0] == DirectorySource.class
+                    && types[1] == DirectoryMirrorStore.class
+                    && types[2] == IdentityTransactionRunner.class
+                    && types[3] == int.class
+                    && types[4] == int.class;
         }
-        assertThat(DirectorySyncUseCase.class.getDeclaredFields()).noneMatch(
-                field -> field.getType() == IdentityChangePublisher.class);
+        assertThat(m1FormFound)
+                .as("5 参 M1 构造形态必须保留（W5-b T8 兼容钉）")
+                .isTrue();
     }
 }
