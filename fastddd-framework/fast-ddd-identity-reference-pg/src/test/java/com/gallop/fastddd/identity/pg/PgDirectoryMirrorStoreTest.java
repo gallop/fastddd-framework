@@ -2,12 +2,15 @@ package com.gallop.fastddd.identity.pg;
 
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
 import com.gallop.fastddd.identity.core.domain.DirectoryPublication;
 import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.GenerationHandle;
 import com.gallop.fastddd.identity.core.domain.ObservedSnapshot;
 import com.gallop.fastddd.identity.core.domain.ProtectedFactView;
+import com.gallop.fastddd.identity.core.domain.RecheckConclusion;
+import com.gallop.fastddd.identity.core.domain.RecheckEvidence;
 import com.gallop.fastddd.identity.core.error.DirectoryInvalidGenerationStateException;
 import com.gallop.fastddd.identity.core.error.DirectoryLeaseExpiredException;
 import com.gallop.fastddd.identity.core.error.DirectoryLeaseHeldException;
@@ -579,6 +582,63 @@ class PgDirectoryMirrorStoreTest {
         assertThat(committedSeq(SCOPE)).isEqualTo(1);
         assertThat(appliedSeq(SCOPE)).isEqualTo(1);
         assertThat(factCount(SCOPE)).isEqualTo(5);
+    }
+
+    // ------------------------------------- 矩阵 17 ④′ 抑制翻转（W5-d R5-P2-1）
+    // 规则 B 抑制谓词（MARK_MISSING_PERSONS_PENDING … AND f.updated_seq <= G.start_seq，
+    // §6.2 路径 B ④′）正反两侧同代对照：反侧 = 构建代在建期间经回查改写的事实行为
+    // updated_seq=2 > G2.start_seq=1，发布时跳过 pending 置位（预合并结果胜出，不回退
+    // 为"扫描缺失待核对"）；正侧 = 同代未被改写的缺失行 updated_seq=1 <= 1 照常置位。
+    // 谓词任一侧翻转即对应断言失败——补齐 W5-c 复审 R5-P2-1 零覆盖缺口。
+
+    @Test
+    void matrix17_ruleBSuppressionSkipsPremergedRowButStillMarksUntouchedRow() {
+        List<DirectoryDepartment> departments = List.of(new DirectoryDepartment("D1", null, "总部"));
+        // G1 全量发布：OU1/OU2/OU3 三事实（5 行）落在 updated_seq=1
+        publish(buildGeneration(SCOPE, departments, List.of(
+                new DirectoryPerson("OU1", "张三", null, List.of("D1")),
+                new DirectoryPerson("OU2", "李四", null, List.of("D1")),
+                new DirectoryPerson("OU3", "王五", null, List.of("D1")))));
+
+        // G2 建代到 VALIDATED：raw 仅 OU1（OU2/OU3 扫描缺失），start_seq = 当前 committed = 1
+        GenerationHandle g2 = buildGeneration(SCOPE, departments,
+                List.of(new DirectoryPerson("OU1", "张三", null, List.of("D1"))));
+        assertThat(startSeq(g2.generationId())).isEqualTo(1L);
+
+        // 构建代在建期间回查改写 OU2（路径 B：rev 1→2、origin=RECHECK、committed 1→2、
+        // G2.premerged_seq=2、applied 不动）——模拟 §6.2 ④′ 场景的"预合并/回查改写"写入方
+        JdbcTemplate template = new JdbcTemplate(dataSource);
+        PgDirectoryRecheckCommitter committer =
+                new PgDirectoryRecheckCommitter(template, new PgDirectoryChangeLog(template));
+        runner.inTransaction(() -> committer.commitCas(SCOPE, new RecheckEvidence(
+                DirectoryObjectType.PERSON, "OU2", RecheckConclusion.CONTENT_DIFFERS, 1L,
+                new DirectoryPerson("OU2", "李四（回查改写）", null, List.of("D1")), null, "evt-ou2")));
+        assertThat(fact(SCOPE, "PERSON", "OU2").get("updated_seq")).isEqualTo(2L);
+
+        // 发布 G2：④′ 抑制翻转——OU2（2 > 1）不置 pending；OU3（1 <= 1）置位
+        publish(g2);
+
+        Map<String, Object> premerged = fact(SCOPE, "PERSON", "OU2");
+        assertThat(premerged.get("pending_confirm")).isEqualTo(false);
+        assertThat(premerged.get("local_revision")).isEqualTo(2L);
+        assertThat(premerged.get("updated_seq")).isEqualTo(2L);
+        Map<String, Object> untouched = fact(SCOPE, "PERSON", "OU3");
+        assertThat(untouched.get("pending_confirm")).isEqualTo(true);
+        assertThat(untouched.get("local_revision")).isEqualTo(1L);
+        assertThat(untouched.get("updated_seq")).isEqualTo(1L);
+        assertThat(tombstoneCount(SCOPE)).isZero();
+        // 管理面待核对清单恰含 OU3——OU2 被 ④′ 抑制，不得出现在 pending 面
+        assertThat(store.readProtectedFacts(SCOPE).stream()
+                .filter(ProtectedFactView::pendingConfirm))
+                .singleElement()
+                .satisfies(f -> assertThat(f.externalId()).isEqualTo("OU3"));
+        // 水位：回查推 committed 1→2；T7 无规则 A INSERT（零新键）→ committed 维持 2，
+        // applied 收敛 H_after=2、G2.premerged_seq 收敛 2（h ∈ {NULL,H} 不变量的 H 侧）
+        assertThat(committedSeq(SCOPE)).isEqualTo(2);
+        assertThat(appliedSeq(SCOPE)).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT premerged_seq FROM directory_generation WHERE id=?",
+                Long.class, g2.generationId())).isEqualTo(2L);
     }
 
     // ---------------------------------------------------------- 矩阵 28

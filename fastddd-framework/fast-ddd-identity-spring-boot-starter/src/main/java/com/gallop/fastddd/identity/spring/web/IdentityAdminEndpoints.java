@@ -10,6 +10,9 @@ package com.gallop.fastddd.identity.spring.web;
  * <b>管理停用端点不是手动同步入口</b>（§9.4——手动同步经
  * {@code DirectorySyncManualTrigger} 组件，宿主自选 CLI/JMX/消息/内部 HTTP 入口）。</p>
  *
+ * <p>W5-d 追加第三端点：目录增量事件 FAILED 重放（POST，已认证 + CSRF——
+ * 与两端点同防线面；装配条件独立 = increment.enabled ∧ 管理四端口齐备）。</p>
+ *
  * @author gallop
  * @since 1.1.0
  */
@@ -22,6 +25,10 @@ public final class IdentityAdminEndpoints {
     /** 本地受控启用（T4 逆操作，独立裁决）。 */
     public static final String REACTIVATE_PATH =
             "/api/identity/admin/principals/{principalId}/reactivate";
+
+    /** 目录增量事件 FAILED 终态显式重放（W5 设计 §5.1 管理面，W5-d）。 */
+    public static final String EVENTS_REPLAY_PATH =
+            "/api/identity/admin/directory/events/{eventId}/replay";
 
     private IdentityAdminEndpoints() {
     }

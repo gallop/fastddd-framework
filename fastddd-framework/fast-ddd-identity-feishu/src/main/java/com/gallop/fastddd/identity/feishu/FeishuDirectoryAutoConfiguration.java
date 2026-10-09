@@ -1,5 +1,7 @@
 package com.gallop.fastddd.identity.feishu;
 
+import com.gallop.fastddd.identity.core.port.DirectoryEventChannel;
+import com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.AllNestedConditions;
@@ -37,7 +39,7 @@ import org.springframework.context.annotation.Conditional;
 @AutoConfiguration(beforeName = "com.gallop.fastddd.identity.spring.IdentityAutoConfiguration")
 @Conditional(FeishuDirectoryAutoConfiguration.FeishuDirectoryConditions.class)
 @EnableConfigurationProperties({FeishuLoginProperties.class, FeishuDirectoryProperties.class,
-        FeishuDirectoryRetryProperties.class})
+        FeishuDirectoryRetryProperties.class, FeishuEventProperties.class})
 public class FeishuDirectoryAutoConfiguration {
 
     /** 真实飞书目录源（部门 BFS + 人员分页 + tenant token 缓存 + 有界重试）。 */
@@ -47,6 +49,33 @@ public class FeishuDirectoryAutoConfiguration {
                                                 FeishuDirectoryProperties directoryProperties,
                                                 FeishuDirectoryRetryProperties retryProperties) {
         return new FeishuDirectorySource(loginProperties, directoryProperties,
+                retryProperties.getMaxAttempts(), retryProperties.getBackoff());
+    }
+
+    /**
+     * 飞书事件接收通道（W5 设计 §5.1 六步序，W5-d）：验签/解密/防重放/scope/
+     * challenge/规范化——纯本地零外呼零存储。宿主自备通道时退让；
+     * encrypt-key/verification-token 可双空（不订阅事件的宿主），运行期
+     * fail-closed（§5.1 鉴别材料缺失即 401 拒收，不留模糊形态）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryEventChannel.class)
+    FeishuEventChannel feishuEventChannel(FeishuEventProperties eventProperties,
+                                          FeishuLoginProperties loginProperties) {
+        return new FeishuEventChannel(eventProperties, loginProperties);
+    }
+
+    /**
+     * 飞书回查单查端口（W5 设计 §7.3 第②步，W5-d）：users/get + departments/get。
+     * 独立客户端实例（与 {@link FeishuDirectorySource} 各持 token 缓存——官方
+     * 幂等获取语义下无害；W5-d 差异登记项）。宿主自备回查端口时退让。
+     */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryRecheckQuery.class)
+    FeishuRecheckQuery feishuRecheckQuery(FeishuLoginProperties loginProperties,
+                                          FeishuDirectoryProperties directoryProperties,
+                                          FeishuDirectoryRetryProperties retryProperties) {
+        return new FeishuRecheckQuery(loginProperties, directoryProperties,
                 retryProperties.getMaxAttempts(), retryProperties.getBackoff());
     }
 

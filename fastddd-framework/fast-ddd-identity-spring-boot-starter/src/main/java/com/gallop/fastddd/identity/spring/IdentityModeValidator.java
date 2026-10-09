@@ -89,6 +89,47 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                         + "——缺存储即拒绝启动，不静默半装配");
             }
         }
+        // W5-d：增量事件链装配终检（fail-closed）——六端口缺任一即启动失败；
+        // 独立于 directory.enabled（事件链不依赖全量同步端口，与全量链并行共存）
+        if (properties.getDirectory().getIncrement().isEnabled()) {
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryEventChannel.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryEventChannel bean"
+                        + "（事件接收通道：fast-ddd-identity-feishu 提供 FeishuEventChannel"
+                        + "（引入依赖并配置 appId/tenantKey 后自动装配），或宿主自行实现）"
+                        + "——缺通道即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryEventInbox.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryEventInbox bean"
+                        + "（事件收件箱存储：fast-ddd-identity-reference-pg 提供 PgDirectoryEventInbox，"
+                        + "或宿主自行实现）——缺收件箱即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryRecheckQuery bean"
+                        + "（权威回查单查端口：fast-ddd-identity-feishu 提供 FeishuRecheckQuery，"
+                        + "或宿主自行实现）——缺回查即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryFactReader.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryFactReader bean"
+                        + "（单键本地事实读取：fast-ddd-identity-reference-pg 提供 PgDirectoryFactReader，"
+                        + "或宿主自行实现）——缺读取即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryFactMatcher.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryFactMatcher bean"
+                        + "（事实结构等值判定：fast-ddd-identity-reference-pg 提供 PgDirectoryFactMatcher，"
+                        + "或宿主自行实现）——缺匹配即拒绝启动，不静默半装配");
+            }
+            if (applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.increment.enabled=true 需要 DirectoryRecheckCommitter bean"
+                        + "（回查 CAS 提交：fast-ddd-identity-reference-pg 提供 PgDirectoryRecheckCommitter，"
+                        + "或宿主自行实现）——缺提交器即拒绝启动，不静默半装配");
+            }
+        }
         if (properties.getAdmin().isEnabled() && applicationContext.getBeansOfType(
                 com.gallop.fastddd.identity.core.port.IdentityAdminPolicy.class).isEmpty()) {
             violations.add("fastddd.identity.admin.enabled=true 需要宿主提供 IdentityAdminPolicy bean"

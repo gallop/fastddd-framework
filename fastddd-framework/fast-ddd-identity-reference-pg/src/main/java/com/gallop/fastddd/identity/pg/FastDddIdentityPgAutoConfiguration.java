@@ -1,6 +1,12 @@
 package com.gallop.fastddd.identity.pg;
 
+import com.gallop.fastddd.identity.core.port.DirectoryChangeLog;
+import com.gallop.fastddd.identity.core.port.DirectoryEventInbox;
+import com.gallop.fastddd.identity.core.port.DirectoryEventInboxAdmin;
+import com.gallop.fastddd.identity.core.port.DirectoryFactMatcher;
+import com.gallop.fastddd.identity.core.port.DirectoryFactReader;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
+import com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter;
 import com.gallop.fastddd.identity.core.port.IdentityAuditWriter;
 import com.gallop.fastddd.identity.core.port.IdentityBindingStore;
 import com.gallop.fastddd.identity.core.port.IdentityLifecyclePort;
@@ -132,6 +138,54 @@ public class FastDddIdentityPgAutoConfiguration {
     @ConditionalOnMissingBean(DirectoryMirrorStore.class)
     public DirectoryMirrorStore directoryMirrorStore() {
         return new PgDirectoryMirrorStore(new JdbcTemplate(dataSource), Instant::now, directoryLeaseTimeout);
+    }
+
+    /**
+     * 目录增量事件收件箱（W5 设计 §5.1/§7，W5-d）：schema 增量 V4 随 initialize
+     * 执行。attempts 上限绑定与 starter 相同的规范键
+     * {@code fastddd.identity.directory.increment.worker.retry.max-attempts}
+     * （缺省 5；单一来源键——本类 lease-timeout 同款先例，@Value 同键单源）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryEventInbox.class)
+    public DirectoryEventInbox directoryEventInbox(
+            @Value("${fastddd.identity.directory.increment.worker.retry.max-attempts:5}") int maxAttempts) {
+        return new PgDirectoryEventInbox(new JdbcTemplate(dataSource), maxAttempts);
+    }
+
+    /** 收件箱管理端口（FAILED 显式重放：复位 RECEIVED/attempts 归零，§5.1 管理面）。 */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryEventInboxAdmin.class)
+    public DirectoryEventInboxAdmin directoryEventInboxAdmin() {
+        return new PgDirectoryEventInboxAdmin(new JdbcTemplate(dataSource));
+    }
+
+    /** 单键本地事实读取（§7.3 步 ①：事务外基线读，>1 行防御性上抛）。 */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryFactReader.class)
+    public DirectoryFactReader directoryFactReader() {
+        return new PgDirectoryFactReader(new JdbcTemplate(dataSource));
+    }
+
+    /** 事实结构等值判定（§7.3：JSONB 严格等值，本地行 ↔ 回查观测）。 */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryFactMatcher.class)
+    public DirectoryFactMatcher directoryFactMatcher() {
+        return new PgDirectoryFactMatcher(new JdbcTemplate(dataSource));
+    }
+
+    /** 目录变更日志（§6.5：代激活幂等门面 + 变更行落库，提交器内嵌消费）。 */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryChangeLog.class)
+    public DirectoryChangeLog directoryChangeLog() {
+        return new PgDirectoryChangeLog(new JdbcTemplate(dataSource));
+    }
+
+    /** 回查 CAS 提交器（§7.3 步 ③：local_revision CAS + 事实/墓碑 + 变更日志，单短事务）。 */
+    @Bean
+    @ConditionalOnMissingBean(DirectoryRecheckCommitter.class)
+    public DirectoryRecheckCommitter directoryRecheckCommitter(DirectoryChangeLog changeLog) {
+        return new PgDirectoryRecheckCommitter(new JdbcTemplate(dataSource), changeLog);
     }
 
     private static DataSource resolveDataSource(ListableBeanFactory beanFactory, String beanName) {

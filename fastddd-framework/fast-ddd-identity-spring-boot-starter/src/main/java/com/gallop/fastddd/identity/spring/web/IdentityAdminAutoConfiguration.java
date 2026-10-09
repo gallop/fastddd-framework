@@ -1,6 +1,7 @@
 package com.gallop.fastddd.identity.spring.web;
 
 import com.gallop.fastddd.identity.core.port.ActorResolver;
+import com.gallop.fastddd.identity.core.port.DirectoryEventInboxAdmin;
 import com.gallop.fastddd.identity.core.port.IdentityAdminPolicy;
 import com.gallop.fastddd.identity.core.port.IdentityAuditWriter;
 import com.gallop.fastddd.identity.core.usecase.PrincipalLifecycleUseCase;
@@ -76,6 +77,52 @@ public class IdentityAdminAutoConfiguration {
 
         @ConditionalOnProperty(prefix = "fastddd.identity.admin", name = "enabled", havingValue = "true")
         static class AdminEnabled {
+        }
+    }
+
+    /**
+     * W5-d：目录增量事件管理端点（FAILED 显式重放）——C 模式 + admin.enabled +
+     * increment.enabled 且四端口齐备（收件箱管理端口 + 策略/审计/Actor——
+     * {@link DirectoryEventInboxAdmin} 由 reference-pg 提供）才注册；四态责任序
+     * 同 {@link IdentityAdminController}。审计/策略端口缺任一同样由
+     * {@code IdentityModeValidator} 终检 fail-closed（admin.enabled 侧既有检查覆盖）。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @Conditional(IdentityAdminAutoConfiguration.EventsAdminEndpointConditions.class)
+    @ConditionalOnBean({DirectoryEventInboxAdmin.class, IdentityAdminPolicy.class,
+            IdentityAuditWriter.class, ActorResolver.class})
+    static class IdentityEventsAdminEndpointConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        IdentityDirectoryEventsAdminController identityDirectoryEventsAdminController(
+                DirectoryEventInboxAdmin inboxAdmin,
+                IdentityAdminPolicy adminPolicy,
+                IdentityAuditWriter auditWriter,
+                ActorResolver actorResolver) {
+            return new IdentityDirectoryEventsAdminController(inboxAdmin, adminPolicy,
+                    auditWriter, actorResolver);
+        }
+    }
+
+    /** login.mode=feishu-web ∧ admin.enabled ∧ increment.enabled（W5-d，三者缺一即不装配）。 */
+    static final class EventsAdminEndpointConditions extends AllNestedConditions {
+
+        EventsAdminEndpointConditions() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity.login", name = "mode", havingValue = "feishu-web")
+        static class CMode {
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity.admin", name = "enabled", havingValue = "true")
+        static class AdminEnabled {
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity.directory.increment", name = "enabled",
+                havingValue = "true")
+        static class IncrementEnabled {
         }
     }
 }

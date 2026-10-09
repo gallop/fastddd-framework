@@ -16,14 +16,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
 /**
  * 飞书目录 HTTP 客户端（W3-b；W0-4 §1.3/1.4 2026-09-28 编码前复核；JDK
- * HttpClient，无 SDK）。三端点：tenant_access_token/internal（POST）、
+ * HttpClient，无 SDK）。五端点：tenant_access_token/internal（POST）、
  * departments/:id/children（GET，{@code fetch_child=false} 逐层）、
- * users/find_by_department（GET）。
+ * users/find_by_department（GET）、users/:user_id 单查（GET，W5-d 回查面）、
+ * departments/:department_id 单查（GET，W5-d 回查面——40015 显式不存在 →
+ * {@link DepartmentNotExistSignal}）。
  *
  * <p><b>成功判定（沿用 W22-C1 严格口径；M1-TAG-01 收紧分页字段）</b>：HTTP 200 +
  * 信封业务码为整数值且严格等于 0 + 必需字段类型正确，三者同时成立才算成功；
@@ -70,6 +73,9 @@ final class FeishuDirectoryClient {
     /** 部门不存在（上游并发删除形态；不解释为删除，源侧转空页/跳过）。 */
     private static final long CODE_DEPARTMENT_NOT_EXIST = 40008L;
 
+    /** 部门单查"部门不存在"显式码（W0-6 §2；用户单查侧无对应显式码——不对称已登记）。 */
+    private static final long CODE_DEPARTMENT_DETAIL_NOT_EXIST = 40015L;
+
     /** 官方限流码（HTTP 200 信封内）。 */
     private static final long CODE_TOO_MANY_REQUESTS = 99991400L;
 
@@ -106,6 +112,16 @@ final class FeishuDirectoryClient {
     record PersonItem(String openId, String name, String enName, List<String> departmentIds) {
     }
 
+    /** users/get 单查形态（status 布尔原样透传——停用派生归宿 FeishuRecheckQuery，W5-d）。 */
+    record PersonDetail(String openId, String name, String enName, List<String> departmentIds,
+                        boolean frozen, boolean resigned, boolean exited, boolean unjoin) {
+    }
+
+    /** departments/get 单查形态（parentDepartmentId 原样透传，"0" 根归化归宿查询侧，W5-d）。 */
+    record DepartmentDetail(String openDepartmentId, String parentDepartmentId, String name,
+                            boolean deleted) {
+    }
+
     /** 可重试信号（传输/限流/上游过载）——仅在重试循环内部流转。 */
     private static final class RetryableSignal extends RuntimeException {
 
@@ -125,6 +141,13 @@ final class FeishuDirectoryClient {
     static final class DepartmentGoneSignal extends RuntimeException {
         DepartmentGoneSignal() {
             super("department-gone", null, false, false);
+        }
+    }
+
+    /** 40015 部门单查显式不存在信号（W5-d：回查面翻译为 Optional.empty()——权威确证）。 */
+    static final class DepartmentNotExistSignal extends RuntimeException {
+        DepartmentNotExistSignal() {
+            super("department-not-exist", null, false, false);
         }
     }
 
@@ -224,21 +247,63 @@ final class FeishuDirectoryClient {
                 contactGet(uri.toString(), "find-by-department", FeishuDirectoryClient::mapPersons));
     }
 
+    /**
+     * 用户单查（contact/v3 users/:user_id，W0-6 §2；W5-d 回查面）。
+     *
+     * <p><b>用户侧无"不存在"显式码</b>（W0-6：41050/40001/41012/40003 均非）
+     * ——已删用户以权限族/未核对码形态出现时一律 fail-safe 上抛
+     * （Unavailable/Forbidden → worker markFailed），<b>绝不解释为 ABSENT</b>。
+     * status 布尔（is_frozen/is_resigned/is_exited/is_unjoin）原样透传。</p>
+     */
+    PersonDetail singlePerson(String openId) {
+        String uri = properties.userDetailEndpoint(openId) + "?user_id_type=open_id";
+        return withRetry("users-get", () ->
+                contactGet(uri, "users-get", FeishuDirectoryClient::mapUserDetail, Set.of()));
+    }
+
+    /**
+     * 部门单查（contact/v3 departments/:department_id，W0-6 §2；W5-d 回查面）：
+     * 40015 显式"部门不存在" → {@code Optional.empty()}（权威确证 ABSENT）。
+     */
+    Optional<DepartmentDetail> singleDepartment(String openDepartmentId) {
+        String uri = properties.departmentDetailEndpoint(openDepartmentId)
+                + "?department_id_type=open_department_id";
+        return withRetry("departments-get", () -> {
+            try {
+                return Optional.of(contactGet(uri, "departments-get",
+                        FeishuDirectoryClient::mapDepartmentDetail,
+                        Set.of(CODE_DEPARTMENT_DETAIL_NOT_EXIST)));
+            } catch (DepartmentNotExistSignal notExist) {
+                return Optional.empty();
+            }
+        });
+    }
+
     private interface BodyMapper<T> {
         T apply(JsonNode data);
     }
 
     private <T> T contactGet(String uri, String label, BodyMapper<T> mapper) {
+        return contactGet(uri, label, mapper, Set.of());
+    }
+
+    /** {@code notExistCodes}：显式"对象不存在"业务码集合（仅单查路径传入，W5-d）。 */
+    private <T> T contactGet(String uri, String label, BodyMapper<T> mapper, Set<Long> notExistCodes) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
                 .timeout(properties.getReadTimeout())
                 .header("Authorization", "Bearer " + tenantAccessToken())
                 .GET()
                 .build();
         ParsedResponse parsed = sendForJson(request);
-        return interpret(parsed, label, mapper);
+        return interpret(parsed, label, mapper, notExistCodes);
     }
 
     private <T> T interpret(ParsedResponse parsed, String label, BodyMapper<T> mapper) {
+        return interpret(parsed, label, mapper, Set.of());
+    }
+
+    private <T> T interpret(ParsedResponse parsed, String label, BodyMapper<T> mapper,
+                            Set<Long> notExistCodes) {
         int httpStatus = parsed.httpStatus();
         Long bizCode = strictEnvelopeCode(parsed.json());
         if (bizCode == null) {
@@ -255,6 +320,9 @@ final class FeishuDirectoryClient {
             }
             if (bizCode == CODE_DEPARTMENT_NOT_EXIST) {
                 throw new DepartmentGoneSignal();
+            }
+            if (notExistCodes.contains(bizCode)) {
+                throw new DepartmentNotExistSignal();
             }
             if (FORBIDDEN_CODES.contains(bizCode)) {
                 throw forbidden("upstream-forbidden",
@@ -293,6 +361,42 @@ final class FeishuDirectoryClient {
                 textOrNull(item, "name"),
                 textOrNull(item, "en_name"),
                 textListOrNull(item, "department_ids")));
+    }
+
+    private static PersonDetail mapUserDetail(JsonNode data) {
+        JsonNode user = data.path("user");
+        if (!user.isObject()) {
+            throw unavailable("malformed-response", "飞书users-get响应缺少 data.user 对象（code=0）");
+        }
+        JsonNode status = user.path("status");
+        return new PersonDetail(
+                requiredText(user, "open_id", "users-get"),
+                textOrNull(user, "name"),
+                textOrNull(user, "en_name"),
+                textListOrNull(user, "department_ids"),
+                booleanOrFalse(status, "is_frozen"),
+                booleanOrFalse(status, "is_resigned"),
+                booleanOrFalse(status, "is_exited"),
+                booleanOrFalse(status, "is_unjoin"));
+    }
+
+    private static DepartmentDetail mapDepartmentDetail(JsonNode data) {
+        JsonNode department = data.path("department");
+        if (!department.isObject()) {
+            throw unavailable("malformed-response",
+                    "飞书departments-get响应缺少 data.department 对象（code=0）");
+        }
+        return new DepartmentDetail(
+                requiredText(department, "open_department_id", "departments-get"),
+                textOrNull(department, "parent_department_id"),
+                textOrNull(department, "name"),
+                booleanOrFalse(department.path("status"), "is_deleted"));
+    }
+
+    /** status 布尔缺省 false（未冻结/未删除形态不下发该字段——观察语义，不虚构）。 */
+    private static boolean booleanOrFalse(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        return value.isBoolean() && value.asBoolean();
     }
 
     private static <T> FeishuPage<T> pageOf(JsonNode data, java.util.function.Function<JsonNode, T> mapper) {

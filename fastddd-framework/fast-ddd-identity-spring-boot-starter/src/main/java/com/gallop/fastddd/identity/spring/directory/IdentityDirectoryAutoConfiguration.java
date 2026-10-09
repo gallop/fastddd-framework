@@ -1,17 +1,26 @@
 package com.gallop.fastddd.identity.spring.directory;
 
+import com.gallop.fastddd.identity.core.port.DirectoryEventChannel;
+import com.gallop.fastddd.identity.core.port.DirectoryEventInbox;
+import com.gallop.fastddd.identity.core.port.DirectoryFactMatcher;
+import com.gallop.fastddd.identity.core.port.DirectoryFactReader;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
+import com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter;
+import com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityAdminPolicy;
+import com.gallop.fastddd.identity.core.usecase.DirectoryEventWorkerUseCase;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
 import com.gallop.fastddd.identity.spring.IdentityAutoConfiguration;
+import com.gallop.fastddd.identity.spring.web.IdentityDirectoryEventsController;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.AllNestedConditions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -107,6 +116,76 @@ public class IdentityDirectoryAutoConfiguration {
     }
 
     /**
+     * 增量事件 worker 编排用例（W5 设计 §7，W5-d）：{@code increment.enabled=true}
+     * 时装配（<b>独立于 directory.enabled</b>——事件链不依赖全量同步端口）。
+     * 六端口（通道/收件箱/回查/读取/匹配/提交器）来自宿主/引用适配器，
+     * 缺任一由 {@code IdentityModeValidator} 终检使启动失败（fail-closed）。
+     * 事务所有权同 {@link DirectorySyncUseCase}：CAS 提交经
+     * {@code IdentityTransactionRunner} 单短事务（identity 上下文恒有定义，
+     * 不额外加条件）。batch-size/claim-lease 来自
+     * {@code fastddd.identity.directory.increment.worker.*}（§10 键族）。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory.increment", name = "enabled",
+            havingValue = "true")
+    @ConditionalOnBean({DirectoryEventChannel.class, DirectoryEventInbox.class,
+            DirectoryRecheckQuery.class, DirectoryFactReader.class,
+            DirectoryFactMatcher.class, DirectoryRecheckCommitter.class})
+    @ConditionalOnMissingBean
+    DirectoryEventWorkerUseCase directoryEventWorkerUseCase(
+            DirectoryEventInbox inbox,
+            DirectoryEventChannel channel,
+            DirectoryRecheckQuery recheckQuery,
+            DirectoryFactReader factReader,
+            DirectoryFactMatcher factMatcher,
+            DirectoryRecheckCommitter committer,
+            com.gallop.fastddd.identity.core.port.IdentityTransactionRunner transactionRunner,
+            FastDddIdentityProperties properties) {
+        FastDddIdentityProperties.Directory.Increment.Worker cfg =
+                properties.getDirectory().getIncrement().getWorker();
+        return new DirectoryEventWorkerUseCase(inbox, channel, recheckQuery,
+                factReader, factMatcher, committer, transactionRunner,
+                cfg.getBatchSize(), cfg.getClaimLease());
+    }
+
+    /**
+     * 事件接收端点（W5 设计 §5.1 接收链宿主侧，W5-d）：servlet web ∧
+     * {@code increment.enabled=true} ∧ 通道/收件箱端口齐备时注册
+     * {@link IdentityDirectoryEventsController}（固定常量路径；安全链侧的
+     * permitAll + CSRF 豁免由 {@code IdentitySecurityAutoConfiguration} 承担）。
+     * worker 形态（非 web 进程）不注册端点——收件箱仅由 worker 调度消费。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @Conditional(IdentityDirectoryAutoConfiguration.IncrementEventsConditions.class)
+    @ConditionalOnBean({DirectoryEventChannel.class, DirectoryEventInbox.class})
+    static class DirectoryEventsEndpointConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        IdentityDirectoryEventsController identityDirectoryEventsController(
+                DirectoryEventChannel channel,
+                DirectoryEventInbox inbox,
+                FastDddIdentityProperties properties) {
+            return new IdentityDirectoryEventsController(channel, inbox,
+                    properties.getDirectory().getEvents().getWebhook());
+        }
+    }
+
+    /** increment.enabled（单一条件；与 web/端口条件正交组合）。 */
+    static final class IncrementEventsConditions extends AllNestedConditions {
+
+        IncrementEventsConditions() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity.directory.increment", name = "enabled",
+                havingValue = "true")
+        static class IncrementEnabled {
+        }
+    }
+
+    /**
      * Worker 专属调度：worker=true ∧ directory.enabled=true ∧ 端口 Bean 齐备。
      * <b>条件引用端口而非用例</b>：嵌套配置类的读取先于本类 Bean 方法定义注册
      * （@ConditionalOnBean 对同自动配置内的 Bean 不可见），而端口来自宿主/引用
@@ -142,6 +221,46 @@ public class IdentityDirectoryAutoConfiguration {
 
         @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
         static class DirectoryEnabled {
+        }
+    }
+
+    /**
+     * 增量事件 worker 专属调度（W5-d）：worker=true ∧ increment.enabled=true ∧
+     * 六端口 Bean 齐备 + 用例 Bean 定义就绪（用例参数在实例化期解析——
+     * {@link DirectoryEventWorkerUseCase} 由本类 Bean 方法注册，同自动配置内
+     * {@code @ConditionalOnBean} 不可见故不引用，直接以参数依赖表达）。
+     * 单守护线程串行（跨实例互斥由收件箱租约保证，§7）。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @Conditional(IdentityDirectoryAutoConfiguration.WorkerIncrementConditions.class)
+    @ConditionalOnBean({DirectoryEventChannel.class, DirectoryEventInbox.class,
+            DirectoryRecheckQuery.class, DirectoryFactReader.class,
+            DirectoryFactMatcher.class, DirectoryRecheckCommitter.class})
+    static class DirectoryEventWorkerSchedulerConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        DirectoryEventWorkerScheduler directoryEventWorkerScheduler(DirectoryEventWorkerUseCase useCase,
+                                                                   FastDddIdentityProperties properties) {
+            return new DirectoryEventWorkerScheduler(useCase,
+                    properties.getDirectory().getIncrement().getWorker().getPollInterval());
+        }
+    }
+
+    /** worker ∧ increment.enabled（缺一即不装配增量事件调度）。 */
+    static final class WorkerIncrementConditions extends AllNestedConditions {
+
+        WorkerIncrementConditions() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity", name = "worker", havingValue = "true")
+        static class WorkerMode {
+        }
+
+        @ConditionalOnProperty(prefix = "fastddd.identity.directory.increment", name = "enabled",
+                havingValue = "true")
+        static class IncrementEnabled {
         }
     }
 }

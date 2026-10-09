@@ -5,6 +5,8 @@ import com.gallop.fastddd.identity.core.domain.EffectiveSnapshot;
 import com.gallop.fastddd.identity.core.domain.EffectiveSnapshot.EffectiveDepartment;
 import com.gallop.fastddd.identity.core.domain.EffectiveSnapshot.EffectivePerson;
 import com.gallop.fastddd.identity.core.port.DirectoryEffectiveView;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -40,10 +42,17 @@ import java.util.TreeMap;
  * <p><b>形态约定</b>：从未发布（无 metadata 行或 active_generation 空）→
  * activeGenerationId 空串、双清单空（与 readObservation 同式，不冒充）。</p>
  *
+ * <p><b>要点 c 结构化日志（§8.1(c)，R5-P3-1 承接）</b>：拒绝排除面实际生效
+ * （本快照存在被排除的 open_id 型未清除拒绝行）时输出一条 INFO 结构化日志
+ * （scope/activeGeneration/appliedSeq/excludedOpenIds/excludedCount）——静默
+ * 排除 = 消费侧不可观测的人员失踪；排除零生效不输出（无噪声）。</p>
+ *
  * @author gallop
  * @since 1.1.0
  */
 public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
+
+    private static final Logger log = LoggerFactory.getLogger(PgDirectoryEffectiveView.class);
 
     /** 要点 c（O-1：同批紧邻、先于事实读取）——仅 open_id 型且未清除。 */
     private static final String REJECTED_OPEN_IDS_SQL = """
@@ -206,6 +215,7 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
         List<EffectiveDepartment> effectiveDepartments = List.copyOf(departments.values());
 
         List<EffectivePerson> effectivePersons = new ArrayList<>();
+        List<String> excludedByRejection = rejected.isEmpty() ? List.of() : new ArrayList<>();
         TreeMap<String, String[]> merged = new TreeMap<>(rawPersons);
         for (var entry : factPersonOverlay.entrySet()) {
             merged.put(entry.getKey(), entry.getValue()); // 事实胜出：替换显示内容
@@ -216,13 +226,20 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
         for (var entry : merged.entrySet()) {
             String openId = entry.getKey();
             if (rejected.contains(openId)) {
-                continue; // 要点 c：open_id 型未清除拒绝 → 排除
+                ((List<String>) excludedByRejection).add(openId); // 要点 c：open_id 型未清除拒绝 → 排除（记观测面）
+                continue;
             }
             String displayName = entry.getValue()[0] != null ? entry.getValue()[0] : entry.getValue()[1];
             List<String> deptIds = factPersonOverlay.containsKey(openId)
                     ? factDeptIds.getOrDefault(openId, List.of())
                     : rawRelations.getOrDefault(openId, List.of());
             effectivePersons.add(new EffectivePerson(openId, displayName, deptIds));
+        }
+        if (!excludedByRejection.isEmpty()) {
+            // §8.1(c)/R5-P3-1：拒绝排除生效面结构化日志——静默排除不可观测
+            log.info("[directory-effective-view] rejection-exclusion scope={} activeGeneration={} "
+                            + "appliedSeq={} excludedCount={} excludedOpenIds={}",
+                    scope, generationId, appliedSeq, excludedByRejection.size(), excludedByRejection);
         }
         return new EffectiveSnapshot(scope, generationId, appliedSeq,
                 effectiveDepartments, List.copyOf(effectivePersons));

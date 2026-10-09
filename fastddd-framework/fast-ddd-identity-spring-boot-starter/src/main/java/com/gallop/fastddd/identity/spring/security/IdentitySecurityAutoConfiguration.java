@@ -2,6 +2,7 @@ package com.gallop.fastddd.identity.spring.security;
 
 import com.gallop.fastddd.identity.core.port.LocalSessionPort;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
+import com.gallop.fastddd.identity.spring.web.IdentityDirectoryEventsEndpoints;
 import com.gallop.fastddd.identity.spring.web.IdentityLoginEndpoints;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -61,7 +62,8 @@ public class IdentitySecurityAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(SecurityFilterChain.class)
         SecurityFilterChain identitySecurityFilterChain(HttpSecurity http,
-                                                        IdentitySessionAuthenticationFilter sessionFilter)
+                                                        IdentitySessionAuthenticationFilter sessionFilter,
+                                                        FastDddIdentityProperties properties)
                 throws Exception {
             // CSRF 启用（cookie 会话架构 → 双提交 Cookie 仓）；formLogin/httpBasic 显式关闭，
             // 拒绝旧登录/刷新/验证码路径旁路。
@@ -70,27 +72,44 @@ public class IdentitySecurityAutoConfiguration {
             // 「裸 XSRF-TOKEN cookie 值 → X-XSRF-TOKEN header」双提交（2026-09-27 L3
             // 真实联调实证：Base64 解码长度不符即拒，服务端 403/401，无客户端侧可行
             // 写法）。官方 SPA 方案：裸值常量时间比较。
-            http.csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+            // W5-d：增量事件 webhook（仅 increment.enabled 时入安全面）——服务间
+            // 调用无浏览器会话，CSRF 不适用；安全性由接收链验签/解密承载（§5.1，M-1）。
+            // 豁免面 = 固定常量路径（不随配置扩张——差异登记在案）。
+            boolean incrementEvents = properties.getDirectory().getIncrement().isEnabled();
+            PathPatternRequestMatcher eventsMatcher = PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.POST, IdentityDirectoryEventsEndpoints.EVENTS_PATH);
+            http.csrf(csrf -> {
+                csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler());
+                if (incrementEvents) {
+                    csrf.ignoringRequestMatchers(eventsMatcher);
+                }
+            })
                     .formLogin(form -> form.disable())
                     .httpBasic(basic -> basic.disable())
                     .sessionManagement(session ->
                             session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                    .authorizeHttpRequests(auth -> auth
-                            // W2-2 浏览器登录闭环的最小放行面：仅两个 GET 登录路径
-                            // （发起授权是无认证跳转；回调自行消费一次性 state + 浏览器绑定
-                            //  完成信任裁决，非匿名业务面）。其余路径维持 authenticated。
-                            // 显式 PathPatternRequestMatcher：不依赖容器是否注册 MVC
-                            // introspector（字符串+HttpMethod 重载会走 MvcRequestMatcher，
-                            // 无 MVC 装配的宿主会启动失败）。
-                            .requestMatchers(
-                                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
-                                            IdentityLoginEndpoints.AUTHORIZE_PATH),
-                                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
-                                            IdentityLoginEndpoints.CALLBACK_PATH))
-                            .permitAll()
-                            .anyRequest().authenticated())
+                    .authorizeHttpRequests(auth -> {
+                        // W5-d：增量事件 webhook 端点（仅 increment.enabled 时）——
+                        // 入口自证语义（验签/解密承载安全性，M-1），非匿名业务面
+                        //（与登录两 GET 路径同款放行理由）。
+                        if (incrementEvents) {
+                            auth.requestMatchers(eventsMatcher).permitAll();
+                        }
+                        // W2-2 浏览器登录闭环的最小放行面：仅两个 GET 登录路径
+                        // （发起授权是无认证跳转；回调自行消费一次性 state + 浏览器绑定
+                        //  完成信任裁决，非匿名业务面）。其余路径维持 authenticated。
+                        // 显式 PathPatternRequestMatcher：不依赖容器是否注册 MVC
+                        // introspector（字符串+HttpMethod 重载会走 MvcRequestMatcher，
+                        // 无 MVC 装配的宿主会启动失败）。
+                        auth.requestMatchers(
+                                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
+                                                IdentityLoginEndpoints.AUTHORIZE_PATH),
+                                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET,
+                                                IdentityLoginEndpoints.CALLBACK_PATH))
+                                .permitAll()
+                                .anyRequest().authenticated();
+                    })
                     .exceptionHandling(handler -> handler.authenticationEntryPoint(
                             (request, response, authException) -> response.sendError(401)))
                     .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter.class)

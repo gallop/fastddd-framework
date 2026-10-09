@@ -70,6 +70,17 @@ public class FeishuDirectoryProperties {
         return trimSlash(apiBaseUrl) + "/open-apis/contact/v3/users/find_by_department";
     }
 
+    /** 用户单查端点（W5-d 回查面；user_id_type=open_id 由调用方附加）。 */
+    String userDetailEndpoint(String openId) {
+        return trimSlash(apiBaseUrl) + "/open-apis/contact/v3/users/" + urlEncode(openId);
+    }
+
+    /** 部门单查端点（W5-d 回查面；department_id_type=open_department_id 由调用方附加）。 */
+    String departmentDetailEndpoint(String openDepartmentId) {
+        return trimSlash(apiBaseUrl) + "/open-apis/contact/v3/departments/"
+                + urlEncode(openDepartmentId);
+    }
+
     private static String trimSlash(String value) {
         String trimmed = value == null ? "" : value.strip();
         while (trimmed.endsWith("/")) {

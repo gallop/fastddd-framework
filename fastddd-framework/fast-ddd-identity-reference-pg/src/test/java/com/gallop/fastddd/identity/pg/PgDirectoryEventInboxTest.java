@@ -69,6 +69,22 @@ class PgDirectoryEventInboxTest {
         assertThat(inbox.claim(10, Duration.ofSeconds(60))).isEmpty();
     }
 
+    /** D11 tiebreak：同刻入箱并列时按 event_id 字典序定先——claim(limit) 恰取序前 limit 个。 */
+    @Test
+    void claimTiebreaksEqualReceivedAtByEventId() {
+        Instant sameInstant = Instant.parse("2026-10-09T08:00:00Z");
+        inbox.persist(envelope("evt-b", "t1", sameInstant));
+        inbox.persist(envelope("evt-c", "t2", sameInstant));
+        inbox.persist(envelope("evt-a", "t3", sameInstant));
+
+        assertThat(inbox.claim(2, Duration.ofSeconds(60)))
+                .extracting(EventEnvelope::eventId)
+                .containsExactlyInAnyOrder("evt-a", "evt-b");
+        assertThat(inbox.claim(2, Duration.ofSeconds(60)))
+                .extracting(EventEnvelope::eventId)
+                .containsExactly("evt-c");
+    }
+
     @Test
     void markProcessedClearsLeaseAndIsIdempotentAfterTerminal() {
         inbox.persist(envelope("evt-1", "t1"));

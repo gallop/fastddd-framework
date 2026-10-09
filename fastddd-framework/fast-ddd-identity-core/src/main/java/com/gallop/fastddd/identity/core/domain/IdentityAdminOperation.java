@@ -16,5 +16,13 @@ public enum IdentityAdminOperation {
     REACTIVATE,
 
     /** 手动触发目录同步（交互式触发可复用策略裁决；无 ActorRef 缺省拒绝）。 */
-    SYNC_TRIGGER
+    SYNC_TRIGGER,
+
+    /**
+     * FAILED 终态事件显式重放（W5 设计 §5.1 管理面，W5-d）：复位 RECEIVED、
+     * attempts 归零、租约/错误清空。无固定目标主体（{@code targetPrincipalId=null}
+     * ——SYNC_TRIGGER 同式，冻结 {@code IdentityAdminPolicy} 签名零变更）。
+     * <b>枚举扩项 = 契约变更</b>（本类冻结注记），W5-d 差异登记在案。
+     */
+    INBOX_REPLAY
 }

@@ -21,8 +21,10 @@ import java.util.List;
  * "单短事务"（§4.1 :176）；若调用方事务在场则自然汇入，无双重开事务。</p>
  *
  * <p><b>claim 形态</b>：{@code UPDATE ... WHERE event_id IN (SELECT ... FOR UPDATE
- * SKIP LOCKED ORDER BY received_at LIMIT n)} 单语句原子完成置位——多实例并发
- * claim 互不取同行（SKIP LOCKED）；租约到期由 PG {@code now()} 判定，时钟单源。</p>
+ * SKIP LOCKED ORDER BY received_at, event_id LIMIT n)} 单语句原子完成置位——
+ * 多实例并发 claim 互不取同行（SKIP LOCKED）；排序带 {@code event_id} 决胜
+ * （received_at 并列时取序确定，多实例消费总序可复现——W5-c D11 移交项，
+ * W5-d 兑现）；租约到期由 PG {@code now()} 判定，时钟单源。</p>
  *
  * <p><b>attempts 上限</b>：构造器注入（缺省 5，W5 设计 §4.1 上限属实现配置——
  * starter 装配面 W5-d 接配置键）；达上限行置 FAILED 终态（管理端显式重放入口，
@@ -46,7 +48,7 @@ public class PgDirectoryEventInbox implements DirectoryEventInbox {
             WHERE event_id IN (
                 SELECT event_id FROM directory_event_inbox
                 WHERE state = 'RECEIVED'
-                ORDER BY received_at
+                ORDER BY received_at, event_id
                 LIMIT ?
                 FOR UPDATE SKIP LOCKED
             )

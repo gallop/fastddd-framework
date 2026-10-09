@@ -34,6 +34,10 @@ final class FeishuStubServer implements AutoCloseable {
 
     final AtomicInteger personsHits = new AtomicInteger();
 
+    final AtomicInteger userDetailHits = new AtomicInteger();
+
+    final AtomicInteger departmentDetailHits = new AtomicInteger();
+
     private volatile EndpointHandler tokenHandler = exchange ->
             respondJson(exchange, 200, successToken());
 
@@ -48,6 +52,13 @@ final class FeishuStubServer implements AutoCloseable {
 
     private volatile EndpointHandler personsHandler = exchange ->
             respondJson(exchange, 200, personsPage(null, false));
+
+    private volatile EndpointHandler userDetailHandler = exchange ->
+            respondJson(exchange, 200, userDetail("ou_9", "张三", "San Zhang",
+                    false, false, false, false, "od_0"));
+
+    private volatile EndpointHandler departmentDetailHandler = exchange ->
+            respondJson(exchange, 200, departmentDetail("od_9", "0", "总部", false));
 
     private volatile String lastTokenRequestBody = "";
 
@@ -66,6 +77,14 @@ final class FeishuStubServer implements AutoCloseable {
     private volatile String lastContactAuthorization = "";
 
     private volatile String lastPersonsQuery = "";
+
+    private volatile String lastUserDetailPath = "";
+
+    private volatile String lastUserDetailQuery = "";
+
+    private volatile String lastDepartmentDetailPath = "";
+
+    private volatile String lastDepartmentDetailQuery = "";
 
     FeishuStubServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -89,11 +108,26 @@ final class FeishuStubServer implements AutoCloseable {
             tenantTokenHandler.handle(exchange);
         });
         server.createContext("/open-apis/contact/v3/departments", exchange -> {
-            childrenHits.incrementAndGet();
-            lastChildrenPath = exchange.getRequestURI().getPath();
-            lastChildrenQuery = exchange.getRequestURI().getRawQuery();
+            // W5-d：同前缀下按路径分派——子级列表（…/children）vs 部门单查（…/:id）
+            if (exchange.getRequestURI().getPath().endsWith("/children")) {
+                childrenHits.incrementAndGet();
+                lastChildrenPath = exchange.getRequestURI().getPath();
+                lastChildrenQuery = exchange.getRequestURI().getRawQuery();
+                childrenHandler.handle(exchange);
+            } else {
+                departmentDetailHits.incrementAndGet();
+                lastDepartmentDetailPath = exchange.getRequestURI().getPath();
+                lastDepartmentDetailQuery = exchange.getRequestURI().getRawQuery();
+                departmentDetailHandler.handle(exchange);
+            }
             lastContactAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
-            childrenHandler.handle(exchange);
+        });
+        server.createContext("/open-apis/contact/v3/users/", exchange -> {
+            // W5-d：人员单查（users/:user_id；最长前缀规则不影响 find_by_department 专属上下文）
+            userDetailHits.incrementAndGet();
+            lastUserDetailPath = exchange.getRequestURI().getPath();
+            lastUserDetailQuery = exchange.getRequestURI().getRawQuery();
+            userDetailHandler.handle(exchange);
         });
         server.createContext("/open-apis/contact/v3/users/find_by_department", exchange -> {
             personsHits.incrementAndGet();
@@ -127,6 +161,14 @@ final class FeishuStubServer implements AutoCloseable {
 
     void setPersonsHandler(EndpointHandler handler) {
         this.personsHandler = handler;
+    }
+
+    void setUserDetailHandler(EndpointHandler handler) {
+        this.userDetailHandler = handler;
+    }
+
+    void setDepartmentDetailHandler(EndpointHandler handler) {
+        this.departmentDetailHandler = handler;
     }
 
     String lastTokenRequestBody() {
@@ -165,6 +207,22 @@ final class FeishuStubServer implements AutoCloseable {
 
     String lastPersonsQuery() {
         return lastPersonsQuery == null ? "" : lastPersonsQuery;
+    }
+
+    String lastUserDetailPath() {
+        return lastUserDetailPath;
+    }
+
+    String lastUserDetailQuery() {
+        return lastUserDetailQuery == null ? "" : lastUserDetailQuery;
+    }
+
+    String lastDepartmentDetailPath() {
+        return lastDepartmentDetailPath;
+    }
+
+    String lastDepartmentDetailQuery() {
+        return lastDepartmentDetailQuery == null ? "" : lastDepartmentDetailQuery;
     }
 
     @Override
@@ -265,6 +323,36 @@ final class FeishuStubServer implements AutoCloseable {
         return "{\"open_id\":\"" + openId + "\",\"union_id\":\"un-" + openId + "\","
                 + "\"name\":\"" + name + "\",\"en_name\":\"" + enName + "\","
                 + "\"department_ids\":[" + departments + "]}";
+    }
+
+    // ===== 单查端点（W5-d 回查）响应构造 =====
+
+    /** users/get 单查成功体（status 四停用布尔显式落值；is_activated=true 恒置）。 */
+    static String userDetail(String openId, String name, String enName,
+                             boolean frozen, boolean resigned, boolean exited, boolean unjoin,
+                             String... departmentIds) {
+        StringBuilder departments = new StringBuilder();
+        for (String departmentId : departmentIds) {
+            if (departments.length() > 0) {
+                departments.append(',');
+            }
+            departments.append('"').append(departmentId).append('"');
+        }
+        return "{\"code\":0,\"msg\":\"ok\",\"data\":{\"user\":{"
+                + "\"open_id\":\"" + openId + "\",\"name\":\"" + name + "\","
+                + "\"en_name\":\"" + enName + "\",\"department_ids\":[" + departments + "],"
+                + "\"status\":{\"is_frozen\":" + frozen + ",\"is_resigned\":" + resigned
+                + ",\"is_activated\":true,\"is_exited\":" + exited
+                + ",\"is_unjoin\":" + unjoin + "}}}}";
+    }
+
+    /** departments/get 单查成功体（parent_department_id="0" = 根哨兵）。 */
+    static String departmentDetail(String openDepartmentId, String parentDepartmentId, String name,
+                                   boolean deleted) {
+        return "{\"code\":0,\"msg\":\"ok\",\"data\":{\"department\":{"
+                + "\"open_department_id\":\"" + openDepartmentId + "\","
+                + "\"parent_department_id\":\"" + parentDepartmentId + "\","
+                + "\"name\":\"" + name + "\",\"status\":{\"is_deleted\":" + deleted + "}}}}";
     }
 
     /** 查询串取参（无该参数返回 null）。 */
