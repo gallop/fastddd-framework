@@ -84,3 +84,13 @@ COMMENT ON COLUMN directory_change_log.kind IS '条目类别：GENERATION_ACTIVA
 COMMENT ON COLUMN directory_change_log.generation_id IS '代 id（仅 GENERATION_ACTIVATED 行非 NULL；部分唯一约束锚）';
 COMMENT ON COLUMN directory_change_log.committed_seq IS '本事务提交后水位 H_after（BIGINT，与 metadata.committed_seq 同轴）';
 COMMENT ON COLUMN directory_change_log.summary IS '紧凑 JSON 摘要（无 PII；数值性水位/计数等诊断字段）';
+
+-- ------------------------------------------------------------
+-- V3 事实表列宽修正（W5 设计 §6.1/§6.2，W5-c 交付）
+-- ------------------------------------------------------------
+-- source_generation 语义 = 首次观察到该对象键的【代】id（V3 注释）。增量/回查
+-- 首见对象从未在任何构建代中被观察（首见即事件/权威回查）——按语义置 NULL，
+-- V3 的 NOT NULL 与增量首见形态冲突，此处解除（W5-c 执行记录登记差异）。
+ALTER TABLE directory_fact ALTER COLUMN source_generation DROP NOT NULL;
+COMMENT ON COLUMN directory_fact.source_generation IS '首次观察到该对象键的代 id（FULL_SCAN 首见形态非 NULL；增量/回查首见形态 NULL——从未经构建代观察）';
+

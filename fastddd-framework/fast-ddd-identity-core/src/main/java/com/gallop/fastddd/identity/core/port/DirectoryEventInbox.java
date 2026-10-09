@@ -21,7 +21,8 @@ import java.util.List;
 public interface DirectoryEventInbox {
 
     /**
-     * 持久化接收一行（eventId 主键幂等）。
+     * 持久化接收一行（eventId 主键幂等；单短事务完成写入，设计 §4.1 :176——
+     * 不依赖调用方事务）。
      *
      * @return true = 新写入；false = eventId 已存在（重复投递——<b>调用方仍须 ACK</b>，
      *         不抛异常、不触发再处理）
@@ -42,12 +43,12 @@ public interface DirectoryEventInbox {
      */
     int reclaimExpired();
 
-    /** 处理成功终态（processed_at 定值；行已终态则幂等空操作）。 */
+    /** 处理成功终态（processed_at 定值、清 claimed_at/lease_expires_at 置位；行已终态则幂等空操作）。 */
     void markProcessed(String eventId);
 
     /**
-     * 处理失败登记：记 last_error、attempts+1；未达上限回 RECEIVED 待再消费，
-     * 达上限置 FAILED 终态。
+     * 处理失败登记：记 last_error、attempts+1、清 claimed_at/lease_expires_at 置位；
+     * 未达上限回 RECEIVED 待再消费，达上限置 FAILED 终态。
      */
     void markFailed(String eventId, String reason);
 }

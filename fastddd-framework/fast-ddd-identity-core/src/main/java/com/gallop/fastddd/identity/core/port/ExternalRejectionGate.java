@@ -22,8 +22,9 @@ import java.util.Optional;
  * 非串行化依赖。线性化语义 = INSERT principal 时点不存在"已提交但不可见"的
  * 拒绝行（READ_COMMITTED 语句快照可见性 + 未提交写入方被 advisory 锁阻塞，
  * 两向封死）。{@code hashtext} 碰撞仅致跨键过度串行化，不损正确性
- * （键空间为库级全局——类常量选取已避开既有占用；hashtext 系 PG 内部函数，
- * 跨大版本保持 int4 语义）。</p>
+ * （键空间为库级全局——类常量选取经仓内核对未见既有占用，宿主侧共存占用
+ * 属接入面核对项不可由此断言；hashtext 系 PG 内部函数，可调用性由 W5-c
+ * 参考实现实测确认，跨大版本语义未作断言）。</p>
  *
  * <p><b>锁序（防死锁全域无环）</b>：登录签发事务 ⓪ advisory 锁 → 拒绝行 →
  * binding/principal → session（T2/T4 行为集成归 W5-e；T4 的

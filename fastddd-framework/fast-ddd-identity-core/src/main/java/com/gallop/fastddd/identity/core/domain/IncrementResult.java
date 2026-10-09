@@ -9,8 +9,9 @@ import java.util.Objects;
  *
  * <p>字段语义（表 6-1 交错推演的落点）：{@code changed} = 是否产生有效变更
  * （false → 零写零推零水位变化，含空批与重复投递）；{@code premerged} = 是否
- * 走预合并分支（推 committed_seq 不推 applied_seq——尾部过大差异登记 D8 场景，
- * 该分支不发增量事件）；{@code changeLogRef} = INCREMENT_APPLIED 载体条目 id
+ * 走预合并分支（触发条件 = 锁 metadata 时存在非终态构建代，§6.2 :314；推
+ * committed_seq 不推 applied_seq，该分支不发增量事件——"尾部过大"系差异登记
+ * D8 的裁定措辞"无操作数、不继承"、非触发条件）；{@code changeLogRef} = INCREMENT_APPLIED 载体条目 id
  * （预铸 ULID，P2-5）；{@code publishedEventIds} = 本事务发布的
  * {@link DirectoryIncrementEvent} id 列表（混型批按 type 分组多枚；预合并/无效变更为空）。</p>
  *

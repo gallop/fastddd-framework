@@ -250,6 +250,7 @@ public class PgDirectoryMirrorStore implements DirectoryMirrorStore {
             SET pending_confirm = true
             WHERE f.tenant_id = ? AND f.app_scope = ? AND f.object_type = 'PERSON'
               AND f.tombstone = false
+              AND f.updated_seq <= ?
               AND NOT EXISTS (SELECT 1 FROM directory_person_mirror cur
                               WHERE cur.generation_id = ? AND cur.open_id = f.external_id)
             """;
@@ -257,7 +258,9 @@ public class PgDirectoryMirrorStore implements DirectoryMirrorStore {
     private static final String MARK_GENERATION_PUBLISHED_SQL = """
             UPDATE directory_generation
             SET state = 'PUBLISHED', pub_committed_before = ?, pub_committed_after = ?,
-                pub_applied_seq = ?, pub_facts_inserted = ?, updated_at = ?
+                pub_applied_seq = ?, pub_facts_inserted = ?,
+                premerged_seq = CASE WHEN premerged_seq IS NULL THEN NULL ELSE ? END,
+                updated_at = ?
             WHERE id = ? AND state = 'VALIDATED'
             """;
 
@@ -573,12 +576,15 @@ public class PgDirectoryMirrorStore implements DirectoryMirrorStore {
         // 规则 B：观察缺失置人员级待核对——仅在范围证据完整（§6.4 四条件成立，
         // 且已有上一发布代）时执行；任一不成立 → 零人员级标记（行不动），范围级
         // 原因已在 suspicions 承载。候选集 = 事实侧（PERSON ∧ 非墓碑 ∧ 不在当前代
-        // 镜像）——不 join 上一发布代镜像：缩容代会漏掉从未进入其镜像的缺失人员，
-        // 恢复代后缺口永久化（W3C-R1）；新观察人员无事实行，天然不在候选集
+        // 镜像 ∧ updated_seq ≤ 本代 start_seq）——不 join 上一发布代镜像：缩容代会
+        // 漏掉从未进入其镜像的缺失人员，恢复代后缺口永久化（W3C-R1）；新观察人员
+        // 无事实行，天然不在候选集。④′ 抑制（W5 设计 §6.2，W5-c 激活）：updated_seq
+        // > start_seq 的事实系本代开始后预合并/回查写入——预合并结果已胜出，
+        // 跳过 pending 标记（该行对 T7 零写）
         boolean scopeEvidenceComplete = !fingerprintMismatch && !scopeShrunk && previousGeneration != null;
         if (scopeEvidenceComplete) {
             jdbcTemplate.update(MARK_MISSING_PERSONS_PENDING_SQL,
-                    scope.tenantKey(), scope.appScope(), gen.id());
+                    scope.tenantKey(), scope.appScope(), gen.startSeq(), gen.id());
         }
 
         // 规则 A 落库（updated_seq = H_after，与水位切换同事务提交）
@@ -589,10 +595,11 @@ public class PgDirectoryMirrorStore implements DirectoryMirrorStore {
             jdbcTemplate.batchUpdate(INSERT_FACT_SQL, newFactRows);
         }
 
-        // ⑤ 代置 PUBLISHED（幂等结果四列持久化）+ 切 active_generation、水位推进、
-        // 清租约、怀疑清单整体替换（空 = '[]'）
+        // ⑤ 代置 PUBLISHED（幂等结果四列持久化 + premerged_seq 收敛至 H_after——
+        // 仅当已非 NULL；从未预合并的代维持 NULL，h ∈ {NULL, H} 不变量，W5 设计 §6.2）
+        // + 切 active_generation、水位推进、清租约、怀疑清单整体替换（空 = '[]'）
         jdbcTemplate.update(MARK_GENERATION_PUBLISHED_SQL, committedBefore, committedAfter,
-                committedAfter, (long) factsInserted, Timestamp.from(now()), gen.id());
+                committedAfter, (long) factsInserted, committedAfter, Timestamp.from(now()), gen.id());
         jdbcTemplate.update(SWITCH_ACTIVE_GENERATION_SQL, committedAfter, committedAfter, gen.id(),
                 suspicionsJson(suspicions), Timestamp.from(now()), scope.tenantKey(), scope.appScope());
         return new DirectoryPublication(gen.id(), committedBefore, committedAfter, committedAfter, factsInserted);
