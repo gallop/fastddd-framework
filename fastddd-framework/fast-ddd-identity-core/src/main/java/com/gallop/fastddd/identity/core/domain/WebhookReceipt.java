@@ -7,9 +7,11 @@ package com.gallop.fastddd.identity.core.domain;
  * <ul>
  *   <li>{@code challenge != null}：URL 验证请求（{@code url_verification}）——
  *       调用方 1s 内<b>逐字回显</b> challenge 明文（先解密后取值），不落任何
- *       存储、不产事实（M-3）；其余字段为 null；</li>
+ *       存储、不产事实（M-2，设计 §11 矩阵——2026-10-09 R6-P3-2 更正，原误标
+ *       M-3）；其余字段为 null；</li>
  *   <li>{@code event != null && !unconsumedType}：规范化事件就绪——调用方落
- *       Inbox（去重键 eventId）后 ACK（M-2）；</li>
+ *       Inbox（去重键 eventId）后 ACK（M-3 重复投递幂等吸收，设计 §11 矩阵——
+ *       2026-10-09 R6-P3-2 更正，原误标 M-2）；</li>
  *   <li>{@code event != null && unconsumedType}：信封合法但事件类型不在消费集
  *       （如 {@code contact.scope.updated_v3}，W0-6 P-3 邻接发现）——调用方
  *       <b>不落 Inbox</b>、200 忽略 + 结构化日志零事实（M-30「拒收或忽略」

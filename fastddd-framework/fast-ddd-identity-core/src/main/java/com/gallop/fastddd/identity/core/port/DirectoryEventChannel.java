@@ -27,7 +27,10 @@ import java.util.Optional;
  *   <li><b>scope 判定</b>：tenant_key/app_id 与宿主预期不符 → 拒收（非本
  *       应用的事件，M-30「拒收或忽略」取拒收分支）；</li>
  *   <li><b>challenge 回显</b>：URL 验证请求 → {@link WebhookReceipt#challenge()}
- *       逐字回显（M-3，不落存储）；</li>
+ *       逐字回显（M-2，不落存储）。序差注记（R6-P3-2）：实现短路在本步——
+ *       {@code url_verification} 无 {@code header.create_time}，按线性序字面执行
+ *       必死于③防重放；本清单为安全序表述，challenge 特例在③④之前裁决
+ *       （{@code FeishuEventChannel} 类 javadoc 同注）；</li>
  *   <li><b>规范化</b>：v2.0 信封六字段 + event 节点原文 → {@link WebhookReceipt}；
  *       事件类型不在消费集 → {@code unconsumedType=true}（调用方 200 忽略 +
  *       结构化日志零事实，M-30）。</li>
