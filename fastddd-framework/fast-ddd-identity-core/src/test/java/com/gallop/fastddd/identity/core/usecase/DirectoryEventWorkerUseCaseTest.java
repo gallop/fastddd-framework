@@ -32,7 +32,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 
@@ -213,7 +216,7 @@ class DirectoryEventWorkerUseCaseTest {
         }
     }
 
-    private static DirectoryEventWorkerUseCase newUseCase(RecordingInbox inbox, StubChannel channel,
+    private static DirectoryEventWorkerUseCase newUseCase(DirectoryEventInbox inbox, StubChannel channel,
                                                           StubRecheckQuery recheck, StubFactReader reader,
                                                           StubMatcher matcher, RecordingCommitter committer) {
         IdentityTransactionRunner passthrough = new IdentityTransactionRunner() {
@@ -684,5 +687,135 @@ class DirectoryEventWorkerUseCaseTest {
                                 }, 20, LEASE, new RecordingGate(), null, " "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("rejectionProvider");
+    }
+
+    // ---- R-7（W5-f f-3）：断网 → 滞留 → 恢复 → reclaim → 最终一致 ----
+
+    /**
+     * R-7（W5-f f-3 §7.2；M-15 编排级 + F6 stub-channel 形态）：断网 → 滞留 →
+     * 恢复 → reclaim → 最终一致零丢失零重复——有状态收件箱桩（RECEIVED 驻留 +
+     * 失败回 RECEIVED 重试 + PROCESSING 租约过期回收，真实收件箱状态机子集）。
+     * ① 断网：回查源不可用 → evt-1..3 failed（recheck-unavailable:timeout）
+     * 回 RECEIVED 驻留、零提交（滞留期 = RECEIVED 驻留 + 下轮重试；退避节拍
+     * 在源适配器/调度侧承载——W5-d 已测）；② 恢复：源可用 → 同 3 事件重试
+     * 成功处理；③ 崩溃模拟：evt-4..6 被短租约认领后 worker「死亡」→ 租约
+     * 过期 → 下轮 reclaimExpired 回 RECEIVED 再消费；④ 终态：6 事件各恰处理
+     * 一次（零丢失零重复）、提交证据恰 6、失败记录恰 3（断网面独占）。
+     */
+    @Test
+    void r7_outageThenStallThenRecoveryThenReclaimReachesConsistencyExactlyOnce() throws Exception {
+        StatefulInbox inbox = new StatefulInbox();
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.PERSON, "ou_1"));
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.failure = new DirectorySourceUnavailableException("timeout", "断网（测试桩）");
+        RecordingCommitter committer = new RecordingCommitter();
+        DirectoryEventWorkerUseCase worker = newUseCase(inbox, channel, recheck,
+                new StubFactReader(), new StubMatcher(), committer);
+
+        // ① 断网：evt-1..3 驻留 RECEIVED（failed 回驻留、零提交）
+        inbox.receive(personEvent("evt-1"));
+        inbox.receive(personEvent("evt-2"));
+        inbox.receive(personEvent("evt-3"));
+        DirectoryEventWorkerUseCase.InboxRunResult outage = worker.runOnce();
+        assertThat(outage.failed()).isEqualTo(3);
+        assertThat(inbox.failedReasons).hasSize(3)
+                .allSatisfy(r -> r.endsWith("|recheck-unavailable:timeout"));
+        assertThat(committer.evidences).isEmpty();
+        assertThat(inbox.receivedCount()).isEqualTo(3);
+
+        // ② 恢复：源可用 + 观测在场 → 驻留 3 事件重试成功
+        recheck.failure = null;
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(person(), false));
+        DirectoryEventWorkerUseCase.InboxRunResult recovered = worker.runOnce();
+        assertThat(recovered.processed()).isEqualTo(3);
+        assertThat(committer.evidences).hasSize(3);
+
+        // ③ 崩溃模拟：evt-4..6 短租约认领后 worker「死亡」→ 过期 → reclaim 再消费
+        inbox.receive(personEvent("evt-4"));
+        inbox.receive(personEvent("evt-5"));
+        inbox.receive(personEvent("evt-6"));
+        assertThat(inbox.claim(20, Duration.ofMillis(20))).hasSize(3); // 死亡 worker 的在场认领
+        Thread.sleep(50); // 租约过期（墙钟推进）
+        DirectoryEventWorkerUseCase.InboxRunResult reclaimed = worker.runOnce();
+        assertThat(reclaimed.reclaimed()).isEqualTo(3);
+        assertThat(reclaimed.processed()).isEqualTo(3);
+
+        // ④ 终态：恰一次（零丢失零重复）+ 提交证据恰 6 + 失败记录恰 3 + 零驻留
+        assertThat(inbox.processedEvents).containsExactly(
+                "evt-1", "evt-2", "evt-3", "evt-4", "evt-5", "evt-6");
+        assertThat(inbox.processedEvents.stream().distinct().count()).isEqualTo(6);
+        assertThat(committer.evidences).hasSize(6);
+        assertThat(inbox.failedReasons).hasSize(3);
+        assertThat(inbox.receivedCount()).isZero();
+    }
+
+    /**
+     * 有状态收件箱桩（R-7）：RECEIVED 插入序消费 + failed 回 RECEIVED 重试
+     * （真实面 attempts&lt;max 语义子集）+ PROCESSING 纳秒租约过期回收。
+     */
+    static final class StatefulInbox implements DirectoryEventInbox {
+        final LinkedHashMap<String, EventEnvelope> envelopes = new LinkedHashMap<>();
+        final Map<String, String> states = new HashMap<>();
+        private final Map<String, Long> leaseExpiryNano = new HashMap<>();
+        final List<String> processedEvents = new ArrayList<>();
+        final List<String> failedReasons = new ArrayList<>();
+
+        void receive(EventEnvelope envelope) {
+            envelopes.put(envelope.eventId(), envelope);
+            states.put(envelope.eventId(), "RECEIVED");
+        }
+
+        @Override
+        public boolean persist(EventEnvelope envelope) {
+            receive(envelope);
+            return true;
+        }
+
+        @Override
+        public List<EventEnvelope> claim(int limit, Duration lease) {
+            List<EventEnvelope> taken = new ArrayList<>();
+            for (String id : envelopes.keySet()) {
+                if (taken.size() >= limit) {
+                    break;
+                }
+                if ("RECEIVED".equals(states.get(id))) {
+                    states.put(id, "PROCESSING");
+                    leaseExpiryNano.put(id, System.nanoTime() + lease.toNanos());
+                    taken.add(envelopes.get(id));
+                }
+            }
+            return taken;
+        }
+
+        @Override
+        public int reclaimExpired() {
+            long now = System.nanoTime();
+            int reclaimed = 0;
+            for (String id : envelopes.keySet()) {
+                if ("PROCESSING".equals(states.get(id))
+                        && leaseExpiryNano.getOrDefault(id, Long.MAX_VALUE) <= now) {
+                    states.put(id, "RECEIVED");
+                    reclaimed++;
+                }
+            }
+            return reclaimed;
+        }
+
+        @Override
+        public void markProcessed(String eventId) {
+            states.put(eventId, "PROCESSED");
+            processedEvents.add(eventId);
+        }
+
+        @Override
+        public void markFailed(String eventId, String reason) {
+            failedReasons.add(eventId + "|" + reason);
+            states.put(eventId, "RECEIVED"); // 重试语义（真实面 attempts<max 回 RECEIVED）
+        }
+
+        int receivedCount() {
+            return (int) states.values().stream().filter("RECEIVED"::equals).count();
+        }
     }
 }

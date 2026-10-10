@@ -2,11 +2,15 @@ package com.gallop.fastddd.identity.pg;
 
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
 import com.gallop.fastddd.identity.core.domain.DirectoryScope;
+import com.gallop.fastddd.identity.core.domain.EventEnvelope;
 import com.gallop.fastddd.identity.core.domain.GenerationHandle;
 import com.gallop.fastddd.identity.core.domain.IncrementBatch;
 import com.gallop.fastddd.identity.core.domain.IncrementResult;
+import com.gallop.fastddd.identity.core.domain.RecheckConclusion;
+import com.gallop.fastddd.identity.core.domain.RecheckEvidence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -202,6 +206,80 @@ class PgDirectoryIncrementApplierTest {
         assertThat(jdbc.queryForObject("SELECT fact->>'name' FROM directory_fact WHERE external_id='ou-p1'",
                 String.class)).isEqualTo("张三"); // 内容未被增量改动
         assertThat(Support.count(dataSource, "directory_change_log")).isEqualTo(1);
+    }
+
+    /**
+     * R-3（W5-f f-3 §7.2；表 7-1 墓碑闭环弧补强）：墓碑后旧事件重放零复活——
+     * 增量建档（张三）→ 回查确证删除（commitCas ABSENT rev1 → 墓碑 rev2）→
+     * 旧事件重投双面：① 收件箱面（同 eventId 重投 persist=false 终态幂等 +
+     * claim 零再取）② 增量面双形态（同批重投 changed=false + 新 eventId
+     * 复活尝试内容仍被墓碑拦截——判别面：无墓碑时该内容必判变更）→
+     * 再回查 ABSENT 幂等（墓碑保持 rev3）→ 有效视图全程排除 ou-p1。
+     */
+    @Test
+    void r3_tombstoneThenOldEventReplayNeverRevives() {
+        PgDirectoryRecheckCommitter committer = new PgDirectoryRecheckCommitter(jdbc,
+                new PgDirectoryChangeLog(jdbc));
+        PgDirectoryEventInbox inbox = new PgDirectoryEventInbox(jdbc);
+        PgDirectoryEffectiveView view = new PgDirectoryEffectiveView(jdbc);
+
+        // ① 扫描建档：发布基线代（od-d1 + ou-p1 张三）→ 事实 rev1 FULL_SCAN、
+        // 视图在场（有效视图锚定活动代——未发布 scope 零伪造，故须经发布建档）
+        publishGeneration(List.of(new DirectoryDepartment("od-d1", null, "总部")),
+                List.of(new DirectoryPerson("ou-p1", "张三", null, List.of("od-d1"))));
+        assertThat(view.readEffective(SCOPE).persons())
+                .extracting(p -> p.openId()).containsExactly("ou-p1");
+
+        // ② 回查确证删除：ABSENT rev1 → 墓碑 rev2 → 视图排除
+        runner.inTransaction(() -> committer.commitCas(SCOPE, new RecheckEvidence(
+                DirectoryObjectType.PERSON, "ou-p1", RecheckConclusion.ABSENT, 1L,
+                null, null, null)));
+        assertThat(factTombstone()).isTrue();
+        assertThat(view.readEffective(SCOPE).persons()).isEmpty();
+
+        // ③ 旧事件重投——收件箱面：同 eventId 重投 dedup + 终态后零再取
+        assertThat(inbox.persist(EventEnvelope.received("evt-r3", SCOPE,
+                "contact.user.deleted_v3", "{}", Instant.now()))).isTrue();
+        assertThat(inbox.persist(EventEnvelope.received("evt-r3", SCOPE,
+                "contact.user.deleted_v3", "{}", Instant.now()))).isFalse(); // eventId dedup
+        assertThat(inbox.claim(10, Duration.ofMinutes(5)))
+                .extracting(EventEnvelope::eventId).containsExactly("evt-r3");
+        inbox.markProcessed("evt-r3");
+        assertThat(inbox.claim(10, Duration.ofMinutes(5))).isEmpty();
+        assertThat(inbox.persist(EventEnvelope.received("evt-r3", SCOPE,
+                "contact.user.deleted_v3", "{}", Instant.now()))).isFalse(); // 终态幂等
+        assertThat(inbox.claim(10, Duration.ofMinutes(5))).isEmpty();
+
+        // ④ 旧事件重放——增量面双形态：同批重投零写 + 新 eventId 复活尝试内容
+        //（≠ 事实内容 → 无墓碑时必判变更）仍被墓碑拦截（墓碑 > 内容差异）
+        IncrementResult replay = runner.inTransaction(() -> applier.apply(SCOPE,
+                new IncrementBatch("evt-r3", List.of(),
+                        List.of(new DirectoryPerson("ou-p1", "张三", null, List.of())))));
+        assertThat(replay.changed()).isFalse();
+        IncrementResult reviveAttempt = runner.inTransaction(() -> applier.apply(SCOPE,
+                new IncrementBatch("evt-r3-replay", List.of(),
+                        List.of(new DirectoryPerson("ou-p1", "张三-复活尝试", null, List.of())))));
+        assertThat(reviveAttempt.changed()).isFalse(); // 不复活
+        var fact = jdbc.queryForMap("SELECT local_revision, tombstone, fact->>'name' AS name "
+                + "FROM directory_fact WHERE external_id='ou-p1'");
+        assertThat(fact.get("local_revision")).isEqualTo(2L); // 重放零推进
+        assertThat(fact.get("tombstone")).isEqualTo(true);
+        assertThat(fact.get("name")).isEqualTo("张三"); // 内容零污染
+        assertThat(view.readEffective(SCOPE).persons()).isEmpty(); // 全程排除
+
+        // ⑤ 回查幂等面：ABSENT rev2 → 墓碑保持（再确证删除 rev3）零复活
+        runner.inTransaction(() -> committer.commitCas(SCOPE, new RecheckEvidence(
+                DirectoryObjectType.PERSON, "ou-p1", RecheckConclusion.ABSENT, 2L,
+                null, null, null)));
+        assertThat(jdbc.queryForObject("SELECT local_revision FROM directory_fact "
+                + "WHERE external_id='ou-p1'", Long.class)).isEqualTo(3L);
+        assertThat(factTombstone()).isTrue();
+        assertThat(view.readEffective(SCOPE).persons()).isEmpty();
+    }
+
+    private boolean factTombstone() {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT tombstone FROM directory_fact WHERE external_id='ou-p1'", Boolean.class));
     }
 
     @Test

@@ -723,6 +723,39 @@ class PgDirectoryMirrorStoreTest {
                 .hasMessageContaining("MANDATORY");
     }
 
+    /**
+     * R-10（W5-f f-3 §7.2；M-16 回归栅栏）：全量发布前后 external_rejection
+     * 行集全等——发布链（T7 Rule-A 首见落库 + 指针/水位推进）对拒绝行零读
+     * 零写（正交域）；行集签名（计数 + 逐行 type:id:cleared_at:reason 全清单
+     * 串接）前后全等 = 差集为零的最强形态（含活跃/清除双态行）。
+     */
+    @Test
+    void r10_fullScanPublishLeavesExternalRejectionRowsetUntouched() {
+        jdbc.update("INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason) "
+                + "VALUES ('feishu', ?, ?, 'open_id', 'ou-p1', '明确停用')", SCOPE.tenantKey(), SCOPE.appScope());
+        jdbc.update("INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason) "
+                + "VALUES ('feishu', ?, ?, 'union_id', 'on-p1', 'union 拒绝（已清除）')", SCOPE.tenantKey(), SCOPE.appScope());
+        jdbc.update("UPDATE external_rejection SET cleared_at = now() WHERE external_id_type = 'union_id'");
+        String before = rejectionSignature();
+
+        GenerationHandle handle = buildGeneration(SCOPE,
+                List.of(new DirectoryDepartment("od-d1", null, "总部")),
+                List.of(new DirectoryPerson("ou-p1", "张一", null, List.of("od-d1"))));
+        DirectoryPublication publication = publish(handle); // 全量发布弧完整走
+
+        assertThat(publication.factsInserted()).isEqualTo(2); // 发布确实发生（非空转）
+        assertThat(rejectionSignature()).isEqualTo(before); // 行集全等：零增零删零改
+    }
+
+    /** 拒绝行集签名：计数 + 逐行 type:id:cleared_at:reason 全清单串接（一条 SQL）。 */
+    private String rejectionSignature() {
+        return jdbc.queryForObject("SELECT count(*) || '#' || coalesce(string_agg("
+                + "external_id_type || ':' || external_id || ':' || coalesce(cleared_at::text, '-') "
+                + "|| ':' || reason, ',' ORDER BY external_id), '') "
+                + "FROM external_rejection WHERE tenant_id=? AND app_scope=?",
+                String.class, SCOPE.tenantKey(), SCOPE.appScope());
+    }
+
     // ---------------------------------------------------------- 助手
 
     private GenerationHandle begin(DirectoryScope scope) {

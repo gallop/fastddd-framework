@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * W5-c 有效视图 PG 验收测试（W5 设计 §8.1 四要点 a–d：阈值门 / 事实胜出 /
@@ -112,6 +113,61 @@ class PgDirectoryEffectiveViewTest {
         assertThat(p2.departmentIds()).containsExactly("od-d1"); // 关系镜像源
         var d2 = snapshot.departments().stream().filter(d -> d.departmentId().equals("od-d2")).findFirst().orElseThrow();
         assertThat(d2.name()).isEqualTo("研发中心"); // 部门事实胜出
+    }
+
+    /**
+     * R-6（W5-f f-3；M-13 变更差集精确断言）：变更前后差集恰等该变更 +
+     * 预合并期不进差集（applied 推进后进）——路径 B 全弧：开放代在场 →
+     * 增量预合并（updated_seq=2 但 applied=1）→ 快照与基线全等（差集为空，
+     * 生效门槛半面）→ T7 发布 → applied=2 → 差集恰为 {od-d2 部门名变更,
+     * ou-p1 显示名/部门集变更} 两条目、零添加零删除零多余（全清单逐字段
+     * tuple 断言 = 差集断言的最强形态；EffectivePerson/EffectiveDepartment
+     * 无结构化 equals——身份相等，沿模块 extracting 先例）。
+     */
+    @Test
+    void r6m13DiffSetEqualsExactlyTheChangeAndPremergeStaysGatedUntilApplied() {
+        // 预合并（路径 B）：开放代在场 → 增量事实 updated_seq=2、applied=1
+        runner.inTransaction(() -> store.beginGeneration(SCOPE));
+        runner.inTransaction(() -> applier.apply(SCOPE, new IncrementBatch("evt-r6",
+                List.of(new DirectoryDepartment("od-d2", "od-d1", "研发中心")),
+                List.of(new DirectoryPerson("ou-p1", "张一改", "Zhang One", List.of("od-d2"))))));
+
+        // 生效门槛半面：applied 推进前变更不进差集（快照与基线逐字段全等）
+        EffectiveSnapshot gated = read();
+        assertThat(gated.appliedSeq()).isEqualTo(1);
+        assertThat(gated.persons()).extracting(
+                        EffectiveSnapshot.EffectivePerson::openId,
+                        EffectiveSnapshot.EffectivePerson::displayName,
+                        EffectiveSnapshot.EffectivePerson::departmentIds)
+                .containsExactly(
+                        tuple("ou-p1", "张一", List.of("od-d1", "od-d2")),
+                        tuple("ou-p2", "李二", List.of("od-d1")));
+        assertThat(gated.departments()).extracting(
+                        EffectiveSnapshot.EffectiveDepartment::departmentId,
+                        EffectiveSnapshot.EffectiveDepartment::parentDepartmentId,
+                        EffectiveSnapshot.EffectiveDepartment::name)
+                .containsExactly(
+                        tuple("od-d1", null, "总部"),
+                        tuple("od-d2", "od-d1", "研发"));
+
+        // T7 发布 → applied 推进 → 差集恰等该变更（ou-p1 事实胜出 + od-d2 事实胜出）
+        finishOpenGeneration();
+        EffectiveSnapshot after = read();
+        assertThat(after.appliedSeq()).isEqualTo(2);
+        assertThat(after.persons()).extracting(
+                        EffectiveSnapshot.EffectivePerson::openId,
+                        EffectiveSnapshot.EffectivePerson::displayName,
+                        EffectiveSnapshot.EffectivePerson::departmentIds)
+                .containsExactly(
+                        tuple("ou-p1", "张一改", List.of("od-d2")),
+                        tuple("ou-p2", "李二", List.of("od-d1")));
+        assertThat(after.departments()).extracting(
+                        EffectiveSnapshot.EffectiveDepartment::departmentId,
+                        EffectiveSnapshot.EffectiveDepartment::parentDepartmentId,
+                        EffectiveSnapshot.EffectiveDepartment::name)
+                .containsExactly(
+                        tuple("od-d1", null, "总部"),
+                        tuple("od-d2", "od-d1", "研发中心"));
     }
 
     @Test
