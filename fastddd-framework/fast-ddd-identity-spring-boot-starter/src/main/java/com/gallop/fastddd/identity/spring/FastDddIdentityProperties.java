@@ -329,6 +329,9 @@ public class FastDddIdentityProperties {
              */
             private String rejectionProvider = "";
 
+            /** 事实回收保留期子域（W5 设计 §10 :622 两键；W5-f f-1 补绑定——O-5）。 */
+            private final Retention retention = new Retention();
+
             public boolean isEnabled() {
                 return enabled;
             }
@@ -347,6 +350,42 @@ public class FastDddIdentityProperties {
 
             public Worker getWorker() {
                 return worker;
+            }
+
+            public Retention getRetention() {
+                return retention;
+            }
+
+            /**
+             * 事实回收保留期（W5 设计 §10 :622 键族 {@code directory.increment.retention.*}，
+             * W5-f f-1 补绑定——O-5 评审亲验实况后兑现；键本身零新增）：
+             * {@code inbox-processed} 缺省 7d（仅清 Inbox PROCESSED 行）；
+             * {@code change-log} 缺省不限期（null = 面③零清理——已发历史事件
+             * changeLogRef 无限追溯，维护者收窄前须确认宿主投递延迟上界）。
+             * 非正值经 {@code RetentionPolicy} 构造校验 fail-loud（回收入口装配
+             * 时炸出，不静默吞）。
+             */
+            public static class Retention {
+
+                private Duration inboxProcessed = Duration.ofDays(7);
+
+                private Duration changeLog;
+
+                public Duration getInboxProcessed() {
+                    return inboxProcessed;
+                }
+
+                public void setInboxProcessed(Duration inboxProcessed) {
+                    this.inboxProcessed = inboxProcessed;
+                }
+
+                public Duration getChangeLog() {
+                    return changeLog;
+                }
+
+                public void setChangeLog(Duration changeLog) {
+                    this.changeLog = changeLog;
+                }
             }
 
             /**

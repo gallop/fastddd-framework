@@ -30,6 +30,14 @@ public final class IdentityAdminEndpoints {
     public static final String EVENTS_REPLAY_PATH =
             "/api/identity/admin/directory/events/{eventId}/replay";
 
+    /**
+     * 目录事实回收（W5 设计 §8.3 M-26 管理入口先例，W5-f f-1）：POST，
+     * body = scope 两键 + preview 标志；装配条件独立于管理三端点
+     * （web ∧ DirectoryRetentionExecutor/审计/Actor 端口齐备 ∧ directory.enabled）。
+     */
+    public static final String DIRECTORY_RETENTION_PATH =
+            "/api/identity/admin/directory/retention";
+
     private IdentityAdminEndpoints() {
     }
 }

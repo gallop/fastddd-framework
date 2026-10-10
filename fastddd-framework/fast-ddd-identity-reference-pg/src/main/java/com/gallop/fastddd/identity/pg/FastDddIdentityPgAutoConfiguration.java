@@ -139,6 +139,20 @@ public class FastDddIdentityPgAutoConfiguration {
     }
 
     /**
+     * 目录事实回收执行器 PG 参考适配器（W5 设计 §8.3 M-26，W5-f f-1）：四面谓词
+     * 作业（终结非活动代三镜像 / Inbox PROCESSED 到期 / change_log 水位约束清理；
+     * directory_fact 零触碰——F1）。{@code RetentionPolicy} 由调用方传递
+     * （starter Trigger 从 §10 键族构建）；starter 入口装配以
+     * {@code @ConditionalOnBean(DirectoryRetentionExecutor)} 消费——bean 缺席
+     * （非 pg 宿主）= 回收入口不装配（F5：可选运维能力，非 fail-closed 面）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(com.gallop.fastddd.identity.core.port.DirectoryRetentionExecutor.class)
+    public com.gallop.fastddd.identity.core.port.DirectoryRetentionExecutor directoryRetentionExecutor() {
+        return new PgDirectoryRetentionExecutor(new JdbcTemplate(dataSource), Instant::now);
+    }
+
+    /**
      * 目录镜像存储 PG 参考适配器（W3 设计 v3 §5/§6，W3-c）：schema 增量 V3 随
      * initialize 执行。租约 TTL 绑定与 starter 相同的规范键
      * {@code fastddd.identity.directory.lease-timeout}（缺省 10m；W3-b 复评 N2

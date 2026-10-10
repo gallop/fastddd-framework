@@ -24,5 +24,15 @@ public enum IdentityAdminOperation {
      * ——SYNC_TRIGGER 同式，冻结 {@code IdentityAdminPolicy} 签名零变更）。
      * <b>枚举扩项 = 契约变更</b>（本类冻结注记），W5-d 差异登记在案。
      */
-    INBOX_REPLAY
+    INBOX_REPLAY,
+
+    /**
+     * 手动触发目录事实回收（W5 设计 §8.3 M-26 管理入口先例，W5-f f-1）：preview
+     * 同操作位（{@code RetentionReport.preview} 标志区分形态）。无固定目标主体
+     * （{@code targetPrincipalId=null}——SYNC_TRIGGER/INBOX_REPLAY 同式，
+     * {@code IdentityAdminPolicy} 签名零变更）。<b>枚举扩项 = 契约变更</b>
+     * （本类冻结注记），W5-f 设计 O-4 登记 + v2 窄面复评通过在案（W5-d D15
+     * INBOX_REPLAY 先例）；W5-f f-2 的 recheck 操作位另扩。
+     */
+    RETENTION_RUN
 }

@@ -1,5 +1,7 @@
 package com.gallop.fastddd.identity.spring.directory;
 
+import com.gallop.fastddd.identity.core.domain.RetentionPolicy;
+import com.gallop.fastddd.identity.core.port.ActorResolver;
 import com.gallop.fastddd.identity.core.port.DirectoryEventChannel;
 import com.gallop.fastddd.identity.core.port.DirectoryEventInbox;
 import com.gallop.fastddd.identity.core.port.DirectoryFactMatcher;
@@ -7,12 +9,15 @@ import com.gallop.fastddd.identity.core.port.DirectoryFactReader;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery;
+import com.gallop.fastddd.identity.core.port.DirectoryRetentionExecutor;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityAdminPolicy;
+import com.gallop.fastddd.identity.core.port.IdentityAuditWriter;
 import com.gallop.fastddd.identity.core.usecase.DirectoryEventWorkerUseCase;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
 import com.gallop.fastddd.identity.spring.IdentityAutoConfiguration;
+import com.gallop.fastddd.identity.spring.web.DirectoryRetentionController;
 import com.gallop.fastddd.identity.spring.web.IdentityDirectoryEventsController;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -130,6 +135,32 @@ public class IdentityDirectoryAutoConfiguration {
     }
 
     /**
+     * 手动目录事实回收触发组件（W5 设计 §8.3 M-26 管理入口先例，W5-f f-1）：
+     * {@code directory.enabled=true} ∧ {@link DirectoryRetentionExecutor} bean
+     * 在场（pg 参考适配器提供；非 pg 宿主 = 不装配——F5：回收是可选运维能力，
+     * 非 fail-closed 面）。装配条件<b>不含 web 条件</b>——worker/非 web 进程的
+     * 运维入口 {@code runRetention(scope, preview)} 可用（HTTP 面见
+     * {@code DirectoryRetentionEndpointConfiguration}）。
+     * {@link RetentionPolicy} 自 §10 键族构建（{@code inbox-processed} 缺省 7d /
+     * {@code change-log} 缺省不限期；非正值经 {@code RetentionPolicy} 构造校验
+     * fail-loud 拒启动）。{@link ObjectProvider} 惰性 {@link IdentityAdminPolicy}
+     * ——交互入口逐操作裁决（RETENTION_RUN），无策略 bean 形态下运维入口仍可用。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean(DirectoryRetentionExecutor.class)
+    @ConditionalOnMissingBean
+    DirectoryRetentionTrigger directoryRetentionTrigger(DirectoryRetentionExecutor executor,
+                                                        FastDddIdentityProperties properties,
+                                                        ObjectProvider<IdentityAdminPolicy> adminPolicy) {
+        FastDddIdentityProperties.Directory.Increment.Retention retention =
+                properties.getDirectory().getIncrement().getRetention();
+        return new DirectoryRetentionTrigger(executor,
+                new RetentionPolicy(retention.getInboxProcessed(), retention.getChangeLog()),
+                adminPolicy);
+    }
+
+    /**
      * 增量事件 worker 编排用例（W5 设计 §7，W5-d；W5-e 通知链/门禁接线）：
      * {@code increment.enabled=true} 时装配（<b>独立于 directory.enabled</b>
      * ——事件链不依赖全量同步端口）。六端口（通道/收件箱/回查/读取/匹配/提交器）
@@ -197,6 +228,33 @@ public class IdentityDirectoryAutoConfiguration {
                 FastDddIdentityProperties properties) {
             return new IdentityDirectoryEventsController(channel, inbox,
                     properties.getDirectory().getEvents().getWebhook());
+        }
+    }
+
+    /**
+     * 目录事实回收 HTTP 端点（W5 设计 §8.3 M-26 管理入口先例，W5-f f-1；
+     * P3-4 嵌套形态对齐 {@link DirectoryEventsEndpointConfiguration} 先例）：
+     * servlet web ∧ {@code directory.enabled=true} ∧ 执行器/审计/Actor 端口
+     * bean 齐备（均来自其他自动配置/宿主，先于本类注册，@ConditionalOnBean
+     * 判定顺序安全）时注册 {@link DirectoryRetentionController}；worker 形态
+     * （非 web 进程）HTTP 控制器不注册。{@link DirectoryRetentionTrigger} 以
+     * 参数依赖表达——同自动配置内 Bean 定义对 @ConditionalOnBean 不可见，
+     * 实例化期解析届时必已就绪（本嵌套类条件蕴含 Trigger bean 条件）。非 pg
+     * 宿主（无 executor bean）= 端点不装配（F5）。策略缺席非条件：缺
+     * {@code IdentityAdminPolicy} bean 时端点在座但逐请求缺省拒绝（403）。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean({DirectoryRetentionExecutor.class, IdentityAuditWriter.class, ActorResolver.class})
+    static class DirectoryRetentionEndpointConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        DirectoryRetentionController directoryRetentionController(DirectoryRetentionTrigger trigger,
+                                                                 IdentityAuditWriter auditWriter,
+                                                                 ActorResolver actorResolver) {
+            return new DirectoryRetentionController(trigger, auditWriter, actorResolver);
         }
     }
 
