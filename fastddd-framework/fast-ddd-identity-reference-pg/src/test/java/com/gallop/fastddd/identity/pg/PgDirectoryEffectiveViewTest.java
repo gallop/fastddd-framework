@@ -1,5 +1,8 @@
 package com.gallop.fastddd.identity.pg;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
 import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
@@ -124,6 +127,56 @@ class PgDirectoryEffectiveViewTest {
         jdbc.update("INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason) "
                 + "VALUES ('feishu', ?, ?, 'union_id', 'on_p1', 'union 拒绝')", SCOPE.tenantKey(), SCOPE.appScope());
         assertThat(read().persons()).extracting(p -> p.openId()).containsExactly("ou-p1", "ou-p2");
+    }
+
+    /**
+     * R6-P2-1 登记面（W5-f f-2 R-2；W5-d 复审 D13 承接）：非 open_id 型活跃
+     * 拒绝行不剔除 + rejection-keydomain-skipped 结构化日志在场（unmappedTypes
+     * 类型名清单 O-3/unmappedRowCount/note 固定语义）；open_id 照旧剔除（双型
+     * 并存双日志各得其所）；清除后登记零输出（零在场零噪声）。
+     */
+    @Test
+    void r6p21UnmappedRejectionTypesAreNotExcludedButLogged() {
+        Logger viewLogger = (Logger) org.slf4j.LoggerFactory.getLogger(PgDirectoryEffectiveView.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        viewLogger.addAppender(appender);
+        try {
+            // 仅 union_id 型活跃拒绝行：人员不被剔除 + 登记日志在场
+            jdbc.update("INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason) "
+                            + "VALUES ('feishu', ?, ?, 'union_id', 'on_p1', 'union 拒绝')",
+                    SCOPE.tenantKey(), SCOPE.appScope());
+            assertThat(read().persons()).extracting(p -> p.openId()).containsExactly("ou-p1", "ou-p2");
+            String skipped = appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .filter(m -> m.contains("rejection-keydomain-skipped"))
+                    .findFirst().orElseThrow();
+            assertThat(skipped)
+                    .contains("scope=tenant-eff/app")
+                    .contains("unmappedTypes={union_id}")
+                    .contains("unmappedRowCount=1")
+                    .contains("note=not-excluded-per-key-mapping");
+            assertThat(appender.list)
+                    .noneMatch(e -> e.getFormattedMessage().contains("rejection-exclusion"));
+
+            // 双型并存：open_id 剔除照旧（rejection-exclusion）+ 登记日志各得其所
+            jdbc.update("INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason) "
+                            + "VALUES ('feishu', ?, ?, 'open_id', 'ou-p2', '明确停用')",
+                    SCOPE.tenantKey(), SCOPE.appScope());
+            assertThat(read().persons()).extracting(p -> p.openId()).containsExactly("ou-p1");
+            assertThat(appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().contains("rejection-exclusion")).count()).isEqualTo(1);
+            assertThat(appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().contains("rejection-keydomain-skipped")).count()).isEqualTo(2);
+
+            // 清除 union_id 行后：登记日志不再输出（零在场零噪声）
+            jdbc.update("UPDATE external_rejection SET cleared_at = now() WHERE external_id_type = 'union_id'");
+            read();
+            assertThat(appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().contains("rejection-keydomain-skipped")).count()).isEqualTo(2);
+        } finally {
+            viewLogger.detachAppender(appender);
+        }
     }
 
     @Test

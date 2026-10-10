@@ -32,7 +32,16 @@ public enum IdentityAdminOperation {
      * （{@code targetPrincipalId=null}——SYNC_TRIGGER/INBOX_REPLAY 同式，
      * {@code IdentityAdminPolicy} 签名零变更）。<b>枚举扩项 = 契约变更</b>
      * （本类冻结注记），W5-f 设计 O-4 登记 + v2 窄面复评通过在案（W5-d D15
-     * INBOX_REPLAY 先例）；W5-f f-2 的 recheck 操作位另扩。
+     * INBOX_REPLAY 先例）。
      */
-    RETENTION_RUN
+    RETENTION_RUN,
+
+    /**
+     * 手动触发 pending_confirm 对账回查（W5-f 设计 §5 M-17 管理入口，W5-f f-2）：
+     * 仅枚举 pending_confirm 事实逐键回查（无任意强制回查面）。无固定目标主体
+     * （{@code targetPrincipalId=null}——SYNC_TRIGGER/INBOX_REPLAY/RETENTION_RUN
+     * 同式，{@code IdentityAdminPolicy} 签名零变更）。<b>枚举扩项 = 契约变更</b>
+     * （本类冻结注记），沿 INBOX_REPLAY/RETENTION_RUN 先例（O-4），W5-f f-2 登记。
+     */
+    RECHECK_RUN
 }

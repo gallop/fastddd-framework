@@ -14,9 +14,11 @@ import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityAdminPolicy;
 import com.gallop.fastddd.identity.core.port.IdentityAuditWriter;
 import com.gallop.fastddd.identity.core.usecase.DirectoryEventWorkerUseCase;
+import com.gallop.fastddd.identity.core.usecase.DirectoryRecheckManualTrigger;
 import com.gallop.fastddd.identity.core.usecase.DirectorySyncUseCase;
 import com.gallop.fastddd.identity.spring.FastDddIdentityProperties;
 import com.gallop.fastddd.identity.spring.IdentityAutoConfiguration;
+import com.gallop.fastddd.identity.spring.web.DirectoryRecheckManualController;
 import com.gallop.fastddd.identity.spring.web.DirectoryRetentionController;
 import com.gallop.fastddd.identity.spring.web.IdentityDirectoryEventsController;
 import org.springframework.beans.factory.ObjectProvider;
@@ -161,6 +163,45 @@ public class IdentityDirectoryAutoConfiguration {
     }
 
     /**
+     * 手动 pending_confirm 对账回查触发用例（W5 设计 §7.5 对账面；W5-f 设计
+     * §5 M-17，W5-f f-2）：{@code directory.enabled=true} ∧ 五端口 bean 在场
+     * （镜像枚举/事实读取/权威单查/内容匹配/CAS 提交——前四与 worker 六端口
+     * 面重叠，{@code DirectoryRecheckQuery} 由引用适配器〔飞书〕提供，缺任一
+     * = 不装配，F5 可选运维能力）。装配条件<b>不含 web 条件</b>——worker/非
+     * web 进程的运维入口 {@code runPendingRecheck(scope)} 可用（HTTP 面见
+     * {@code DirectoryRecheckEndpointConfiguration}）。
+     *
+     * <p><b>W5-e 三接线同构</b>（与 worker Bean 方法一致——「与 worker 回查
+     * 同构」口径）：{@code ExternalRejectionGate} 惰性（缺席 = M1 无门禁）；
+     * {@code DirectoryIncrementPublisher} 仅 {@code notifications.enabled=true}
+     * 时接线；{@code rejection-provider} 与 worker 同值域注入，gate 在场而空 =
+     * 用例构造器 fail-loud（第二道防线，第一道在终检）。</p>
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean({DirectoryMirrorStore.class, DirectoryFactReader.class,
+            DirectoryRecheckQuery.class, DirectoryFactMatcher.class, DirectoryRecheckCommitter.class})
+    @ConditionalOnMissingBean
+    DirectoryRecheckManualTrigger directoryRecheckManualTrigger(
+            DirectoryMirrorStore directoryMirrorStore,
+            DirectoryFactReader factReader,
+            DirectoryRecheckQuery recheckQuery,
+            DirectoryFactMatcher factMatcher,
+            DirectoryRecheckCommitter committer,
+            com.gallop.fastddd.identity.core.port.IdentityTransactionRunner transactionRunner,
+            FastDddIdentityProperties properties,
+            ObjectProvider<com.gallop.fastddd.identity.core.port.ExternalRejectionGate> rejectionGateProvider,
+            ObjectProvider<com.gallop.fastddd.identity.core.port.DirectoryIncrementPublisher> incrementPublisherProvider) {
+        boolean notificationsEnabled =
+                properties.getDirectory().getNotifications().isEnabled();
+        return new DirectoryRecheckManualTrigger(directoryMirrorStore, factReader,
+                recheckQuery, factMatcher, committer, transactionRunner,
+                rejectionGateProvider.getIfAvailable(),
+                notificationsEnabled ? incrementPublisherProvider.getIfAvailable() : null,
+                properties.getDirectory().getIncrement().getRejectionProvider());
+    }
+
+    /**
      * 增量事件 worker 编排用例（W5 设计 §7，W5-d；W5-e 通知链/门禁接线）：
      * {@code increment.enabled=true} 时装配（<b>独立于 directory.enabled</b>
      * ——事件链不依赖全量同步端口）。六端口（通道/收件箱/回查/读取/匹配/提交器）
@@ -255,6 +296,38 @@ public class IdentityDirectoryAutoConfiguration {
                                                                  IdentityAuditWriter auditWriter,
                                                                  ActorResolver actorResolver) {
             return new DirectoryRetentionController(trigger, auditWriter, actorResolver);
+        }
+    }
+
+    /**
+     * 手动对账回查 HTTP 端点（W5-f 设计 §3.4/§5 M-17，W5-f f-2；嵌套形态对齐
+     * {@link DirectoryRetentionEndpointConfiguration} 先例）：servlet web ∧
+     * {@code directory.enabled=true} ∧ 回查五端口/审计/Actor bean 齐备（端口
+     * 来自宿主/引用适配器，先于本类注册，@ConditionalOnBean 判定顺序安全）时
+     * 注册 {@link DirectoryRecheckManualController}；worker 形态（非 web 进程）
+     * HTTP 控制器不注册。{@link DirectoryRecheckManualTrigger} 以参数依赖表达
+     * ——同自动配置内 Bean 定义对 @ConditionalOnBean 不可见，实例化期解析届时
+     * 必已就绪（本嵌套类条件蕴含 Trigger bean 条件）。非 pg/飞书宿主（缺
+     * {@code DirectoryRecheckQuery} 等端口）= 端点不装配（F5）。策略缺席非
+     * 条件：缺 {@code IdentityAdminPolicy} bean 时端点在座但逐请求缺省拒绝
+     * （403，控制器内联裁决——core 用例不进策略 §9.3）。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnProperty(prefix = "fastddd.identity.directory", name = "enabled", havingValue = "true")
+    @ConditionalOnBean({DirectoryMirrorStore.class, DirectoryFactReader.class,
+            DirectoryRecheckQuery.class, DirectoryFactMatcher.class, DirectoryRecheckCommitter.class,
+            IdentityAuditWriter.class, ActorResolver.class})
+    static class DirectoryRecheckEndpointConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        DirectoryRecheckManualController directoryRecheckManualController(
+                DirectoryRecheckManualTrigger trigger,
+                IdentityAuditWriter auditWriter,
+                ActorResolver actorResolver,
+                ObjectProvider<IdentityAdminPolicy> adminPolicy) {
+            return new DirectoryRecheckManualController(trigger, auditWriter, actorResolver, adminPolicy);
         }
     }
 

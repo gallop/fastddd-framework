@@ -22,14 +22,16 @@ import java.util.TreeMap;
 /**
  * 有效视图 PG 参考适配器（W5 设计 §8.1 四要点 a–d，W5-c 交付——M2 首个生产实现）。
  *
- * <p><b>读取协议（七语句同事务）</b>：调用方事务在场则汇入；否则以
+ * <p><b>读取协议（八语句同事务）</b>：调用方事务在场则汇入；否则以
  * {@link TransactionTemplate} 自开只读短事务（READ_COMMITTED 语句快照下，
  * 事实写入与水位推进同事务提交，阈值过滤 {@code updated_seq <= applied_seq}
  * 保证不读到"已提交但不可见"的未生效事实——要点 a）。语句顺序固定：
  * ① 拒绝行（要点 c：仅 {@code external_id_type='open_id'} 且未清除，排除对应
- * PERSON 对象——O-1 同批紧邻先于事实读取）→ ② metadata（active_generation +
- * applied_seq，同事务首读）→ ③④⑤ 活动代 raw 部门/人员/关系 → ⑥ 阈值内事实
- * （含墓碑标记）→ ⑦ 阈值内事实人员 departmentIds（jsonb 服务端展开）。</p>
+ * PERSON 对象——O-1 同批紧邻先于事实读取）＋紧邻 ①′ 非 open_id 型活跃拒绝行
+ * 计数（R6-P2-1 登记面，与 ① 同批——见要点 c 第二段）→ ② metadata
+ * （active_generation + applied_seq，同事务首读）→ ③④⑤ 活动代 raw
+ * 部门/人员/关系 → ⑥ 阈值内事实（含墓碑标记）→ ⑦ 阈值内事实人员
+ * departmentIds（jsonb 服务端展开）。</p>
  *
  * <p><b>叠加规则（要点 b/d）</b>：对象成员 = raw 键 ∪ 阈值内事实键（union 兜底：
  * FULL_SCAN 事实对象不在 raw 镜像亦纳入）；阈值内墓碑 → 对象整体排除（raw 侧
@@ -47,6 +49,15 @@ import java.util.TreeMap;
  * （scope/activeGeneration/appliedSeq/excludedOpenIds/excludedCount）——静默
  * 排除 = 消费侧不可观测的人员失踪；排除零生效不输出（无噪声）。</p>
  *
+ * <p><b>要点 c 第二面——键域外登记（R6-P2-1，W5-d 复审 D13 承接，W5-f f-2
+ * 兑现）</b>：非 open_id 型（如 union_id）活跃拒绝行在键映射设计上不对应
+ * PERSON 排除键（宁漏勿误删），此前静默不在排除面且无观测输出。本面补
+ * 登记：①′ 同批查询计数 + 去重类型清单（O-3：类型名清单而非计数），在场
+ * （cnt&gt;0）时输出一条 INFO 结构化日志（rejection-keydomain-skipped：
+ * scope/activeGeneration/appliedSeq/unmappedTypes/unmappedRowCount/
+ * note=not-excluded-per-key-mapping）——<b>零行为变更</b>（不剔除、不拦截），
+ * 零在场零输出（登记面已承载，R6-P2-1 兑现注）。</p>
+ *
  * @author gallop
  * @since 1.1.0
  */
@@ -58,6 +69,16 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
     private static final String REJECTED_OPEN_IDS_SQL = """
             SELECT external_id FROM external_rejection
             WHERE tenant_id = ? AND app_scope = ? AND external_id_type = 'open_id' AND cleared_at IS NULL
+            """;
+
+    /**
+     * R6-P2-1 登记面（W5-d 复审 D13 承接，W5-f f-2）：非 open_id 型活跃拒绝行
+     * 计数 + 去重类型清单（O-3：类型名并集，非计数）——零剔除零拦截，仅观测。
+     */
+    private static final String UNMAPPED_REJECTION_SQL = """
+            SELECT count(*) AS cnt, string_agg(DISTINCT external_id_type, ',') AS types
+            FROM external_rejection
+            WHERE tenant_id = ? AND app_scope = ? AND external_id_type <> 'open_id' AND cleared_at IS NULL
             """;
 
     private static final String METADATA_SQL = """
@@ -118,9 +139,19 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
     }
 
     private EffectiveSnapshot doRead(DirectoryScope scope) {
-        // ① 拒绝清单（要点 c）——首位语句
+        // ① 拒绝清单（要点 c）——首位语句；紧邻 ①′ 非 open_id 型活跃拒绝行
+        // 计数（R6-P2-1 登记面：O-1 同批纪律、先于 raw/事实读取，登记与排除
+        // 同快照）——宁漏勿误删：键域外行不剔除、仅登记
         Set<String> rejected = new HashSet<>(jdbcTemplate.queryForList(REJECTED_OPEN_IDS_SQL,
                 String.class, scope.tenantKey(), scope.appScope()));
+        UnmappedRejection unmapped = jdbcTemplate.query(con -> {
+            var ps = con.prepareStatement(UNMAPPED_REJECTION_SQL);
+            ps.setString(1, scope.tenantKey());
+            ps.setString(2, scope.appScope());
+            return ps;
+        }, rs -> rs.next()
+                ? new UnmappedRejection(rs.getLong(1), rs.getString(2))
+                : new UnmappedRejection(0L, null));
 
         // ② metadata：活动代 + applied_seq（同事务首读，要点 a）
         String[] meta = jdbcTemplate.query(con -> {
@@ -130,11 +161,15 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
             return ps;
         }, rs -> rs.next() ? new String[]{rs.getString(1), String.valueOf(rs.getLong(2))} : null);
         if (meta == null || meta[0] == null || meta[0].isEmpty()) {
+            // 从未发布形态登记面同跑（generationId 空串/appliedSeq 0——登记
+            // 不依赖发布状态；cnt=0 零输出）
+            logUnmappedRejection(scope, "", meta == null ? 0L : Long.parseLong(meta[1]), unmapped);
             return new EffectiveSnapshot(scope, "", meta == null ? 0L : Long.parseLong(meta[1]),
                     List.of(), List.of());
         }
         String generationId = meta[0];
         long appliedSeq = Long.parseLong(meta[1]);
+        logUnmappedRejection(scope, generationId, appliedSeq, unmapped);
 
         // ③④⑤ 活动代 raw 三流
         Map<String, EffectiveDepartment> departments = new TreeMap<>();
@@ -243,5 +278,24 @@ public class PgDirectoryEffectiveView implements DirectoryEffectiveView {
         }
         return new EffectiveSnapshot(scope, generationId, appliedSeq,
                 effectiveDepartments, List.copyOf(effectivePersons));
+    }
+
+    /**
+     * R6-P2-1 登记日志（零在场零输出）：非 open_id 型活跃拒绝行在场时输出一条
+     * INFO 结构化日志——键域外行"静默不在排除面"自此可观测（unmappedTypes =
+     * 去重类型名并集，O-3；note 固定 not-excluded-per-key-mapping——不剔除
+     * 语义自证）。零行为变更：不剔除、不拦截、不影响快照内容。
+     */
+    private void logUnmappedRejection(DirectoryScope scope, String generationId, long appliedSeq,
+                                      UnmappedRejection unmapped) {
+        if (unmapped.rowCount() > 0) {
+            log.info("[directory-effective-view] rejection-keydomain-skipped scope={} activeGeneration={} "
+                            + "appliedSeq={} unmappedTypes={{}} unmappedRowCount={} note=not-excluded-per-key-mapping",
+                    scope, generationId, appliedSeq, unmapped.typeNames(), unmapped.rowCount());
+        }
+    }
+
+    /** ①′ 登记面查询结果（cnt = 键域外活跃行数；types = 去重类型名并集，可空）。 */
+    private record UnmappedRejection(long rowCount, String typeNames) {
     }
 }

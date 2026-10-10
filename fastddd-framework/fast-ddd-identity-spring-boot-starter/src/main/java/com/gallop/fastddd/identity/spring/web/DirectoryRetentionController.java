@@ -110,7 +110,19 @@ public class DirectoryRetentionController {
                 tenantKey, appScope, request.preview(), report.mirrorPersonRows(),
                 report.mirrorDepartmentRows(), report.mirrorRelationRows(),
                 report.inboxRowsPurged(), report.changeLogRowsPurged(), report.changeLogSkippedByWatermark());
-        return ResponseEntity.ok(report);
+        // 响应体平铺 Map（不外泄核心域对象——DirectoryScope 无 bean 形态，直接
+        // 序列化 RetentionReport 会 500；W5-f f-2 R-8 首跑暴露 f-1 潜伏缺陷，
+        // 边界映射修复 + f-4 登记）
+        return ResponseEntity.ok(Map.of(
+                "tenantKey", tenantKey,
+                "appScope", appScope,
+                "mirrorPersonRows", report.mirrorPersonRows(),
+                "mirrorDepartmentRows", report.mirrorDepartmentRows(),
+                "mirrorRelationRows", report.mirrorRelationRows(),
+                "inboxRowsPurged", report.inboxRowsPurged(),
+                "changeLogRowsPurged", report.changeLogRowsPurged(),
+                "changeLogSkippedByWatermark", report.changeLogSkippedByWatermark(),
+                "preview", report.preview()));
     }
 
     private void writeAudit(Actor actor, String tenantKey, String appScope, boolean preview) {

@@ -38,6 +38,15 @@ public final class IdentityAdminEndpoints {
     public static final String DIRECTORY_RETENTION_PATH =
             "/api/identity/admin/directory/retention";
 
+    /**
+     * 手动 pending_confirm 对账回查（W5 设计 §7.5 对账面；W5-f 设计 §5 M-17，
+     * W5-f f-2）：POST，body = scope 两键；装配条件独立于管理三端点
+     * （web ∧ 回查五端口/审计/Actor 齐备 ∧ directory.enabled——F5：缺
+     * {@code DirectoryRecheckQuery} 等端口的非 pg 宿主 = 端点不装配）。
+     */
+    public static final String DIRECTORY_RECHECK_PATH =
+            "/api/identity/admin/directory/recheck";
+
     private IdentityAdminEndpoints() {
     }
 }
