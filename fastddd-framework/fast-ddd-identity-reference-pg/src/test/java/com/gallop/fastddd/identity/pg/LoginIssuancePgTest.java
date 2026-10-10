@@ -40,6 +40,7 @@ class LoginIssuancePgTest {
     private com.gallop.fastddd.identity.pg.PgIdentityBindingStore bindingStore;
     private com.gallop.fastddd.identity.pg.PgLocalSessionStore sessionStore;
     private com.gallop.fastddd.identity.core.port.IdentityTransactionRunner runner;
+    private com.gallop.fastddd.identity.pg.PgExternalRejectionGate rejectionGate;
     private LocalLoginUseCase loginUseCase;
     private final AtomicInteger admissionCalls = new AtomicInteger();
 
@@ -48,6 +49,7 @@ class LoginIssuancePgTest {
         Support.cleanIdentityTables(dataSource);
         bindingStore = new PgIdentityBindingStore(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
         sessionStore = new PgLocalSessionStore(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
+        rejectionGate = new PgExternalRejectionGate(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
         runner = Support.runner(dataSource);
         admissionCalls.set(0);
         loginUseCase = new LocalLoginUseCase(
@@ -196,5 +198,99 @@ class LoginIssuancePgTest {
         var otherSessionStore = new PgLocalSessionStore(
                 new org.springframework.jdbc.core.JdbcTemplate(otherInstance));
         assertThat(otherSessionStore.validateSession(result.session().sessionId())).isPresent();
+    }
+
+    // ---------------------------------------------- W5-e：T2 拒绝门禁集成（M-31）
+
+    /** gate 接线登录用例（⓪①② 前置复验在 T2 事务首锁——8 参构造）。 */
+    private LocalLoginUseCase gatedLoginUseCase() {
+        return new LocalLoginUseCase(fixedProvider(), bindingStore, permitAll(), sessionStore,
+                runner, Duration.ofHours(8), LocalLoginUseCase.DEFAULT_RETRY_LIMIT, rejectionGate);
+    }
+
+    @Test
+    void firstLoginRejectedWhileActiveRejectionRowExistsAndClearControlledRestores() {
+        runner.inTransaction(() -> rejectionGate.record(identity(), "上游确证停用"));
+
+        // M-31①：⓪①② 命中活跃拒绝行 → 拒绝登录，不创建主体不签发会话
+        assertThatThrownBy(() -> gatedLoginUseCase().login(new ExternalLoginCommand(Map.of())))
+                .isInstanceOf(AdmissionDeniedException.class)
+                .hasMessageContaining("活跃拒绝期");
+        assertThat(Support.count(dataSource, "principal")).isZero();
+        assertThat(Support.count(dataSource, "external_binding")).isZero();
+        assertThat(Support.count(dataSource, "local_session")).isZero();
+
+        // M-31③ 本地子集（live 面另属 W5-f）：受控清除（授权+审计载体）后可登录
+        runner.inTransaction(() -> rejectionGate.clearControlled(identity(), "op-1", "误判恢复"));
+        LoginResult restored = gatedLoginUseCase().login(new ExternalLoginCommand(Map.of()));
+        assertThat(restored.principal().principalId().value()).hasSize(36);
+        assertThat(Support.count(dataSource, "principal")).isEqualTo(1);
+    }
+
+    @Test
+    void advisoryKeyLockBlocksFirstLoginUntilHoldingInstanceCommits() throws Exception {
+        // M-31② 序 A：外部会话（独立实例）持同键 advisory 锁未提交期间，登录事务
+        // 阻塞且不落 principal——阻塞下界即键级串行化证据（首创建复验由 ⓪ 承载）
+        var holderGate = new PgExternalRejectionGate(
+                new org.springframework.jdbc.core.JdbcTemplate(otherInstance));
+        var holderRunner = Support.runner(otherInstance);
+        CountDownLatch lockHeld = new CountDownLatch(1);
+        AtomicReference<Throwable> holderFailure = new AtomicReference<>();
+        Thread holder = new Thread(() -> {
+            try {
+                holderRunner.inTransaction(() -> {
+                    holderGate.lockActive(identity()); // ⓪ 键 advisory 锁（无行不插）
+                    lockHeld.countDown();
+                    try {
+                        Thread.sleep(400); // 持锁窗口
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                });
+            } catch (Throwable t) {
+                lockHeld.countDown();
+                holderFailure.set(t);
+            }
+        }, "m31-lock-holder");
+        holder.start();
+        assertThat(lockHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+        long start = System.nanoTime();
+        LoginResult result = gatedLoginUseCase().login(new ExternalLoginCommand(Map.of()));
+        long blockedMillis = (System.nanoTime() - start) / 1_000_000;
+        holder.join(5000);
+
+        assertThat(holderFailure.get()).isNull();
+        assertThat(blockedMillis).isGreaterThanOrEqualTo(300); // 阻塞至持有者提交
+        assertThat(result.principal().principalId().value()).hasSize(36); // 锁释放后正常签发
+        assertThat(Support.count(dataSource, "principal")).isEqualTo(1);
+    }
+
+    @Test
+    void rejectionWrittenAfterFirstLoginBlocksNextLoginNotFirst() {
+        // M-31② 序 B：登录先提交 → 主体创建 + 拒绝行其后写入 → 作用于下一次登录；
+        // 已签发会话存续（存量会话既知限制，W5 不引入会话级自动撤销——§7.5(b)）
+        LocalLoginUseCase gated = gatedLoginUseCase();
+        LoginResult first = gated.login(new ExternalLoginCommand(Map.of()));
+        runner.inTransaction(() -> rejectionGate.record(identity(), "controlled-deactivation"));
+
+        assertThatThrownBy(() -> gated.login(new ExternalLoginCommand(Map.of())))
+                .isInstanceOf(AdmissionDeniedException.class)
+                .hasMessageContaining("活跃拒绝期");
+        assertThat(Support.count(dataSource, "local_session")).isEqualTo(1);
+        assertThat(sessionStore.validateSession(first.session().sessionId())).isPresent();
+    }
+
+    @Test
+    void findBindingsReturnsImmutableUnionIdFiveTupleForT4() {
+        // T4 五元组反查端口（W5-e，M-31⑦ 供给面）：登录后恰返回绑定五元组，
+        // 未知主体空表（binding 创建后五元组不可变，无竞态面）
+        LoginResult result = loginUseCase.login(new ExternalLoginCommand(Map.of()));
+
+        assertThat(bindingStore.findBindings(result.principal().principalId().value()))
+                .containsExactly(identity());
+        assertThat(bindingStore.findBindings("00000000-0000-0000-0000-000000000000")).isEmpty();
     }
 }

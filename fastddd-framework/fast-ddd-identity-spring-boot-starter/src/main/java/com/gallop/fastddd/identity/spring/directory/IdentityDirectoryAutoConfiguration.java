@@ -77,10 +77,24 @@ public class IdentityDirectoryAutoConfiguration {
     DirectorySyncUseCase directorySyncUseCase(DirectorySource directorySource,
                                               DirectoryMirrorStore directoryMirrorStore,
                                               com.gallop.fastddd.identity.core.port.IdentityTransactionRunner transactionRunner,
-                                              FastDddIdentityProperties properties) {
+                                              FastDddIdentityProperties properties,
+                                              ObjectProvider<com.gallop.fastddd.identity.core.port.DirectoryChangeLog> changeLogProvider,
+                                              ObjectProvider<com.gallop.fastddd.identity.core.port.IdentityChangePublisher> generationPublisherProvider) {
         FastDddIdentityProperties.Directory cfg = properties.getDirectory();
+        // W5-e §3.1：change_log 恒接线（事实写入驱动，不受通知开关影响；pg 适配器
+        // 恒提供；非 pg 宿主无 DirectoryChangeLog bean 时：通知关 = M1 形态无日志
+        // 条目、通知开 ∧ 全量链开 = DirectorySyncUseCase 构造契约校验 fail-loud
+        // 拒绝启动〔publisher 非 null 而 changeLog null 抛 IllegalArgumentException，
+        // core :136-139〕非静默回退——R7-P3-3 更正 2026-10-10：原注「回退 M1 形态
+        // 无日志条目」对通知开形态失实）；T8 publisher 仅通知开时接线（关 = 用例
+        // 跳过 T8；开而缺 bean 由终检拒绝启动——IdentityModeValidator M-20 第二格，
+        // bean 先行装配 null、终检收口）
+        com.gallop.fastddd.identity.core.port.DirectoryChangeLog changeLog =
+                changeLogProvider.getIfAvailable();
+        com.gallop.fastddd.identity.core.port.IdentityChangePublisher publisher =
+                cfg.getNotifications().isEnabled() ? generationPublisherProvider.getIfAvailable() : null;
         return new DirectorySyncUseCase(directorySource, directoryMirrorStore,
-                transactionRunner, cfg.getPageSize(), cfg.getMaxPagesPerRun());
+                transactionRunner, cfg.getPageSize(), cfg.getMaxPagesPerRun(), changeLog, publisher);
     }
 
     /**
@@ -116,14 +130,20 @@ public class IdentityDirectoryAutoConfiguration {
     }
 
     /**
-     * 增量事件 worker 编排用例（W5 设计 §7，W5-d）：{@code increment.enabled=true}
-     * 时装配（<b>独立于 directory.enabled</b>——事件链不依赖全量同步端口）。
-     * 六端口（通道/收件箱/回查/读取/匹配/提交器）来自宿主/引用适配器，
-     * 缺任一由 {@code IdentityModeValidator} 终检使启动失败（fail-closed）。
-     * 事务所有权同 {@link DirectorySyncUseCase}：CAS 提交经
-     * {@code IdentityTransactionRunner} 单短事务（identity 上下文恒有定义，
-     * 不额外加条件）。batch-size/claim-lease 来自
-     * {@code fastddd.identity.directory.increment.worker.*}（§10 键族）。
+     * 增量事件 worker 编排用例（W5 设计 §7，W5-d；W5-e 通知链/门禁接线）：
+     * {@code increment.enabled=true} 时装配（<b>独立于 directory.enabled</b>
+     * ——事件链不依赖全量同步端口）。六端口（通道/收件箱/回查/读取/匹配/提交器）
+     * 来自宿主/引用适配器，缺任一由 {@code IdentityModeValidator} 终检使启动
+     * 失败（fail-closed）。
+     *
+     * <p><b>W5-e 三接线（ObjectProvider 惰性，bean 缺席各自退化为 M1 行为）</b>：
+     * ① {@code ExternalRejectionGate}——回查确证停用 record / 权威恢复 clear
+     * （PERSON-only）；② {@code DirectoryIncrementPublisher}——增量通知转发，
+     * 仅 {@code notifications.enabled=true} 时接线（关 = 零通知；开而缺 bean
+     * 由终检拒绝启动——M-20 第三格）；③ {@code rejection-provider}——拒绝行
+     * provider 值（与登录绑定行同值域，飞书 = "feishu"；gate 在场而空 = 用例
+     * 构造器 fail-loud）。batch-size/claim-lease 来自
+     * {@code fastddd.identity.directory.increment.worker.*}（§10 键族）。</p>
      */
     @Bean
     @ConditionalOnProperty(prefix = "fastddd.identity.directory.increment", name = "enabled",
@@ -140,12 +160,20 @@ public class IdentityDirectoryAutoConfiguration {
             DirectoryFactMatcher factMatcher,
             DirectoryRecheckCommitter committer,
             com.gallop.fastddd.identity.core.port.IdentityTransactionRunner transactionRunner,
-            FastDddIdentityProperties properties) {
-        FastDddIdentityProperties.Directory.Increment.Worker cfg =
-                properties.getDirectory().getIncrement().getWorker();
+            FastDddIdentityProperties properties,
+            ObjectProvider<com.gallop.fastddd.identity.core.port.ExternalRejectionGate> rejectionGateProvider,
+            ObjectProvider<com.gallop.fastddd.identity.core.port.DirectoryIncrementPublisher> incrementPublisherProvider) {
+        FastDddIdentityProperties.Directory.Increment cfg =
+                properties.getDirectory().getIncrement();
+        FastDddIdentityProperties.Directory.Increment.Worker workerCfg = cfg.getWorker();
+        boolean notificationsEnabled =
+                properties.getDirectory().getNotifications().isEnabled();
         return new DirectoryEventWorkerUseCase(inbox, channel, recheckQuery,
                 factReader, factMatcher, committer, transactionRunner,
-                cfg.getBatchSize(), cfg.getClaimLease());
+                workerCfg.getBatchSize(), workerCfg.getClaimLease(),
+                rejectionGateProvider.getIfAvailable(),
+                notificationsEnabled ? incrementPublisherProvider.getIfAvailable() : null,
+                cfg.getRejectionProvider());
     }
 
     /**

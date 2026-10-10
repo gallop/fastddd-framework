@@ -127,6 +127,18 @@ public class FastDddIdentityPgAutoConfiguration {
     }
 
     /**
+     * 外部拒绝门禁 PG 参考适配器（W5 设计 §7.5，W5-c 类交付、W5-e 装配接线）：
+     * T2 登录门禁（lockActive 前置）/T4 受控停用 record/回查确证停用 record 与
+     * 权威恢复 clear 的存储面。starter 用例装配以 ObjectProvider 惰性消费——
+     * bean 缺席（非 pg 宿主）= M1 形态零门禁行为。
+     */
+    @Bean
+    @ConditionalOnMissingBean(com.gallop.fastddd.identity.core.port.ExternalRejectionGate.class)
+    public com.gallop.fastddd.identity.core.port.ExternalRejectionGate externalRejectionGate() {
+        return new PgExternalRejectionGate(new JdbcTemplate(dataSource));
+    }
+
+    /**
      * 目录镜像存储 PG 参考适配器（W3 设计 v3 §5/§6，W3-c）：schema 增量 V3 随
      * initialize 执行。租约 TTL 绑定与 starter 相同的规范键
      * {@code fastddd.identity.directory.lease-timeout}（缺省 10m；W3-b 复评 N2

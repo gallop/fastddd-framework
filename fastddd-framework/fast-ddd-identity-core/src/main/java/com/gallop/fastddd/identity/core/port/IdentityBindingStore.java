@@ -5,6 +5,7 @@ import com.gallop.fastddd.identity.core.domain.PrincipalCreationSpec;
 import com.gallop.fastddd.identity.core.domain.VerifiedPrincipal;
 import com.gallop.fastddd.identity.core.error.BindingConcurrentModificationException;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,4 +28,16 @@ public interface IdentityBindingStore {
 
     /** 按主体 ID 查询（不锁定；管理/复验用途）。 */
     Optional<VerifiedPrincipal> findPrincipal(String principalId);
+
+    /**
+     * 按主体 ID 反查全部外部身份绑定（W5-e，T4 受控停用的拒绝行接线：停用事务
+     * 须先取得五元组键——一主体可持多绑定〔open_id/union_id〕，逐键 record）。
+     * default <b>fail-loud</b>：门禁在场的宿主若实现不支持反查，停用请求以
+     * {@link UnsupportedOperationException} 失败（fail-closed——不静默跳过拒绝
+     * 记录留下门禁缺口）。
+     */
+    default List<ExternalIdentity> findBindings(String principalId) {
+        throw new UnsupportedOperationException(
+                "findBindings 未实现——T4 受控停用的拒绝行记录需要按主体反查绑定（实现方必须覆盖）");
+    }
 }

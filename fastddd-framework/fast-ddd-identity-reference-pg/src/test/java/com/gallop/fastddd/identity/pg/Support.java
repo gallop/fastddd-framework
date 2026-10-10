@@ -74,6 +74,9 @@ final class Support {
         ensureIdentitySchema(dataSource);
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("TRUNCATE TABLE local_session, external_binding, principal CASCADE");
+        // W5-e：拒绝行随身份域清理（键域覆盖登录/回查/T4 三支写入——zonky 单例跨类
+        // 持久，漏清会使后续登录类测试撞 T2 门禁）
+        jdbc.execute("TRUNCATE TABLE external_rejection");
     }
 
     /** 清空登录授权上下文表（W2-2 state 测试隔离；其他测试经 cleanIdentityTables 复用）。 */

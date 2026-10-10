@@ -3,6 +3,7 @@ package com.gallop.fastddd.identity.pg;
 import com.gallop.fastddd.identity.core.domain.ChangeLogEntry;
 import com.gallop.fastddd.identity.core.domain.DirectoryChangeType;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryIncrementEvent;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
 import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.IncrementBatch;
@@ -176,21 +177,29 @@ public class PgDirectoryIncrementApplier implements DirectoryIncrementApplier {
         changeLog.append(new ChangeLogEntry(ulid, scope, ChangeLogEntry.Kind.INCREMENT_APPLIED,
                 null, committedAfter, summaryJson(batch, changedPersons.size(), changedDepartments.size())));
 
-        List<String> eventIds = List.of();
+        // 增量通知事件（W5-e 通知链）：完整实体随 result 返回，由用例层同事务转发
+        // DirectoryIncrementPublisher（混型批按 type 分组两枚；预合并不发）
+        List<DirectoryIncrementEvent> events = List.of();
         if (!premerge) {
-            List<String> ids = new ArrayList<>();
+            List<DirectoryIncrementEvent> built = new ArrayList<>();
             if (!changedPersons.isEmpty()) {
-                ids.add(changeEventId(scope, committedAfter, DirectoryChangeType.PERSON_CHANGED));
+                built.add(new DirectoryIncrementEvent(
+                        DirectoryIncrementEvent.eventIdFor(scope, committedAfter, DirectoryChangeType.PERSON_CHANGED),
+                        scope, committedAfter, DirectoryChangeType.PERSON_CHANGED,
+                        changedPersons.stream().map(DirectoryPerson::openId).toList(), ulid));
             }
             if (!changedDepartments.isEmpty()) {
-                ids.add(changeEventId(scope, committedAfter, DirectoryChangeType.DEPARTMENT_CHANGED));
+                built.add(new DirectoryIncrementEvent(
+                        DirectoryIncrementEvent.eventIdFor(scope, committedAfter, DirectoryChangeType.DEPARTMENT_CHANGED),
+                        scope, committedAfter, DirectoryChangeType.DEPARTMENT_CHANGED,
+                        changedDepartments.stream().map(DirectoryDepartment::departmentId).toList(), ulid));
             }
-            eventIds = ids;
+            events = built;
         }
         return new IncrementResult(true, premerge, committedAfter,
                 premerge ? before.appliedSeq() : committedAfter,
                 premerge ? committedAfter : null,
-                ulid, eventIds);
+                ulid, events);
     }
 
     /** 逐对象三态裁决：无行（INSERT）/ 内容变更（UPDATE）/ 跳过（墓碑或内容一致）。 */
@@ -240,12 +249,6 @@ public class PgDirectoryIncrementApplier implements DirectoryIncrementApplier {
     private static IncrementResult zeroResult(Watermark current) {
         return new IncrementResult(false, false, current.committedSeq(), current.appliedSeq(),
                 null, null, List.of());
-    }
-
-    private static String changeEventId(DirectoryScope scope, long committedSeq, DirectoryChangeType type) {
-        // §9.1：dir-change:{scope}:{committed_seq}:{type}；{scope} 与 T8 eventIdFor
-        // 同源（DirectoryScope.toString = tenantKey + "/" + appScope）
-        return "dir-change:" + scope + ":" + committedSeq + ":" + type.name();
     }
 
     private static String summaryJson(IncrementBatch batch, int persons, int departments) {

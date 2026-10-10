@@ -130,6 +130,26 @@ public class IdentityModeValidator implements SmartInitializingSingleton {
                         + "或宿主自行实现）——缺提交器即拒绝启动，不静默半装配");
             }
         }
+        // W5-e：通知链装配终检（M-20 第二/三格，fail-closed）——两端口分别校验，
+        // 且仅对应消费链开启时才有装配义务（链关 = 无消费面不校验，与第七格
+        // "增量关时缺增量适配不阻断"对称；全量链关∧通知开 = 无 T8 消费面，
+        // 代激活适配缺席不阻断——W5-e D 登记）
+        if (properties.getDirectory().getNotifications().isEnabled()) {
+            if (properties.getDirectory().isEnabled() && applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.IdentityChangePublisher.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.notifications.enabled=true 且全量链开"
+                        + "（directory.enabled=true）需要 IdentityChangePublisher bean"
+                        + "（T8 代激活通知：宿主适配到 Outbox，同 DataSource/TransactionManager——"
+                        + "§9.2 M-20 第二格）——缺适配即拒绝启动，不静默丢代激活通知");
+            }
+            if (properties.getDirectory().getIncrement().isEnabled() && applicationContext.getBeansOfType(
+                    com.gallop.fastddd.identity.core.port.DirectoryIncrementPublisher.class).isEmpty()) {
+                violations.add("fastddd.identity.directory.notifications.enabled=true 且增量链开"
+                        + "（increment.enabled=true）需要 DirectoryIncrementPublisher bean"
+                        + "（增量组织变化通知：宿主适配到 Outbox，同 DataSource/TransactionManager——"
+                        + "§9.2 M-20 第三格）——缺适配即拒绝启动，不静默丢增量通知");
+            }
+        }
         if (properties.getAdmin().isEnabled() && applicationContext.getBeansOfType(
                 com.gallop.fastddd.identity.core.port.IdentityAdminPolicy.class).isEmpty()) {
             violations.add("fastddd.identity.admin.enabled=true 需要宿主提供 IdentityAdminPolicy bean"

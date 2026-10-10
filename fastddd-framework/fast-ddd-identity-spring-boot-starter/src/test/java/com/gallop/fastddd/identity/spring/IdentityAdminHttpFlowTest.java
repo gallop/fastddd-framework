@@ -262,6 +262,9 @@ class IdentityAdminHttpFlowTest {
         jdbc.execute("TRUNCATE TABLE sys_audit_log");
         jdbc.execute("TRUNCATE TABLE login_state");
         jdbc.execute("TRUNCATE TABLE local_session, external_binding, principal CASCADE");
+        // W5-e：T4 停用经门禁写 external_rejection（reactivate 不自动清）——
+        // 跨方法残留会使后续 login 撞 T2 门禁（M-31⑦ 语义，非缺陷），必须随批清理
+        jdbc.execute("TRUNCATE TABLE external_rejection");
         ADMIN_PRINCIPAL_IDS.clear();
         POLICY_CONSULTATIONS.set(0);
     }
@@ -339,6 +342,10 @@ class IdentityAdminHttpFlowTest {
             assertThat(activeSessions(jdbc, target.principalId())).isZero();
             mvc.perform(get("/api/me").cookie(target.session())).andExpect(status().isUnauthorized());
 
+            // W5-e M-31⑦：T4 同事务拒绝行生效——停用后再登录被拒（T2 门禁 ⓪①②，
+            // callback 401 不创建主体不签发会话；主体已 DISABLED，双重拦截面）
+            assertThat(reloginCallbackStatus(mvc, "target-code")).isEqualTo(401);
+
             // 审计行（成功必写）：操作人=管理员 principalId、稳定操作码、目标主体入参
             java.util.List<java.util.Map<String, Object>> auditRows = jdbc.queryForList(
                     "SELECT username, operation, operation_type, method, request_params, success "
@@ -359,6 +366,9 @@ class IdentityAdminHttpFlowTest {
                     .andExpect(jsonPath("$.authEpoch").value(String.valueOf(epoch0 + 2)));
             assertThat(principalStatus(jdbc, target.principalId())).isEqualTo("ACTIVE");
             assertThat(authEpoch(jdbc, target.principalId())).isEqualTo(epoch0 + 2);
+            // W5-e 裁决可观察面：reactivate 不自动清拒绝行（行可能源自权威确证，
+            // 静默清除削弱可追溯性）——恢复登录须管理端 clearControlled 两显式操作
+            assertThat(reloginCallbackStatus(mvc, "target-code")).isEqualTo(401);
             java.util.List<String> operations = jdbc.queryForList(
                     "SELECT operation FROM sys_audit_log ORDER BY create_time", String.class);
             assertThat(operations).containsExactly("identity-admin-deactivate", "identity-admin-reactivate");
@@ -497,6 +507,25 @@ class IdentityAdminHttpFlowTest {
                         + "JOIN principal p ON p.principal_id = s.principal_id WHERE s.session_id = ?",
                 String.class, session.getValue());
         return new LoggedIn(principalId, session);
+    }
+
+    /**
+     * W5-e M-31⑦ 断言支撑：重走登录闭环（发起→回调），返回 callback HTTP 状态码
+     * ——T2 门禁命中（活跃拒绝行）时 callback 401（不签发会话）。
+     */
+    private static int reloginCallbackStatus(MockMvc mvc, String code) throws Exception {
+        org.springframework.test.web.servlet.MvcResult authorize = mvc
+                .perform(get(IdentityLoginEndpoints.AUTHORIZE_PATH))
+                .andExpect(status().isFound())
+                .andReturn();
+        String location = authorize.getResponse().getHeader("Location");
+        String state = Arrays.stream(location.substring(location.indexOf("state=") + 6).split("&"))
+                .findFirst().orElseThrow();
+        Cookie binding = cookieOf(authorize, IdentityLoginCookies.BINDING_COOKIE_NAME);
+        return mvc.perform(get(IdentityLoginEndpoints.CALLBACK_PATH)
+                        .queryParam("code", code).queryParam("state", state)
+                        .cookie(binding))
+                .andReturn().getResponse().getStatus();
     }
 
     private static Cookie cookieOf(org.springframework.test.web.servlet.MvcResult result, String name) {

@@ -207,6 +207,9 @@ public class FastDddIdentityProperties {
         /** 事件接收子域（W5 设计 §10，W5-d）。 */
         private final Events events = new Events();
 
+        /** 通知子域（W5 设计 §10/§9.2，W5-e 装配矩阵 M-20）。 */
+        private final Notifications notifications = new Notifications();
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -272,6 +275,10 @@ public class FastDddIdentityProperties {
             return events;
         }
 
+        public Notifications getNotifications() {
+            return notifications;
+        }
+
         /**
          * 源适配器有界重试参数（W3 设计 §5.2：重试责任在源，编排不叠加）。
          * M1 由真实源适配器（W3-b）消费；此处冻结配置契约与校验。
@@ -312,12 +319,30 @@ public class FastDddIdentityProperties {
 
             private final Worker worker = new Worker();
 
+            /**
+             * 拒绝行 provider 值（W5-e，T2 门禁接线）：worker 回查确证停用时
+             * 写入拒绝行的 {@code ExternalIdentity.provider}——与登录绑定行同值域
+             * （飞书 = "feishu"，即 {@code FeishuExternalLoginProvider} 所用常量值；
+             * starter 不依赖 feishu 模块，故经配置传递）。增量链开 ∧
+             * {@code ExternalRejectionGate} bean 在场时必须非空（worker 构造器
+             * fail-loud，缺省空 = 仅门禁 bean 缺席的 M1 形态可省）。
+             */
+            private String rejectionProvider = "";
+
             public boolean isEnabled() {
                 return enabled;
             }
 
             public void setEnabled(boolean enabled) {
                 this.enabled = enabled;
+            }
+
+            public String getRejectionProvider() {
+                return rejectionProvider;
+            }
+
+            public void setRejectionProvider(String rejectionProvider) {
+                this.rejectionProvider = rejectionProvider;
             }
 
             public Worker getWorker() {
@@ -427,6 +452,31 @@ public class FastDddIdentityProperties {
                 public void setMaxBodyBytes(int maxBodyBytes) {
                     this.maxBodyBytes = maxBodyBytes;
                 }
+            }
+        }
+
+        /**
+         * 通知子域（W5 设计 §10/§9.2 装配矩阵 M-20，W5-e）：
+         * {@code fastddd.identity.directory.notifications.enabled}——缺省 false =
+         * M1 形态（两 publisher 均无装配要求、用例跳过 T8 与增量通知；
+         * change_log/change_ref 写入不受此开关影响，只受事实写入驱动 §3.1）。
+         *
+         * <p>开启后 fail-fast（IdentityModeValidator 终检）：全量链开
+         * （directory.enabled=true）缺 {@code IdentityChangePublisher} bean →
+         * 启动失败；增量链开（increment.enabled=true）缺
+         * {@code DirectoryIncrementPublisher} bean → 启动失败（两端口分别校验；
+         * 对应消费链关闭时无装配义务——与 M-20 第七格对称，W5-e D 登记）。</p>
+         */
+        public static class Notifications {
+
+            private boolean enabled = false;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
             }
         }
     }

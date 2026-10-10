@@ -51,6 +51,14 @@ public class PgIdentityBindingStore implements IdentityBindingStore {
             VALUES (?, ?, ?, ?, ?, ?)
             """;
 
+    /** T4 五元组反查（W5-e）：binding 创建后五元组不可变，无锁读无竞态面。 */
+    private static final String FIND_BINDINGS_SQL = """
+            SELECT provider, tenant_id, app_scope, external_id_type, external_id
+            FROM external_binding
+            WHERE principal_id = ?
+            ORDER BY external_id_type
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     /** 门禁绑定本适配器数据源（W21-03）：模板构造所用 DataSource 即事务绑定判据。 */
@@ -94,6 +102,15 @@ public class PgIdentityBindingStore implements IdentityBindingStore {
         // 读查询：不锁定、不要求事务（管理/复验读取）
         List<VerifiedPrincipal> found = jdbcTemplate.query(FIND_BY_ID_SQL, PrincipalRowMapper::map, principalId);
         return found.stream().findFirst();
+    }
+
+    @Override
+    public List<ExternalIdentity> findBindings(String principalId) {
+        // T4 五元组反查（W5-e）：读查询不锁定——binding 创建后五元组不可变，
+        // 调用方（PrincipalLifecycleUseCase）在停用事务外反查后事务内 record
+        return jdbcTemplate.query(FIND_BINDINGS_SQL, (rs, rowNum) -> new ExternalIdentity(
+                rs.getString("provider"), rs.getString("tenant_id"), rs.getString("app_scope"),
+                rs.getString("external_id_type"), rs.getString("external_id")), principalId);
     }
 
     /** 测试支撑：当前连接是否持有活动事务（不对外部承诺）。 */

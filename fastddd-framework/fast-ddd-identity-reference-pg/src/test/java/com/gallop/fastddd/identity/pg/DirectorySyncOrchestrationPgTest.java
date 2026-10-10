@@ -104,6 +104,56 @@ class DirectorySyncOrchestrationPgTest {
         assertThat(store.readObservation(SCOPE).personCount()).isEqualTo(2);
     }
 
+    // ------------------------------------------- W5-e：T8 失败回滚（M-22）
+
+    /**
+     * M-22（§9.3 B-1/B-2 同构承载，矩阵 26 的 M2 镜像行）：T8 publisher 抛出
+     * （Outbox 入库失败同构——宿主适配器同契约"先库后信"）→ T7 同事务整体
+     * 回滚：活动指针未切、水位未推、change_log 零追加、代激活零事件生效——
+     * 不产生"已发布库态而无通知"。临界区内任何失败 = 未提交全回滚（崩溃断点
+     * 同构；租约两形恢复由 W3 矩阵 9/14 承载，不重复）。
+     */
+    @Test
+    void t8PublisherFailureRollsBackWholeT7PublishTransaction() {
+        GenerationHandle baseline = publishDirect(
+                List.of(new DirectoryDepartment("D1", null, "总部")),
+                List.of(new DirectoryPerson("OU1", "张三", null, List.of("D1"))));
+        RecordingChangePublisher publisher = new RecordingChangePublisher();
+        publisher.fail = true;
+        DirectorySyncUseCase useCase = new DirectorySyncUseCase(
+                new HealthySource(), store, runner, 10, 100,
+                new PgDirectoryChangeLog(jdbc), publisher);
+
+        assertThatThrownBy(() -> useCase.runFullSync(SCOPE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("outbox-down");
+
+        // T7 全回滚：指针/水位/变更日志全回滚；发布尝试恰一次，回滚后无重发
+        assertThat(activeGeneration()).isEqualTo(baseline.generationId());
+        assertThat(committedSeq()).isEqualTo(1);
+        assertThat(appliedSeq()).isEqualTo(1);
+        assertThat(Support.count(dataSource, "directory_change_log")).isZero();
+        assertThat(publisher.events).hasSize(1);
+    }
+
+    /** 代激活事件记录面 + 可注入失败（仅测试夹具）。 */
+    static final class RecordingChangePublisher
+            implements com.gallop.fastddd.identity.core.port.IdentityChangePublisher {
+
+        final List<com.gallop.fastddd.identity.core.domain.DirectoryGenerationActivatedEvent> events =
+                new java.util.ArrayList<>();
+        volatile boolean fail;
+
+        @Override
+        public void publishGenerationActivated(
+                com.gallop.fastddd.identity.core.domain.DirectoryGenerationActivatedEvent event) {
+            events.add(event);
+            if (fail) {
+                throw new IllegalStateException("outbox-down（注入：Outbox 入库失败同构）");
+            }
+        }
+    }
+
     // ---------------------------------------------------------- 源替身
 
     /** 健康源：D1/D2 两部门终页；D1 人员 OU1、D2 人员 OU2。 */

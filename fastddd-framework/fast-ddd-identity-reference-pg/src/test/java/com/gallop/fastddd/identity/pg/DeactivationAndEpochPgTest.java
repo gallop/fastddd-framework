@@ -34,6 +34,8 @@ class DeactivationAndEpochPgTest {
     private com.gallop.fastddd.identity.core.port.IdentityTransactionRunner runner;
     private LocalLoginUseCase loginUseCase;
     private PrincipalLifecycleUseCase lifecycleUseCase;
+    private ExternalLoginProvider provider;
+    private AdmissionPolicy permit;
 
     @BeforeEach
     void setUp() {
@@ -42,11 +44,11 @@ class DeactivationAndEpochPgTest {
         bindingStore = new PgIdentityBindingStore(jdbc);
         sessionStore = new PgLocalSessionStore(jdbc);
         runner = Support.runner(dataSource);
-        ExternalLoginProvider provider = command -> new com.gallop.fastddd.identity.core.domain.VerifiedExternalLogin(
+        provider = command -> new com.gallop.fastddd.identity.core.domain.VerifiedExternalLogin(
                 new com.gallop.fastddd.identity.core.domain.ExternalIdentity(
                         "feishu", "tenant-1", "app-1", "union_id", "ou_epoch"),
                 "login-e", "Display E");
-        AdmissionPolicy permit = principal -> { };
+        permit = principal -> { };
         loginUseCase = new LocalLoginUseCase(provider, bindingStore, permit, sessionStore, runner,
                 Duration.ofHours(8));
         lifecycleUseCase = new PrincipalLifecycleUseCase(
@@ -173,5 +175,55 @@ class DeactivationAndEpochPgTest {
                 "SELECT session_id FROM local_session", String.class);
         assertThat(laterClockStore.validateSession(
                 com.gallop.fastddd.identity.core.domain.SessionId.of(sessionId))).isEmpty();
+    }
+
+    // ------------------------------------------- W5-e：T4 拒绝行写入（M-31⑦）
+
+    /**
+     * M-31⑦ 编排级：gate 接线的受控停用——事务外反查绑定五元组 → 事务内 ⓪ 键
+     * advisory 锁+拒绝行 → 主体（与登录同序）；停用后登录被拒；目标不存在时同
+     * 事务回滚连带拒绝行（同成同败）；reactivate 不自动清（恢复须 clearControlled）。
+     */
+    @Test
+    void controlledDeactivationWritesRejectionRowSameTransactionAndBlocksNextLogin() {
+        LoginResult target = login();
+        String principalId = target.principal().principalId().value();
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        PgExternalRejectionGate gate = new PgExternalRejectionGate(jdbc);
+        PrincipalLifecycleUseCase gatedLifecycle = new PrincipalLifecycleUseCase(
+                new PgIdentityLifecycleStore(jdbc, sessionStore), runner, gate, bindingStore);
+
+        var deactivated = gatedLifecycle.deactivate(principalId);
+
+        assertThat(deactivated.status()).isEqualTo(PrincipalStatus.DISABLED);
+        // 拒绝行 = 绑定反查五元组（union_id 键，与登录同键域），reason 带操作主体
+        java.util.Map<String, Object> row = jdbc.queryForList(
+                "SELECT provider, tenant_id, app_scope, external_id_type, external_id, reason, cleared_at "
+                        + "FROM external_rejection").get(0);
+        assertThat(row).containsEntry("provider", "feishu")
+                .containsEntry("tenant_id", "tenant-1")
+                .containsEntry("app_scope", "app-1")
+                .containsEntry("external_id_type", "union_id")
+                .containsEntry("external_id", "ou_epoch")
+                .containsEntry("reason", "controlled-deactivation:" + principalId)
+                .containsEntry("cleared_at", null);
+
+        // 停用后登录被拒（T2 门禁 ⓪①② 命中 union_id 拒绝行）
+        LocalLoginUseCase gated = new LocalLoginUseCase(provider, bindingStore, permit, sessionStore,
+                runner, Duration.ofHours(8), LocalLoginUseCase.DEFAULT_RETRY_LIMIT, gate);
+        assertThatThrownBy(() -> gated.login(new ExternalLoginCommand(Map.of())))
+                .isInstanceOf(AdmissionDeniedException.class)
+                .hasMessageContaining("活跃拒绝期");
+
+        // 同成同败：目标不存在（NOT_FOUND）时事务回滚，拒绝行零新增
+        assertThatThrownBy(() -> gatedLifecycle.deactivate(
+                "00000000-0000-0000-0000-000000000000"))
+                .isInstanceOf(PrincipalNotFoundException.class);
+        assertThat(Support.count(dataSource, "external_rejection")).isEqualTo(1);
+
+        // reactivate 不自动清拒绝行（裁决可观察面：行可能源自权威确证，静默清
+        // 削弱可追溯性——恢复登录须 clearControlled 两显式操作）
+        gatedLifecycle.reactivate(principalId);
+        assertThat(Support.count(dataSource, "external_rejection")).isEqualTo(1);
     }
 }

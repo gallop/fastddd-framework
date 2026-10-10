@@ -1,10 +1,13 @@
 package com.gallop.fastddd.identity.core.usecase;
 
+import com.gallop.fastddd.identity.core.domain.DirectoryChangeType;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryIncrementEvent;
 import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
 import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.EventEnvelope;
+import com.gallop.fastddd.identity.core.domain.ExternalIdentity;
 import com.gallop.fastddd.identity.core.domain.LocalFactView;
 import com.gallop.fastddd.identity.core.domain.ObservedDirectoryObject;
 import com.gallop.fastddd.identity.core.domain.RecheckConclusion;
@@ -17,9 +20,12 @@ import com.gallop.fastddd.identity.core.port.DirectoryEventChannel;
 import com.gallop.fastddd.identity.core.port.DirectoryEventInbox;
 import com.gallop.fastddd.identity.core.port.DirectoryFactMatcher;
 import com.gallop.fastddd.identity.core.port.DirectoryFactReader;
+import com.gallop.fastddd.identity.core.port.DirectoryIncrementPublisher;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery;
+import com.gallop.fastddd.identity.core.port.ExternalRejectionGate;
 import com.gallop.fastddd.identity.core.port.IdentityTransactionRunner;
+import com.gallop.fastddd.identity.core.domain.RejectionRecord;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -151,15 +157,59 @@ class DirectoryEventWorkerUseCaseTest {
         }
     }
 
-    /** 提交器桩：记录证据，结果定向（缺省非 stale）。 */
+    /** 提交器桩：记录证据，结果定向（缺省非 stale；events 供通知转发断言）。 */
     static final class RecordingCommitter implements DirectoryRecheckCommitter {
         final List<RecheckEvidence> evidences = new ArrayList<>();
         boolean staleReturns = false;
+        List<DirectoryIncrementEvent> eventsReturns = List.of();
 
         @Override
         public RecheckResult commitCas(DirectoryScope scope, RecheckEvidence evidence) {
             evidences.add(evidence);
-            return new RecheckResult(staleReturns, false, 1L, 1L, null, "cl-test", List.of());
+            return new RecheckResult(staleReturns, false, 1L, 1L, null, "cl-test", eventsReturns);
+        }
+    }
+
+    /** 门禁桩（W5-e）：只记录 record/clear 调用（读面不走 worker 路径）。 */
+    static final class RecordingGate implements ExternalRejectionGate {
+        final List<String> records = new ArrayList<>();
+        final List<String> restorations = new ArrayList<>();
+
+        @Override
+        public Optional<RejectionRecord> findActive(ExternalIdentity identity) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<RejectionRecord> lockActive(ExternalIdentity identity) {
+            return Optional.empty();
+        }
+
+        @Override
+        public RejectionRecord record(ExternalIdentity identity, String reason) {
+            records.add(identity.externalIdType() + "|" + identity.externalId() + "|" + reason);
+            return null;
+        }
+
+        @Override
+        public int clearControlled(ExternalIdentity identity, String operator, String reason) {
+            throw new UnsupportedOperationException("worker 路径不走受控解除");
+        }
+
+        @Override
+        public int clearByAuthoritativeRestoration(ExternalIdentity identity, String evidenceRef) {
+            restorations.add(identity.externalIdType() + "|" + identity.externalId() + "|" + evidenceRef);
+            return 0;
+        }
+    }
+
+    /** 增量通知桩（W5-e）：机械转发记录面。 */
+    static final class RecordingPublisher implements DirectoryIncrementPublisher {
+        final List<DirectoryIncrementEvent> published = new ArrayList<>();
+
+        @Override
+        public void publishDirectoryChanged(DirectoryIncrementEvent event) {
+            published.add(event);
         }
     }
 
@@ -489,5 +539,150 @@ class DirectoryEventWorkerUseCaseTest {
         assertThat(result.processed()).isZero();
         assertThat(inbox.processed).isEmpty();
         assertThat(inbox.failedReasons).isEmpty();
+    }
+
+    // ---- W5-e：门禁接线（record/clear）+ 增量通知机械转发 ----
+
+    /** W5-e 装配形态：门禁 + 通知 publisher + provider（"feishu"）全接线。 */
+    private static DirectoryEventWorkerUseCase newWiredUseCase(RecordingInbox inbox, StubChannel channel,
+                                                               StubRecheckQuery recheck, StubFactReader reader,
+                                                               StubMatcher matcher, RecordingCommitter committer,
+                                                               RecordingGate gate, RecordingPublisher publisher) {
+        IdentityTransactionRunner passthrough = new IdentityTransactionRunner() {
+            @Override
+            public <T> T inTransaction(IdentityTransactionRunner.IdentityTransactionCallback<T> callback) {
+                return callback.doInTransaction();
+            }
+        };
+        return new DirectoryEventWorkerUseCase(inbox, channel, recheck, reader, matcher,
+                committer, passthrough, 20, LEASE, gate, publisher, "feishu");
+    }
+
+    @Test
+    void deactivatedPersonRecordsRejectionOnOpenIdKey() {
+        RecordingInbox inbox = new RecordingInbox();
+        inbox.enqueue(personEvent("e-deact"));
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.PERSON, "ou_1"));
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(person(), true));
+        RecordingGate gate = new RecordingGate();
+
+        newWiredUseCase(inbox, channel, recheck, new StubFactReader(), new StubMatcher(),
+                new RecordingCommitter(), gate, new RecordingPublisher()).runOnce();
+
+        // open_id 域键（RecheckTarget 冻结键域；消费面 = readEffective 剔除 §8.1(c)）
+        assertThat(gate.records).containsExactly(
+                "open_id|ou_1|authority-recheck-deactivated:e-deact");
+        assertThat(gate.restorations).isEmpty();
+    }
+
+    @Test
+    void restoredPersonClearsRejectionForBothRestorationConclusions() {
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(person(), false));
+        RecordingGate gate = new RecordingGate();
+        StubMatcher matcher = new StubMatcher();
+
+        // IDENTICAL（结构等值）：在场且非停用 → 权威恢复清除（§7.5 清除规则②）
+        RecordingInbox first = new RecordingInbox();
+        first.enqueue(personEvent("e-ident"));
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.PERSON, "ou_1"));
+        newWiredUseCase(first, channel, recheck, new StubFactReader(), matcher,
+                new RecordingCommitter(), gate, new RecordingPublisher()).runOnce();
+
+        // CONTENT_DIFFERS（内容不等，仍非停用）：同支清除
+        matcher.matches = false;
+        RecordingInbox second = new RecordingInbox();
+        second.enqueue(personEvent("e-diff"));
+        newWiredUseCase(second, channel, recheck, new StubFactReader(), matcher,
+                new RecordingCommitter(), gate, new RecordingPublisher()).runOnce();
+
+        assertThat(gate.restorations).containsExactly(
+                "open_id|ou_1|authority-recheck-restored:e-ident",
+                "open_id|ou_1|authority-recheck-restored:e-diff");
+        assertThat(gate.records).isEmpty();
+    }
+
+    @Test
+    void departmentDeactivationSkipsGateEntirely() {
+        RecordingInbox inbox = new RecordingInbox();
+        inbox.enqueue(EventEnvelope.received("e-dept-deact", SCOPE, "contact.department.deleted_v3",
+                "{\"object\":{\"open_department_id\":\"od_1\"}}", Instant.now()));
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.DEPARTMENT, "od_1"));
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(
+                new DirectoryDepartment("od_1", "od_0", "研发部"), true));
+        RecordingGate gate = new RecordingGate();
+
+        newWiredUseCase(inbox, channel, recheck, new StubFactReader(), new StubMatcher(),
+                new RecordingCommitter(), gate, new RecordingPublisher()).runOnce();
+
+        // PERSON-only 裁决：部门停用无登录拦截面，走通知不进门禁
+        assertThat(gate.records).isEmpty();
+        assertThat(gate.restorations).isEmpty();
+    }
+
+    @Test
+    void staleCommitSkipsGateAndPublishes() {
+        RecordingInbox inbox = new RecordingInbox();
+        inbox.enqueue(personEvent("e-stale"));
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.PERSON, "ou_1"));
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(person(), true));
+        RecordingCommitter committer = new RecordingCommitter();
+        committer.staleReturns = true;
+        RecordingGate gate = new RecordingGate();
+        RecordingPublisher publisher = new RecordingPublisher();
+
+        newWiredUseCase(inbox, channel, recheck, new StubFactReader(), new StubMatcher(),
+                committer, gate, publisher).runOnce();
+
+        // stale = 零写零推零接线（并发赢家已按其自身证据接线）
+        assertThat(gate.records).isEmpty();
+        assertThat(publisher.published).isEmpty();
+    }
+
+    @Test
+    void publisherReceivesCommittedEventsMechanically() {
+        RecordingInbox inbox = new RecordingInbox();
+        inbox.enqueue(personEvent("e-notify"));
+        StubChannel channel = new StubChannel();
+        channel.resolved = Optional.of(new RecheckTarget(DirectoryObjectType.PERSON, "ou_1"));
+        StubRecheckQuery recheck = new StubRecheckQuery();
+        recheck.observed = Optional.of(ObservedDirectoryObject.of(person(), false));
+        RecordingCommitter committer = new RecordingCommitter();
+        DirectoryIncrementEvent personChanged = new DirectoryIncrementEvent(
+                DirectoryIncrementEvent.eventIdFor(SCOPE, 7L, DirectoryChangeType.PERSON_CHANGED),
+                SCOPE, 7L, DirectoryChangeType.PERSON_CHANGED, List.of("ou_1"), "cl-7");
+        committer.eventsReturns = List.of(personChanged);
+        RecordingPublisher publisher = new RecordingPublisher();
+
+        newWiredUseCase(inbox, channel, recheck, new StubFactReader(), new StubMatcher(),
+                committer, new RecordingGate(), publisher).runOnce();
+
+        // 机械转发：不重算不过滤，逐枚同序（预合并/stale 的 events 已空 = 零转发）
+        assertThat(publisher.published).containsExactly(personChanged);
+    }
+
+    @Test
+    void gateWithBlankProviderIsRejectedAtConstruction() {
+        // fail-loud：增量链 ∧ 门禁在场 ∧ provider 未配 = 配置错误（starter 装配层
+        // 终检外的第二道防线；实测形态 = IdentityDirectoryEventsHttpFlowTest 属性补齐）
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        new DirectoryEventWorkerUseCase(new RecordingInbox(), new StubChannel(),
+                                new StubRecheckQuery(), new StubFactReader(), new StubMatcher(),
+                                new RecordingCommitter(), new IdentityTransactionRunner() {
+                                    @Override
+                                    public <T> T inTransaction(
+                                            IdentityTransactionRunner.IdentityTransactionCallback<T> callback) {
+                                        return callback.doInTransaction();
+                                    }
+                                }, 20, LEASE, new RecordingGate(), null, " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("rejectionProvider");
     }
 }

@@ -42,32 +42,40 @@ class PgExternalRejectionGateTest {
     }
 
     @Test
-    void recordPersistsRowAndIsIdempotentReturningExistingRowAsIs() {
+    void recordIsIdempotentUpsertRefreshingReasonOnActiveRow() {
         RejectionRecord first = runner.inTransaction(() -> gate.record(IDENTITY, "明确停用：离职"));
         assertThat(first.reason()).isEqualTo("明确停用：离职");
         assertThat(first.clearedAt()).isNull();
 
-        // 幂等落回：不同 reason 亦不覆盖、不复活——返回既有行原样
+        // D4 复活补位（W5-e，W5-d D14 必修授权）：幂等 upsert——活跃行重复
+        // record 刷新 reason（三写入支均「确证停用」语义，理由 = 最新事实），
+        // created_at 不动、行数不增
         RejectionRecord second = runner.inTransaction(() -> gate.record(IDENTITY, "另一理由"));
         assertThat(second.rejectedAt()).isEqualTo(first.rejectedAt());
-        assertThat(second.reason()).isEqualTo("明确停用：离职");
+        assertThat(second.reason()).isEqualTo("另一理由");
+        assertThat(second.clearedAt()).isNull();
         assertThat(Support.count(dataSource, "external_rejection")).isEqualTo(1);
 
         // R3-P3-5 契约面：findActive 无事务可读（非门禁读取面，同批紧邻 O-1 源头）
         assertThat(gate.findActive(IDENTITY)).hasValueSatisfying(active ->
-                assertThat(active.reason()).isEqualTo("明确停用：离职"));
+                assertThat(active.reason()).isEqualTo("另一理由"));
     }
 
     @Test
-    void recordFallsBackToClearedRowWithoutResurrection() {
-        runner.inTransaction(() -> gate.record(IDENTITY, "先拒绝"));
+    void recordResurrectsClearedRowOnFreshConfirmation() {
+        RejectionRecord first = runner.inTransaction(() -> gate.record(IDENTITY, "先拒绝"));
         runner.inTransaction(() -> gate.clearControlled(IDENTITY, "op-1", "误判"));
         assertThat(gate.findActive(IDENTITY)).isEmpty();
 
-        // 已清除行再度 record：落回既有行（cleared_at 保留）——复活语义不在冻结契约
+        // D4 复活补位（W5-e）：已清除行再度确证停用 = 复活（cleared_at 置 NULL）
+        // + reason 刷新——不复活形态下「权威恢复清除后再度确证停用」拒绝永不
+        // 生效，门禁穿透（W5-d D14 升格「必修」原文）；created_at 保持原行
         RejectionRecord again = runner.inTransaction(() -> gate.record(IDENTITY, "再次拒绝"));
-        assertThat(again.clearedAt()).isNotNull();
-        assertThat(gate.findActive(IDENTITY)).isEmpty();
+        assertThat(again.clearedAt()).isNull();
+        assertThat(again.reason()).isEqualTo("再次拒绝");
+        assertThat(again.rejectedAt()).isEqualTo(first.rejectedAt());
+        assertThat(gate.findActive(IDENTITY)).hasValueSatisfying(active ->
+                assertThat(active.reason()).isEqualTo("再次拒绝"));
         assertThat(Support.count(dataSource, "external_rejection")).isEqualTo(1);
     }
 

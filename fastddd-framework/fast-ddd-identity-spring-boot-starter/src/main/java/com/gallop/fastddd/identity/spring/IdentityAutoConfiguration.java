@@ -71,6 +71,11 @@ public class IdentityAutoConfiguration {
      * 验证成功≠宿主准入；缺 {@link AdmissionPolicy} Bean 时登录用例不装配，且
      * {@code IdentityModeValidator} 终检使启动失败（企业范围/成员许可必须是宿主
      * 的显式决策；测试放行策略只允许存在于测试夹具）。</p>
+     *
+     * <p><b>W5-e T2 门禁</b>：{@code ExternalRejectionGate} bean 在场（pg 参考
+     * 适配器提供）即接入 ⓪①② 前置（活跃拒绝行 = 拒绝登录，不创建主体不签发
+     * 会话）；缺席（非 pg 宿主未实现）= M1 形态零门禁。{@link ObjectProvider}
+     * 惰性解析——bean 可选，不进 {@code @ConditionalOnBean}。</p>
      */
     @Bean
     @Conditional(CModeConditions.class)
@@ -82,9 +87,12 @@ public class IdentityAutoConfiguration {
                                         AdmissionPolicy admissionPolicy,
                                         LocalSessionPort localSessionPort,
                                         IdentityTransactionRunner runner,
-                                        FastDddIdentityProperties properties) {
+                                        FastDddIdentityProperties properties,
+                                        org.springframework.beans.factory.ObjectProvider<com.gallop.fastddd.identity.core.port.ExternalRejectionGate> rejectionGateProvider) {
         return new LocalLoginUseCase(externalLoginProvider, bindingStore, admissionPolicy,
-                localSessionPort, runner, properties.getLogin().getSession().getTtl());
+                localSessionPort, runner, properties.getLogin().getSession().getTtl(),
+                LocalLoginUseCase.DEFAULT_RETRY_LIMIT,
+                rejectionGateProvider.getIfAvailable());
     }
 
     /** 登出用例（T3 撤单，幂等）。 */
@@ -96,14 +104,29 @@ public class IdentityAutoConfiguration {
         return new LogoutUseCase(localSessionPort, runner);
     }
 
-    /** 主体生命周期用例（T4 受控停用/启用）。 */
+    /**
+     * 主体生命周期用例（T4 受控停用/启用）。
+     *
+     * <p><b>W5-e T4 拒绝行接线（R2-P2-1）</b>：{@code ExternalRejectionGate}
+     * bean 在场时停用事务先逐绑定键 record（先于主体语句，与登录同序）；gate
+     * 在场而 {@code IdentityBindingStore} bean 缺失 = 用例构造器 fail-loud
+     * （五元组反查端口缺失，拒绝启动不静默跳过拒绝行）。两者均缺席 = M1 形态。</p>
+     */
     @Bean
     @Conditional(CModeConditions.class)
     @ConditionalOnBean({IdentityLifecyclePort.class, IdentityTransactionRunner.class})
     @ConditionalOnMissingBean
     PrincipalLifecycleUseCase principalLifecycleUseCase(IdentityLifecyclePort lifecyclePort,
-                                                        IdentityTransactionRunner runner) {
-        return new PrincipalLifecycleUseCase(lifecyclePort, runner);
+                                                        IdentityTransactionRunner runner,
+                                                        org.springframework.beans.factory.ObjectProvider<com.gallop.fastddd.identity.core.port.ExternalRejectionGate> rejectionGateProvider,
+                                                        org.springframework.beans.factory.ObjectProvider<IdentityBindingStore> bindingStoreProvider) {
+        com.gallop.fastddd.identity.core.port.ExternalRejectionGate gate =
+                rejectionGateProvider.getIfAvailable();
+        // gate 缺席时不解析 bindingStore（保持 M1 形态旧构造路径）；在场而
+        // bindingStore 缺失由用例构造器 IllegalArgumentException fail-loud
+        IdentityBindingStore bindingStore = gate != null
+                ? bindingStoreProvider.getIfAvailable() : null;
+        return new PrincipalLifecycleUseCase(lifecyclePort, runner, gate, bindingStore);
     }
 
     /** C/Worker 最终 Bean/路由检查（§4.5：防默认用户名认证与旧路由旁路）。 */

@@ -2,6 +2,7 @@ package com.gallop.fastddd.identity.pg;
 
 import com.gallop.fastddd.identity.core.domain.ChangeLogEntry;
 import com.gallop.fastddd.identity.core.domain.DirectoryChangeType;
+import com.gallop.fastddd.identity.core.domain.DirectoryIncrementEvent;
 import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
 import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.RecheckConclusion;
@@ -228,12 +229,17 @@ public class PgDirectoryRecheckCommitter implements DirectoryRecheckCommitter {
         }
         changeLog.append(new ChangeLogEntry(ulid, scope, ChangeLogEntry.Kind.RECHECK_COMMITTED,
                 null, committedAfter, summaryJson(evidence)));
-        List<String> eventIds = premerge ? List.of()
-                : List.of("dir-change:" + scope + ":" + committedAfter + ":" + eventType.name());
+        // 增量通知事件（W5-e 通知链）：单对象事件实体随 result 返回，用例层同事务
+        // 转发 DirectoryIncrementPublisher（预合并不发；objectExternalIds = 回查目标键）
+        List<DirectoryIncrementEvent> events = premerge ? List.of()
+                : List.of(new DirectoryIncrementEvent(
+                        DirectoryIncrementEvent.eventIdFor(scope, committedAfter, eventType),
+                        scope, committedAfter, eventType,
+                        List.of(evidence.externalId()), ulid));
         return new RecheckResult(false, premerge, committedAfter,
                 premerge ? appliedBefore : committedAfter,
                 premerge ? committedAfter : null,
-                ulid, eventIds);
+                ulid, events);
     }
 
     /** 携带约定校验（端口 javadoc：CONTENT_DIFFERS 恰携带一个与 objectType 匹配的观察对象）。 */

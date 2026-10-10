@@ -57,10 +57,12 @@ public interface ExternalRejectionGate {
     Optional<RejectionRecord> lockActive(ExternalIdentity identity);
 
     /**
-     * 写入拒绝行（幂等：重复写入落回既有行，不抛唯一冲突）。写入方三支
-     * （登录链路上游明确停用 / 回查链路确证停用 / T4 本地受控停用——第三支
-     * 随 W5-e T2 门禁集成同轮交付）；T4 调用面语句位置先于任何
-     * binding/principal 语句（与登录同序，消除 ABBA 死锁面）。
+     * 写入拒绝行（幂等 upsert，W5-e D4 复活补位：已清除行再度确证停用时复活
+     * ——cleared_at 置 NULL，reason 更新为本次确证理由；不复活形态下「权威恢复
+     * 清除后再度确证停用」拒绝永不生效，门禁穿透）。写入方三支（登录链路上游
+     * 明确停用 / 回查链路确证停用 / T4 本地受控停用——三支均为「确证停用」
+     * 语义，W5-e 起全接入）；T4 调用面语句位置先于任何 binding/principal
+     * 语句（与登录同序，消除 ABBA 死锁面）。
      */
     RejectionRecord record(ExternalIdentity identity, String reason);
 

@@ -32,10 +32,13 @@ import java.util.Optional;
  * {@code _xact_} 锁必须活在事务内）；{@code findActive} 为无锁普通读、无事务
  * 要求（亦可在事务内复用——非门禁读取面）。</p>
  *
- * <p><b>record 幂等语义（字面契约）</b>：{@code INSERT ... ON CONFLICT DO NOTHING}
- * ——重复写入落回既有行（含已清除行原样返回，不复活、不覆盖 reason）；「已清除行
- * 再度拒绝」的复活语义不在冻结契约面（§7.5(a) 仅"幂等写入"），W5-e 登录集成如需
- * 该语义须设计补位。</p>
+ * <p><b>record 幂等语义（W5-e D4 复活补位后）</b>：{@code INSERT ... ON CONFLICT
+ * DO UPDATE SET cleared_at = NULL, reason = EXCLUDED.reason RETURNING}——幂等
+ * upsert：<b>已清除行再度确证停用时复活</b>（cleared_at 置 NULL）且 reason 更新
+ * 为本次确证理由（三写入支均为「确证停用」语义，理由 = 最新事实）；活跃行重复
+ * record 仅刷新 reason。原 W5-c「DO NOTHING 不复活不覆盖」字面契约经 W5-c 执行
+ * 记录 D4 + W5-d D14（升格「必修」）授权补位——不复活形态下「权威恢复清除后再
+ * 度确证停用」拒绝永不生效，门禁穿透，故复活为必要语义。</p>
  *
  * <p><b>时间戳</b>：created_at/cleared_at 均由 PG 服务端 {@code now()} 定值
  * （DEFAULT 列 + UPDATE 语句内联），Java 侧只读回填 {@link RejectionRecord}。</p>
@@ -65,10 +68,12 @@ public class PgExternalRejectionGate implements ExternalRejectionGate {
             FOR UPDATE
             """;
 
+    /** D4 复活补位（W5-e）：冲突行复活 + reason 刷新（幂等 upsert，类文档 record 段）。 */
     private static final String INSERT_REJECTION_SQL = """
             INSERT INTO external_rejection (provider, tenant_id, app_scope, external_id_type, external_id, reason)
             VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (provider, tenant_id, app_scope, external_id_type, external_id) DO NOTHING
+            ON CONFLICT (provider, tenant_id, app_scope, external_id_type, external_id)
+            DO UPDATE SET cleared_at = NULL, reason = EXCLUDED.reason
             RETURNING created_at
             """;
 
@@ -110,7 +115,10 @@ public class PgExternalRejectionGate implements ExternalRejectionGate {
     public RejectionRecord record(ExternalIdentity identity, String reason) {
         gate.requireActiveTransaction("external-rejection:record");
         acquireKeyLock(identity);
-        RejectionRecord inserted = jdbcTemplate.query(con -> {
+        // D4 复活补位（W5-e）：幂等 upsert——冲突行 DO UPDATE 复活（cleared_at
+        // 置 NULL）+ reason 刷新为本次确证理由；RETURNING 两分支同构
+        // （reason = 入参、cleared = null），无回落读必要
+        return jdbcTemplate.query(con -> {
             PreparedStatement ps = con.prepareStatement(INSERT_REJECTION_SQL);
             bindKey(ps, identity, 0);
             ps.setString(6, reason);
@@ -118,21 +126,6 @@ public class PgExternalRejectionGate implements ExternalRejectionGate {
         }, rs -> rs.next()
                 ? new RejectionRecord(identity, reason, rs.getTimestamp("created_at").toInstant(), null)
                 : null);
-        if (inserted != null) {
-            return inserted;
-        }
-        // 幂等落回：冲突行不复活、不覆盖 reason——返回既有行原样（含已清除态，
-        // 字面契约，类文档）
-        return jdbcTemplate.query(con -> {
-            PreparedStatement ps = con.prepareStatement(SELECT_BY_KEY_SQL);
-            bindKey(ps, identity, 0);
-            return ps;
-        }, (ResultSetExtractor<RejectionRecord>) rs -> {
-            if (!rs.next()) {
-                throw new IllegalStateException("external_rejection 行在冲突后不可见: " + identity);
-            }
-            return mapRow(rs, identity);
-        });
     }
 
     @Override

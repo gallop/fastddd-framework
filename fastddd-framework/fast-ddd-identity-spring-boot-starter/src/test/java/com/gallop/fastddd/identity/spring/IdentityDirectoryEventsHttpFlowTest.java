@@ -58,6 +58,9 @@ class IdentityDirectoryEventsHttpFlowTest {
                     "fastddd.identity.enabled=true",
                     "fastddd.identity.login.mode=feishu-web",
                     "fastddd.identity.directory.increment.enabled=true",
+                    // W5-e：增量链 ∧ pg 门禁 bean 在场 → 拒绝行 provider 必须显式
+                    // （worker 构造器 fail-loud；与登录绑定行同值域，飞书="feishu"）
+                    "fastddd.identity.directory.increment.rejection-provider=feishu",
                     "fastddd.identity.login.session.cookie-secure=false",
                     "fastddd.identity.login.allowed-post-login-redirects=/,/home",
                     "fastddd.security.jwt.enabled=false",

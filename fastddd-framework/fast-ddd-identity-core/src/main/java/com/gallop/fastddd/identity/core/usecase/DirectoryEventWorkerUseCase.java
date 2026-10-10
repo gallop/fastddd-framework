@@ -1,9 +1,13 @@
 package com.gallop.fastddd.identity.core.usecase;
 
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
+import com.gallop.fastddd.identity.core.domain.DirectoryIncrementEvent;
 import com.gallop.fastddd.identity.core.domain.DirectoryObjectType;
+import com.gallop.fastddd.identity.core.domain.DirectoryScope;
 import com.gallop.fastddd.identity.core.domain.DirectoryPerson;
 import com.gallop.fastddd.identity.core.domain.EventEnvelope;
+import com.gallop.fastddd.identity.core.domain.ExternalIdTypes;
+import com.gallop.fastddd.identity.core.domain.ExternalIdentity;
 import com.gallop.fastddd.identity.core.domain.LocalFactView;
 import com.gallop.fastddd.identity.core.domain.ObservedDirectoryObject;
 import com.gallop.fastddd.identity.core.domain.RecheckConclusion;
@@ -16,8 +20,10 @@ import com.gallop.fastddd.identity.core.port.DirectoryEventChannel;
 import com.gallop.fastddd.identity.core.port.DirectoryEventInbox;
 import com.gallop.fastddd.identity.core.port.DirectoryFactMatcher;
 import com.gallop.fastddd.identity.core.port.DirectoryFactReader;
+import com.gallop.fastddd.identity.core.port.DirectoryIncrementPublisher;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckCommitter;
 import com.gallop.fastddd.identity.core.port.DirectoryRecheckQuery;
+import com.gallop.fastddd.identity.core.port.ExternalRejectionGate;
 import com.gallop.fastddd.identity.core.port.IdentityTransactionRunner;
 
 import java.time.Duration;
@@ -56,7 +62,13 @@ import java.util.concurrent.locks.ReentrantLock;
  *   <li><b>非消费类型纵深</b>：接收链已忽略 unconsumedType，入箱后再遇
  *       （防御纵深）→ markProcessed + 计数，零事实；</li>
  *   <li><b>单事件故障不炸批</b>：resolveObject/结论派生的意外运行时异常 →
- *       markFailed + 继续（实现缺陷以 last_error 可观测，不静默）。</li>
+ *       markFailed + 继续（实现缺陷以 last_error 可观测，不静默）；</li>
+ *   <li><b>W5-e 提交事务内接线</b>：① {@code ExternalRejectionGate}（可空）——
+ *       权威确证 DEACTIVATED 且 PERSON 时 {@code record} 拒绝行（幂等复活，
+ *       D4 补位；锁序 metadata→advisory，与登录路径无环）；②
+ *       {@code DirectoryIncrementPublisher}（可空）——{@code publishedEvents}
+ *       机械转发（同事务；预合并/stale/零变更时列表为空即零转发）。两端口
+ *       缺席 = M1 形态零行为变化。</li>
  * </ul>
  *
  * <p><b>不持有任何调度</b>：轮询节奏归宿主调度器（starter Worker 调度，
@@ -93,6 +105,12 @@ public class DirectoryEventWorkerUseCase {
     private final IdentityTransactionRunner runner;
     private final int batchSize;
     private final Duration claimLease;
+    /** 登录拒绝门禁（W5-e，可空：null = 无门禁链形态，DEACTIVATED 不落拒绝行）。 */
+    private final ExternalRejectionGate rejectionGate;
+    /** 增量通知端口（W5-e 通知链，可空：null = 通知关，事务内零转发）。 */
+    private final DirectoryIncrementPublisher incrementPublisher;
+    /** 拒绝行五元组的 provider 值（装配注入，与登录链同源；仅 gate 非 null 时必需）。 */
+    private final String rejectionProvider;
 
     private final ConcurrentHashMap<String, ReentrantLock> keyLocks = new ConcurrentHashMap<>();
 
@@ -105,11 +123,31 @@ public class DirectoryEventWorkerUseCase {
                                        IdentityTransactionRunner runner,
                                        int batchSize,
                                        Duration claimLease) {
+        this(inbox, channel, recheckQuery, factReader, factMatcher, committer, runner,
+                batchSize, claimLease, null, null, null);
+    }
+
+    public DirectoryEventWorkerUseCase(DirectoryEventInbox inbox,
+                                       DirectoryEventChannel channel,
+                                       DirectoryRecheckQuery recheckQuery,
+                                       DirectoryFactReader factReader,
+                                       DirectoryFactMatcher factMatcher,
+                                       DirectoryRecheckCommitter committer,
+                                       IdentityTransactionRunner runner,
+                                       int batchSize,
+                                       Duration claimLease,
+                                       ExternalRejectionGate rejectionGate,
+                                       DirectoryIncrementPublisher incrementPublisher,
+                                       String rejectionProvider) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("batchSize 必须 ≥ 1（收到：" + batchSize + "）");
         }
         if (claimLease == null || claimLease.isNegative() || claimLease.isZero()) {
             throw new IllegalArgumentException("claimLease 必须为正时长（收到：" + claimLease + "）");
+        }
+        if (rejectionGate != null && (rejectionProvider == null || rejectionProvider.isBlank())) {
+            throw new IllegalArgumentException(
+                    "rejectionGate 在场时 rejectionProvider 必须非空（拒绝行五元组与登录链同源）");
         }
         this.inbox = inbox;
         this.channel = channel;
@@ -120,6 +158,9 @@ public class DirectoryEventWorkerUseCase {
         this.runner = runner;
         this.batchSize = batchSize;
         this.claimLease = claimLease;
+        this.rejectionGate = rejectionGate;
+        this.incrementPublisher = incrementPublisher;
+        this.rejectionProvider = rejectionProvider;
     }
 
     /** 单轮：回收过期 → claim 批 → 逐事件处置。可重入、无隐性状态。 */
@@ -196,12 +237,57 @@ public class DirectoryEventWorkerUseCase {
                 target.objectType(), target.externalId(), conclusion,
                 local.map(LocalFactView::localRevision).orElse(0L),
                 person, department, envelope.eventId());
-        // ③ 单短事务：CAS 提交（stale = 零写零推）
+        // ③ 单短事务：CAS 提交 + W5-e 接线（stale = 零写零推零接线）
+        // ——锁序（R3-P3-1）：committer 先锁 metadata 行 → gate.record 后取
+        // 五元组 advisory（升序，与登录路径 advisory→binding 无环）；通知转发
+        // 纯机械（预合并/stale/IDENTICAL 的 events 已空，零枚即零转发）
         RecheckResult result =
-                runner.inTransaction(() -> committer.commitCas(envelope.scope(), evidence));
+                runner.inTransaction(() -> {
+                    RecheckResult committed = committer.commitCas(envelope.scope(), evidence);
+                    if (rejectionGate != null && !committed.stale()
+                            && target.objectType() == DirectoryObjectType.PERSON) {
+                        // 权威确证停用（PERSON-only 裁决：部门停用无登录拦截面，
+                        // 走 DEPARTMENT_DEACTIVATED 通知事件，不进登录门禁）——
+                        // record 幂等复活（D4 补位）：已清除行再度确证停用时复活
+                        if (evidence.conclusion() == RecheckConclusion.DEACTIVATED) {
+                            rejectionGate.record(rejectionIdentity(envelope.scope(), target.externalId()),
+                                    "authority-recheck-deactivated:" + envelope.eventId());
+                        } else if (evidence.conclusion() == RecheckConclusion.IDENTICAL
+                                || evidence.conclusion() == RecheckConclusion.CONTENT_DIFFERS) {
+                            // 权威恢复（§7.5 清除规则②，P-8）：确证在场且非停用
+                            // ——清除 open_id 域拒绝行（幂等：无活跃行返回 0）。
+                            // 与 record 同事务同键域（配对写入支，W5-e D 登记）；
+                            // union_id 域行的清除受跨域键映射缺口约束（见
+                            // rejectionIdentity 注释）不在本支直达
+                            rejectionGate.clearByAuthoritativeRestoration(
+                                    rejectionIdentity(envelope.scope(), target.externalId()),
+                                    "authority-recheck-restored:" + envelope.eventId());
+                        }
+                    }
+                    if (incrementPublisher != null) {
+                        for (DirectoryIncrementEvent event : committed.publishedEvents()) {
+                            incrementPublisher.publishDirectoryChanged(event);
+                        }
+                    }
+                    return committed;
+                });
         inbox.markProcessed(envelope.eventId());
         return result.stale() ? Outcome.PROCESSED_STALE : Outcome.PROCESSED;
     }
+
+    /**
+     * 拒绝行五元组（provider 来自装配注入；人员键 = open_id 域——{@link RecheckTarget}
+     * 冻结键域）。键域语义（§8.1(c) v4 双域现实）：open_id 域行的消费面 =
+     * readEffective 剔除；登录门禁（lockActive）现查 union_id 域登录五元组
+     * （{@code FeishuExternalLoginProvider} 冻结决策），本行不直达登录拦截——
+     * 回查停用事实 → union_id 键的映射设计未载，属设计缺口（W5-e D 差异登记，
+     * 兜底层 = OAuth 对停用用户不可达 + 墓碑 + 本行剔除 + DEACTIVATED 通知）。
+     */
+    private ExternalIdentity rejectionIdentity(DirectoryScope scope, String openId) {
+        return new ExternalIdentity(rejectionProvider, scope.tenantKey(), scope.appScope(),
+                ExternalIdTypes.OPEN_ID, openId);
+    }
+
 
     /**
      * 结论派生（§7.3 推演表）：ABSENT（权威确证不存在）> DEACTIVATED（权威在场
