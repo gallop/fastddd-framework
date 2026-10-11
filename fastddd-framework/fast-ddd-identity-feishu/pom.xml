@@ -29,6 +29,15 @@
             <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-identity-core</artifactId>
         </dependency>
+        <!-- W7-d TCK dogfood：reactor 内消费 core tests.jar（D-7 = (A) test-jar classifier；
+             dependencyManagement 按 G:A:type 匹配、jar 条目不覆盖 test-jar，故显式版本）。 -->
+        <dependency>
+            <groupId>io.github.gallop.fastddd</groupId>
+            <artifactId>fast-ddd-identity-core</artifactId>
+            <version>${revision}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
 
         <!-- 自动配置 + 属性绑定 -->
         <dependency>
