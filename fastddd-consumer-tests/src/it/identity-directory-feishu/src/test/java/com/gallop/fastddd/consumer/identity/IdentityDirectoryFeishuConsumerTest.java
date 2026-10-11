@@ -1,5 +1,6 @@
 package com.gallop.fastddd.consumer.identity;
 
+import com.gallop.fastddd.identity.core.domain.ChangeLogEntry;
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryPage;
 import com.gallop.fastddd.identity.core.domain.DirectoryPublication;
@@ -9,6 +10,7 @@ import com.gallop.fastddd.identity.core.domain.Lease;
 import com.gallop.fastddd.identity.core.domain.ObservedSnapshot;
 import com.gallop.fastddd.identity.core.domain.ProtectedFactView;
 import com.gallop.fastddd.identity.core.domain.ValidationReport;
+import com.gallop.fastddd.identity.core.port.DirectoryChangeLog;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityChangePublisher;
@@ -51,6 +53,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>边界（W3 设计）：存储用<b>测试范围替身</b>（真实 PG 目录存储属 W3-c，
  * 生产装配不塞默认替身）；web 非 Worker 形态零调度线程；真实飞书环境不可用，
  * 端点由本地桩按官方契约形态提供（W0-4 2026-09-28 复核口径）。</p>
+ *
+ * <p>W5-g（M2 候选消费）起两处补齐：①change_log 端口 W5-e 起恒接线，pg 适配器
+ * {@code PgDirectoryChangeLog} 对本场景 H2 空库（无 V4 表）不可用——同以测试
+ * 范围替身承载；②feishu 源使 {@code DirectoryRecheckQuery} 端口在座 →
+ * {@code DirectoryRecheckManualTrigger} 装配，其 W5-f fail-loud 契约要求
+ * {@code ExternalRejectionGate}（pg 适配器恒提供）在场时拒绝行 provider 非空
+ * ——按真实消费者契约配置 {@code rejection-provider: feishu}（application.yml）。</p>
  */
 @SpringBootTest(classes = IdentityDirectoryFeishuConsumerTest.App.class)
 class IdentityDirectoryFeishuConsumerTest {
@@ -201,6 +210,22 @@ class IdentityDirectoryFeishuConsumerTest {
         @Bean
         RecordingStore recordingStore() {
             return new RecordingStore();
+        }
+
+        /** change_log 测试范围替身：H2 空库无 V4 表，pg 适配器退让（{@code @ConditionalOnMissingBean}）。 */
+        @Bean
+        DirectoryChangeLog directoryChangeLog() {
+            return new DirectoryChangeLog() {
+                @Override
+                public String append(ChangeLogEntry entry) {
+                    return entry.id();
+                }
+
+                @Override
+                public boolean hasGenerationActivation(DirectoryScope scope, String generationId) {
+                    return false;
+                }
+            };
         }
     }
 

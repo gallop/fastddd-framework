@@ -1,6 +1,7 @@
 package com.gallop.fastddd.consumer.identity;
 
 import com.gallop.fastddd.crud.provider.CurrentUserProvider;
+import com.gallop.fastddd.identity.core.domain.ChangeLogEntry;
 import com.gallop.fastddd.identity.core.domain.DirectoryBatch;
 import com.gallop.fastddd.identity.core.domain.DirectoryDepartment;
 import com.gallop.fastddd.identity.core.domain.DirectoryPage;
@@ -14,6 +15,7 @@ import com.gallop.fastddd.identity.core.domain.ObservedSnapshot;
 import com.gallop.fastddd.identity.core.domain.ProtectedFactView;
 import com.gallop.fastddd.identity.core.domain.ValidationReport;
 import com.gallop.fastddd.identity.core.port.ActorResolver;
+import com.gallop.fastddd.identity.core.port.DirectoryChangeLog;
 import com.gallop.fastddd.identity.core.port.DirectoryMirrorStore;
 import com.gallop.fastddd.identity.core.port.DirectorySource;
 import com.gallop.fastddd.identity.core.port.IdentityChangePublisher;
@@ -59,6 +61,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * DirectoryMirrorStore 拒绝启动）——本场景以<b>测试范围替身</b>满足端口要求，
  * 并锁装配面：目录用例装配、web 非 Worker 零调度线程、M1 无 publisher Bean、
  * 同步编排经上下文真实 Bean 完整走通（begin→分页写批→…→publish）。</p>
+ *
+ * <p>W5-g（M2 候选消费）起：change_log 端口 W5-e 起恒接线，pg 适配器
+ * {@code PgDirectoryChangeLog} 对本场景 H2 空库（无 V4 表）不可用——同以
+ * <b>测试范围替身</b>承载（append-only 语义直通，首发布无既有代激活行）。</p>
  */
 @SpringBootTest(classes = IdentityDirectoryConsumerTest.App.class)
 @AutoConfigureMockMvc
@@ -177,6 +183,22 @@ class IdentityDirectoryConsumerTest {
         @Bean
         RecordingStore directoryMirrorStore() {
             return new RecordingStore();
+        }
+
+        /** change_log 测试范围替身：H2 空库无 V4 表，pg 适配器退让（{@code @ConditionalOnMissingBean}）。 */
+        @Bean
+        DirectoryChangeLog directoryChangeLog() {
+            return new DirectoryChangeLog() {
+                @Override
+                public String append(ChangeLogEntry entry) {
+                    return entry.id();
+                }
+
+                @Override
+                public boolean hasGenerationActivation(DirectoryScope scope, String generationId) {
+                    return false;
+                }
+            };
         }
     }
 

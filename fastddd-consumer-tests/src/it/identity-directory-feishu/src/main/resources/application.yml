@@ -11,6 +11,10 @@ fastddd:
     enabled: true
     directory:
       enabled: true
+      increment:
+        # W5-f f-2 契约：ExternalRejectionGate（pg 适配器恒提供）在场时拒绝行
+        # provider 必须非空（与登录绑定行同值域，飞书 = "feishu"）——真实消费者同形态
+        rejection-provider: feishu
     feishu:
       # 目录凭据三键（测试值；端点指向本地桩，不打真实飞书）
       app-id: cli-dir-app
