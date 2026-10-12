@@ -38,6 +38,20 @@ public class TableMetadata {
      * 主键列
      */
     private List<ColumnMetadata> primaryKeys = new ArrayList<>();
+    /**
+     * 聚合名称（可空，供代码生成模板语义标注使用）
+     */
+    private String aggregateName;
+
+    /**
+     * DDD 角色（可空，如 AGGREGATE_ROOT/ENTITY/VALUE_OBJECT，供代码生成模板语义标注使用）
+     */
+    private String dddRole;
+
+    /**
+     * 关系摘要（可空，供代码生成模板语义标注使用）
+     */
+    private String relationsSummary;
 
     /**
      * 获取表名（用于模板访问）

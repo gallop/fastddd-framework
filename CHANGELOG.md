@@ -10,6 +10,16 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.0.2] - 2026-10-12
+
+### Added
+
+- **TableMetadata semantic expansion (additive-nullable)** (`fast-ddd-common`): three new nullable `String` columns — `aggregateName`, `dddRole`, `relationsSummary` — with no initializers, so pre-1.0.2 JSON payloads deserialize with the three columns left `null` (locked by `TableMetadataJsonCompatibilityTest`). Downstream codegen templates consume them as semantic annotations and must keep `<#if x?? && x>` / `${x!''}` guarded forms — unguarded interpolation throws on pre-1.0.2 jars. Content is additive at semver-minor volume carried on the patch slot per the single-1.0.2-from-trunk release decision — a disclosed deviation from the matrix's "PATCH = bug fixes only" wording.
+
+### Fixed
+
+- **`ddd-refine-user.txt` prompt contract** (`fast-ddd-ai-spring-boot-starter`): the "(skeleton, no field details)" heading and the blanket "no need to output the fields array" rule conflicted with the actual full-payload input and with consumers that require hand-edited field definitions to be preserved in the output JSON (Studio's manual-changes appendix). Wording now states the general rule and explicitly carves out hand-edited fields.
+
 ## [1.0.1] - 2026-10-05
 
 ### Fixed

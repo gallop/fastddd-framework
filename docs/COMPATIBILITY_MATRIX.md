@@ -57,6 +57,7 @@ Each Framework version line carries a platform dependency baseline, asserted at 
 |--------------|------|------|-------------|-----------|-----------|---------|
 | 1.0.0 | current-stable (internal release 2026-09-10, tag `v1.0.0`) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 | 1.0.1 | patch (audit success judgment fix, tag `v1.0.1`, 2026-10-05; staged — `current-stable` stays on 1.0.0 until the release sync updates the generation-channel pin) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+| 1.0.2 | patch+additive (TableMetadata 3 nullable semantic columns + refine-prompt contract fix, tag `v1.0.2`, 2026-10-12; staged — `current-stable` stays on 1.0.0 until the release sync updates the generation-channel pin; additive content on the patch slot per the single-1.0.2-from-trunk decision, disclosed) | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 
 ### How generation channels pick the target Framework version (VER-001 step 5)
 

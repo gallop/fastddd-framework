@@ -10,6 +10,16 @@
 
 ---
 
+## [1.0.2] - 2026-10-12
+
+### 新增
+
+- **TableMetadata 语义扩列（additive-nullable）**（`fast-ddd-common`）：新增三个可空 `String` 列——`aggregateName`/`dddRole`/`relationsSummary`，均不带初始化器，1.0.2 之前的 JSON 载荷反序列化后三键保持 `null`（由 `TableMetadataJsonCompatibilityTest` 锁定）。下游代码生成模板以语义标注形态消费，须持 `<#if x?? && x>` / `${x!''}` 守卫形——无守卫插值在 1.0.2 之前的 jar 上抛异常。内容为 additive（semver-minor 内容量），按「单版本 1.0.2 自 trunk」发布决策落在 patch 版位——与矩阵「PATCH = bug fixes only」的字面偏差在此披露。
+
+### 修复
+
+- **`ddd-refine-user.txt` 提示词契约**（`fast-ddd-ai-spring-boot-starter`）：原文「（骨架，不含字段细节）」节头与「不需要输出 fields 数组」的全称断言，与实际整包 fields 载荷输入、及要求手工修改字段定义保留在输出 JSON 中的消费方（Studio 手改清单附录）冲突。措辞改为陈述常规情形并显式豁免手工修改字段。
+
 ## [1.0.1] - 2026-10-05
 
 ### Fixed
