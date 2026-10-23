@@ -11,10 +11,10 @@
 |---------|-------------------|-------------|-------|------|
 | 升级前开发快照 | 17 | 3.4.5 | 3.9.x | 🔒 仅 Git tag `baseline/jdk17-boot3.4.5` 归档，**不维护** |
 | **1.0.x** | **21** | **3.5.x**（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | ✅ **当前稳定线**（内部 v1.0 已发布：`1.0.0`，tag `v1.0.0`，2026-09-10；公开 GA 门禁材料已移至仓外私有档案） |
-| 1.1.x | 21 | 3.5.x（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | 🚧 **开发中**——新增可选飞书身份集成（4 个默认关闭模块，见下方注）；里程碑 `1.1.0-M1` 在 `feat/feishu-identity` 分支筹备中（尚未打标/发布）；该线的兼容性增强（japicmp/Revapi、BOM 单一来源、模板切 BOM）仍为规划项 |
+| 1.1.x | 21 | 3.5.x（当前 3.5.16） | 3.9.x（wrapper pin 3.9.5） | 🚧 **开发中（走向 1.1.0 GA）**——可选飞书身份集成（4 个默认关闭模块，见下方注）已经 W6 单轴化合流（2026-10-23）并入 `main`；里程碑已打标 `v1.1.0-M1`（2026-10-01）与 `v1.1.0-M2`（2026-10-11，位于合流线内；M1 属前置 rebase 血统、经 tag 保活）；工作树 `<revision>` 为 `1.1.0-SNAPSHOT`；该线的兼容性增强（japicmp/Revapi、BOM 单一来源、模板切 BOM）仍为规划项 |
 | 2.0.x | 待定 | 4.x | 待定 | 🔭 未来规划（Spring Boot 4 / Spring Framework 7 / Jackson 3 迁移） |
 
-> **1.1.x 可选身份能力（兼容性注记）**：1.1.x 线新增四个可选模块——`fast-ddd-identity-core`、`fast-ddd-identity-reference-pg`、`fast-ddd-identity-spring-boot-starter`、`fast-ddd-identity-feishu`——全部由 `fastddd-bom` 受管。该能力整体由 `fastddd.identity.enabled` 门控（**默认关闭**——未显式开启时 `IdentityAutoConfiguration` 不注册任何组件），因此**不引入任何 `fast-ddd-identity-*` 依赖的消费者相对 1.0.0 零行为变化**。启用另需模式/功能开关（`fastddd.identity.login.mode`、`fastddd.identity.worker`、`fastddd.identity.directory.*`、`fastddd.identity.admin.enabled`），reference PG 适配器另需宿主自有 schema 迁移 V1–V3；完整开关族与 M1 边界声明见 `docs/identity/`（M1 发布说明、迁移交付说明、五类典型配置样例与恢复声明/回退演练：`docs/identity/W4-d M1 发布说明.md` 等）。**制品仓形态限制（M1，按 W4-c c3 转发）**：内部制品仓当前为 file:// 目录形态，无服务端 staging/promote/同坐标不可覆盖——M1 证据以流程等价物承载（候选目录冻结只读 + SHA-256 清单锚定 → SHA 核对后目录晋升至发布代际）；真实制品仓（服务端 staging/promote、同坐标不可覆盖）登记为 W6 门禁。
+> **1.1.x 可选身份能力（兼容性注记）**：1.1.x 线新增四个可选模块——`fast-ddd-identity-core`、`fast-ddd-identity-reference-pg`、`fast-ddd-identity-spring-boot-starter`、`fast-ddd-identity-feishu`——全部由 `fastddd-bom` 受管。该能力整体由 `fastddd.identity.enabled` 门控（**默认关闭**——未显式开启时 `IdentityAutoConfiguration` 不注册任何组件），因此**不引入任何 `fast-ddd-identity-*` 依赖的消费者相对 1.0.0 零行为变化**。启用另需模式/功能开关（`fastddd.identity.login.mode`、`fastddd.identity.worker`、`fastddd.identity.directory.*`、`fastddd.identity.admin.enabled`），reference PG 适配器另需宿主自有 schema 迁移 V1–V3；完整开关族与 M1 边界声明见 `docs/identity/`（M1 发布说明、迁移交付说明、五类典型配置样例与恢复声明/回退演练：`docs/identity/W4-d M1 发布说明.md` 等）。**制品仓形态（M1 期限制、按 W4-c c3 转发；状态 2026-10-24 更新）**：M1/M2 里程碑证据以 file:// 目录形态承载——无服务端 staging/promote/同坐标不可覆盖，仅有流程等价物（候选目录冻结只读 + SHA-256 清单锚定 → SHA 核对后目录晋升至发布代际）。其后服务端内部制品仓已上线（Tooling 产品 `v1.0.6` GA（2026-10-21）经其发布），原「登记为 W6 门禁」事项已被其上线所承接；1.1.x 线的 GA 发布锚定于 1.1.0 GA 窗（内部仓；公开 Maven Central 维持 Owner 门控）。
 
 ## 关键依赖矩阵（1.0.x 线，经 `dependency:tree` 实证）
 
@@ -53,9 +53,9 @@ workflow 文件目前仅为声明式，待 runner 部署后即执行同一规则
 |--------|---------|-----------|------|
 | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 1.0.0-jdk21-SNAPSHOT | 🔒 已被取代——拆仓后的首个锁步候选；其后为各产品独立 GA 发布（Framework `1.0.0` 2026-09-10，Tooling `1.0.2` 2026-09-14） |
 
-> Framework 1.1.x 线（身份集成）正在 `feat/feishu-identity` 分支开发；其 compatible-tuple 行待该线 GA 前经 Tooling 侧机器可读矩阵登记——不在此单方断言。
+> Framework 1.1.x 线（身份集成）原在 `feat/feishu-identity` 分支开发、已经 W6 单轴化合流（2026-10-23）并入 `main`；其 compatible-tuple 行待该线 GA 前经 Tooling 侧机器可读矩阵登记——不在此单方断言。
 
-构建期由 `VersionGovernanceContractTest#currentToolingFrameworkPairIsRegisteredInMatrix_step6` 断言当前 reactor 元组在表内；拆仓后新增元组行即放行新的独立组合。**归属**：该测试为 **Tooling 仓守卫**（`fastddd-tooling`，随 `fastddd-tooling-api` 发布）——**Framework 仓内不存在此测试**；本仓构建期守卫为 `FrameworkBomAllowlistTest`（BOM 18 成员白名单）。
+构建期由 `VersionGovernanceContractTest#currentToolingFrameworkPairIsRegisteredInMatrix_step6` 断言当前 reactor 元组在表内；拆仓后新增元组行即放行新的独立组合。**归属**：该测试为 **Tooling 仓守卫**（`fastddd-tooling`，随 `fastddd-tooling-api` 发布）——**Framework 仓内不存在此测试**；本仓构建期守卫为 `FrameworkBomAllowlistTest`（BOM 18 成员白名单=14 核心+W2 起 4 个 `fast-ddd-identity-*`）。
 
 ### Framework 平台 manifest（framework-lines）
 
@@ -66,7 +66,8 @@ workflow 文件目前仅为声明式，待 runner 部署后即执行同一规则
 | 1.0.0 | current-stable（内部发布 2026-09-10，tag `v1.0.0`） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 | 1.0.1 | patch（审计 success 判型修复，tag `v1.0.1`，2026-10-05；staged——`current-stable` 仍留 1.0.0，待发布同步更新生成通道锚定） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 | 1.0.2 | patch+additive（TableMetadata 三个可空语义列+refine 提示词契约勘正，tag `v1.0.2`，2026-10-12；staged——`current-stable` 仍留 1.0.0，待发布同步更新生成通道锚定；additive 内容量落 patch 版位系「单版本 1.0.2 自 trunk」决策披露项） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
-| 1.1.0-M1 | 🚧 里程碑候选筹备中（身份集成，分支 `feat/feishu-identity`；尚未打标） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+| 1.1.0-M1 | 里程碑（身份集成；已打标 `v1.1.0-M1` 2026-10-01——前置 rebase 血统、非 `main` 祖先，经 tag+备份支保活） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
+| 1.1.0-M2 | 里程碑（身份集成线 W5-f 收口态；已打标 `v1.1.0-M2` 2026-10-11——位于 W6（2026-10-23）合流并入 `main` 的线内） | 21 | 3.5.16 | 1.1.8 | 2.8.17 | 4.5.0 |
 
 ### 生成通道如何取目标 Framework 版本（VER-001 步骤 5）
 
