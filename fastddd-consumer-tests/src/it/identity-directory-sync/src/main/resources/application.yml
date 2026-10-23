@@ -1,0 +1,24 @@
+# W3-c 目录同步消费者：C 模式登录宿主 + directory.enabled=true。
+# 本场景两个测试类共用本配置——同步测试类直接使用；矩阵 25 测试类以
+# @SpringBootTest properties 覆盖 directory.enabled=false 复验目录关闭登录零回归。
+# 表结构（V1–V3 含目录镜像）经 initialize-schema 建立；DataSource/登录桩/准入/
+# 授权 URL 桩均由测试夹具提供（见测试源码，§五 桩边界）。
+fastddd:
+  identity:
+    enabled: true
+    login:
+      mode: feishu-web
+      session:
+        # MockMvc 无 TLS：消费者侧安全缺省的显式测试放开（生产宿主保持 secure 缺省）
+        cookie-secure: false
+      allowed-post-login-redirects: /,/home
+    pg:
+      # 空库自动迁移（identity 主体/绑定/会话/登录态 + W3 目录镜像表）
+      initialize-schema: true
+    directory:
+      enabled: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

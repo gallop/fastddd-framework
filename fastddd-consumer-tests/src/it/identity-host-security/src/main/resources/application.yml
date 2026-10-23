@@ -1,0 +1,13 @@
+# W2-1 C 模式 + host-owned 消费者基础配置（host-owned 由测试类按正/反例分别注入）。
+fastddd:
+  identity:
+    enabled: true
+    login:
+      mode: feishu-web
+    pg:
+      initialize-schema: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

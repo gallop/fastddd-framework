@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- W3-b：飞书目录源衔接消费者——在 identity-directory（替身源）基础上引入
+     fast-ddd-identity-feishu：真实 FeishuDirectorySource 经 Boot 自动配置顺序
+     （AutoConfiguration.imports）与 W3-a starter 目录装配衔接（DirectorySyncUseCase
+     装配、fail-closed 守卫放行）；存储仍为测试范围替身（真实 PG 存储属 W3-c）。
+     飞书端点由测试内本地 HTTP 桩提供（真实飞书环境不可用，如实隔离）。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.gallop.fastddd.consumer</groupId>
+  <artifactId>identity-directory-feishu</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>FastDDD Consumer :: Identity Directory Feishu (A form)</name>
+
+  <properties>
+    <java.version>21</java.version>
+    <fastddd.version>1.1.0-SNAPSHOT</fastddd.version>
+    <!-- ECO-RELEASE-04/S3 安全覆盖：tomcat-embed CVE-2026-65905/65182/68525（3×CRITICAL，10.1.x 线 fix 实际发布 10.1.59）。 -->
+    <tomcat.version>10.1.59</tomcat.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.github.gallop.fastddd</groupId>
+        <artifactId>fastddd-bom</artifactId>
+        <version>${fastddd.version}</version>
+        <type>pom</type><scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-reference-pg</artifactId>
+    </dependency>
+    <!-- W3-b 被测模块：飞书目录源（真实 DirectorySource 经自动配置衔接） -->
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-identity-feishu</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-security-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.gallop.fastddd</groupId>
+      <artifactId>fast-ddd-web</artifactId>
+    </dependency>
+    <!-- 宿主业务库（H2 预设）需要 JDBC/连接池装配：DataSourceAutoConfiguration 依赖 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

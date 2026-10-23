@@ -1,0 +1,16 @@
+# W2-2 飞书登录消费者：identity C 模式 + feishu 适配器（模块在 classpath 即装配，
+# 必填项缺失启动失败）。飞书端点/凭据指向本地 HTTP 桩（见测试 @DynamicPropertySource）。
+fastddd:
+  identity:
+    enabled: true
+    login:
+      mode: feishu-web
+      # 回跳白名单（宿主显式声明；缺省仅 "/"）
+      allowed-post-login-redirects: /,/console
+    pg:
+      initialize-schema: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

@@ -40,8 +40,8 @@
     </developers>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- CI-friendly 版本（与根 pom 一致；发布可用 -Drevision=1.0.0 覆盖） -->
-        <revision>1.0.0-SNAPSHOT</revision>
+        <!-- CI-friendly 版本（与根 pom 一致，BOM 无 parent 须手工同步；发布可用 -Drevision=1.1.0-M1 覆盖） -->
+        <revision>1.1.0-SNAPSHOT</revision>
         <!-- 仅声明 depMgmt 所需版本属性（与根 pom 对齐），不继承根 pom 的环境/profile 属性 -->
         <spring-boot.version>3.5.16</spring-boot.version>
         <!-- ECO-RELEASE-04 (A1)：Tomcat 安全修复覆盖（Boot 3.5.16 受管 10.1.55 → 10.1.59）。
@@ -176,6 +176,28 @@
             <dependency>
                 <groupId>io.github.gallop.fastddd</groupId>
                 <artifactId>fast-ddd-ai-spring-boot-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 身份域（W2-1，v0.2 §3）：纯 Java 核心 / PG 参考适配 / Spring Boot starter -->
+            <dependency>
+                <groupId>io.github.gallop.fastddd</groupId>
+                <artifactId>fast-ddd-identity-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.gallop.fastddd</groupId>
+                <artifactId>fast-ddd-identity-reference-pg</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.gallop.fastddd</groupId>
+                <artifactId>fast-ddd-identity-spring-boot-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 身份域（W2-2）：飞书适配（OAuth 2.0 + PKCE 真实提供者，独立可选） -->
+            <dependency>
+                <groupId>io.github.gallop.fastddd</groupId>
+                <artifactId>fast-ddd-identity-feishu</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- ============ 第三方受管依赖（与根 pom dependencyManagement 对齐） ============ -->

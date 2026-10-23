@@ -32,7 +32,13 @@ class FrameworkBomAllowlistTest {
             "fast-ddd-starter",
             "fast-ddd-analyzer-spring-boot-starter",
             "fast-ddd-security-starter",
-            "fast-ddd-ai-spring-boot-starter");
+            "fast-ddd-ai-spring-boot-starter",
+            // 身份域（W2-1）
+            "fast-ddd-identity-core",
+            "fast-ddd-identity-reference-pg",
+            "fast-ddd-identity-spring-boot-starter",
+            // 身份域（W2-2：飞书适配，独立可选）
+            "fast-ddd-identity-feishu");
 
     @Test
     void bomContainsOnlyFrameworkCommunityArtifacts() throws Exception {

@@ -1,0 +1,16 @@
+# W2-2 真实联调推进（opt-in）：与 identity C 模式宿主同构的最小装配。
+# 飞书凭据不写入本文件——只经 FEISHU_LIVE_* 环境变量由 @DynamicPropertySource
+# 注入测试 JVM（见 FeishuLiveSmokeTest）；三端点保持官方缺省地址（L1 即验证缺省坐标）。
+fastddd:
+  identity:
+    enabled: true
+    login:
+      mode: feishu-web
+      allowed-post-login-redirects: /
+    pg:
+      initialize-schema: true
+  security:
+    jwt:
+      enabled: false
+    local-auth:
+      enabled: false

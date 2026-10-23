@@ -39,8 +39,16 @@ public class AuditLogAspect {
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
 
+    /** identity 模式 Actor 桥（可空：A/B/D 与目录单开为 null，走旧路径）。 */
+    private final AuditActorProvider actorProvider;
+
     public AuditLogAspect(AuditLogService auditLogService) {
+        this(auditLogService, null);
+    }
+
+    public AuditLogAspect(AuditLogService auditLogService, AuditActorProvider actorProvider) {
         this.auditLogService = auditLogService;
+        this.actorProvider = actorProvider;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -48,15 +56,28 @@ public class AuditLogAspect {
     public Object around(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
         long startTime = System.currentTimeMillis();
         AuditLogEntity logEntity = new AuditLogEntity();
-        
+
         try {
+            // identity 模式（W21-04）：进入业务前解析统一 Actor——缺失身份在此抛出，
+            // 业务不执行（不降级 anonymous）；解析结果随实体捕获，异步落库不延后读取
+            AuditActorProvider.AuditActor actor = null;
+            if (actorProvider != null) {
+                actor = actorProvider.resolveActor();
+            }
+
             // 获取请求信息
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             HttpServletRequest request = attributes != null ? attributes.getRequest() : null;
-            
-            // 获取当前用户
+
+            // 获取当前用户（identity 模式下 actor.principalId 与会话 getName() 一致）
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String username = authentication != null ? authentication.getName() : "anonymous";
+            String username = actor != null ? actor.principalId()
+                    : authentication != null ? authentication.getName() : "anonymous";
+            if (actor != null) {
+                logEntity.setActorTenantId(actor.tenantId());
+                logEntity.setActorPrincipalId(actor.principalId());
+                logEntity.setActorType(actor.actorType());
+            }
             
             // 获取方法信息
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
@@ -214,7 +235,8 @@ public class AuditLogAspect {
             return;
         }
         try {
-            ApiResponse<?> envelope = extractApiResponse(result);
+            // 强转在方法体内（懒解析，守卫+try 兜底之内）；extract 返回型保持 Object——见其 javadoc W2-1 注
+            ApiResponse<?> envelope = (ApiResponse<?>) extractApiResponse(result);
             if (envelope == null) {
                 logEntity.setSuccess(true);
                 return;
@@ -237,10 +259,18 @@ public class AuditLogAspect {
 
     /**
      * 独立私有方法承载 ApiResponse 引用（懒解析隔离）：仅当 API_RESPONSE_PRESENT
-     * 为真时才被调用——方法签名与 instanceof 涉及的 ApiResponse 常量池解析随首次
-     * 执行触发，web 缺席消费者永不调用本方法即永不解析，零 NoClassDefFoundError。
+     * 为真时才被调用——方法体内 instanceof/强转涉及的 ApiResponse 常量池解析随首次
+     * 执行触发，web 缺席消费者永不调用本方法即永不解析。
+     *
+     * <p><b>返回型必须保持 {@code Object}（W2-1 修复，2026-10-09）</b>：方法
+     * <b>签名</b>（方法描述符）参与 {@code Class#getDeclaredMethods} 急切解析，
+     * 而 AspectJ advisor 构建（{@code AspectMetadata} → {@code AjTypeSystem.getAjType}）
+     * 即走此路径——签名出现可选依赖类型时，security-starter + AOP 代理 + classpath
+     * 无 fast-ddd-web 的宿主在启动期即 {@code NoClassDefFoundError}（原
+     * {@code ApiResponse<?>} 返回型签名即此缺陷，v1.0.1 懒守卫只隔离了调用路径
+     * 未覆盖签名解析面）。调用方局部变量声明不进方法描述符，体内强转安全。
      */
-    private ApiResponse<?> extractApiResponse(Object result) {
+    private Object extractApiResponse(Object result) {
         Object payload = result;
         if (payload instanceof ResponseEntity<?> entity) {
             payload = entity.getBody();

@@ -1,0 +1,26 @@
+# W3-b 飞书目录源衔接消费者：目录单开（login.mode 缺省 none）+ 飞书目录源。
+# api-base-url 由测试以 @DynamicPropertySource 指向本地 HTTP 桩（见测试类）。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+fastddd:
+  identity:
+    enabled: true
+    directory:
+      enabled: true
+      increment:
+        # W5-f f-2 契约：ExternalRejectionGate（pg 适配器恒提供）在场时拒绝行
+        # provider 必须非空（与登录绑定行同值域，飞书 = "feishu"）——真实消费者同形态
+        rejection-provider: feishu
+    feishu:
+      # 目录凭据三键（测试值；端点指向本地桩，不打真实飞书）
+      app-id: cli-dir-app
+      app-secret: secret-dir-test
+      expected-tenant-key: tenant-dir-1
+  security:
+    jwt:
+      # 测试密钥（≥64 字节，仅消费者 harness 使用）：宿主链沿用
+      secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"

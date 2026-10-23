@@ -30,7 +30,7 @@
   -->
   <properties>
     <!-- CI-friendly 版本：reactor 唯一版本入口，发布时由 flatten-maven-plugin 解析为字面量 -->
-    <revision>1.0.0-SNAPSHOT</revision>
+    <revision>1.1.0-SNAPSHOT</revision>
     <java.version>21</java.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -113,7 +113,9 @@
         VER-001 Phase A：单一依赖来源——根 pom import fastddd-bom，消除根 pom 与 BOM 的 depMgmt 重复。
         fastddd-bom 为发布自洽的独立 POM（无 parent，不泄漏 profile/环境属性），import 仅带入 depMgmt。
         自模块版本随 BOM 的 ${revision}（在此上下文解析为根 <revision>），等价于原 ${project.version}。
-        校验见 VersionGovernanceContractTest（revision 同步 + BOM 完整性 + 元组成员）。
+        校验：BOM 制品清单完整性见 fast-ddd-common 的 FrameworkBomAllowlistTest（18 成员白名单）；
+        根/BOM 两处 <revision> 字面量同步为手工纪律（BOM 无 parent；拆仓前 step7 守卫未随拆仓迁入本仓）；
+        跨产品版本元组治理属 Tooling 仓（fastddd-tooling）的 VersionGovernanceContractTest。
       -->
       <dependency>
         <groupId>io.github.gallop.fastddd</groupId>

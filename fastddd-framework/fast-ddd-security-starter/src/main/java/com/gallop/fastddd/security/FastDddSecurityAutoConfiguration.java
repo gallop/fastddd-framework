@@ -1,5 +1,6 @@
 package com.gallop.fastddd.security;
 
+import com.gallop.fastddd.security.audit.AuditActorProvider;
 import com.gallop.fastddd.security.audit.AuditLogAspect;
 import com.gallop.fastddd.security.audit.AuditLogService;
 import com.gallop.fastddd.security.audit.AuditLogServiceImpl;
@@ -14,6 +15,7 @@ import com.gallop.fastddd.security.code.VerificationCodeService;
 import com.gallop.fastddd.security.code.VerificationCodeStore;
 import com.gallop.fastddd.security.code.VerificationCodeType;
 import com.gallop.fastddd.security.config.AuditLogConfiguration;
+import com.gallop.fastddd.security.config.LocalAuthConfigurationGuard;
 import com.gallop.fastddd.security.config.SecurityAutoConfiguration;
 import com.gallop.fastddd.security.controller.VerificationCodeController;
 import com.gallop.fastddd.security.controller.AuthController;
@@ -46,6 +48,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -85,6 +88,21 @@ public class FastDddSecurityAutoConfiguration {
      * PasswordEncoder/AuthenticationManager）已使用同一条件，二者保持一致。
      */
     private static final String JWT_ENABLED_CONDITION_PREFIX = "fastddd.security.jwt";
+
+    /**
+     * W1（评审 R1 / 身份集成方案 §4.5）：本地认证族统一启用条件。
+     *
+     * <p>仅当 {@code fastddd.security.local-auth.enabled=true}（默认缺省视为 true）时才装配
+     * 框架本地认证族：{@link AuthController} 登录端点、{@link VerificationCodeController} 验证码端点、
+     * {@link PasswordAuthStrategy}/{@link SmsCodeAuthStrategy}/{@link EmailCodeAuthStrategy}、
+     * 默认 {@link AuthStrategyRegistry}、默认 {@link SecurityIdentityService}/UserDetailsService
+     * （用户名认证回退）与默认验证码 Store/RateLimiter/Service 及开发用 Noop sender。每个受控 Bean
+     * 保留原条件并与本开关取 AND：缺省不配置时与旧版行为完全一致；显式 false 时整族不装配，
+     * 宿主自定义链或基础 Bean（PasswordEncoder/VerificationCodeService/AuthenticationManager）
+     * 不会重新触发本族。JWT 验证基础、PasswordEncoder、权限 SPI、审计与 CurrentUserProvider
+     * 桥接不受本开关影响。</p>
+     */
+    private static final String LOCAL_AUTH_CONDITION_PREFIX = "fastddd.security.local-auth";
 
     @Bean
     @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -137,11 +155,15 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogAspect auditLogAspect(AuditLogService auditLogService) {
-        return new AuditLogAspect(auditLogService);
+    public AuditLogAspect auditLogAspect(AuditLogService auditLogService,
+            org.springframework.beans.factory.ObjectProvider<AuditActorProvider> actorProvider) {
+        // identity C/Worker 装配 AuditActorProvider 时切面进入业务前解析统一 Actor（W21-04）；
+        // 未装配（A/B/D 与目录单开）保持旧行为
+        return new AuditLogAspect(auditLogService, actorProvider.getIfAvailable());
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(SecurityIdentityService.class)
     public SecurityIdentityService securityIdentityService() {
         return new DefaultSecurityIdentityService();
@@ -154,6 +176,7 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(UserDetailsService.class)
     public UserDetailsService userDetailsService(SecurityIdentityService identityService) {
         return username -> {
@@ -166,30 +189,35 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public AuthStrategyRegistry authStrategyRegistry(@Autowired(required = false) List<AuthStrategy> strategies) {
         return new AuthStrategyRegistry(strategies);
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnBean(AuthenticationManager.class)
     public PasswordAuthStrategy passwordAuthStrategy(AuthenticationManager authenticationManager) {
         return new PasswordAuthStrategy(authenticationManager);
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public VerificationCodeStore verificationCodeStore() {
         return new InMemoryVerificationCodeStore();
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public VerificationCodeRateLimiter verificationCodeRateLimiter() {
         return new NoopVerificationCodeRateLimiter();
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnBean(PasswordEncoder.class)
     @ConditionalOnMissingBean
     public VerificationCodeService verificationCodeService(VerificationCodeProperties properties,
@@ -201,6 +229,7 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnBean(VerificationCodeService.class)
     @ConditionalOnMissingBean
     public SmsCodeAuthStrategy smsCodeAuthStrategy(VerificationCodeService verificationCodeService,
@@ -209,6 +238,7 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnBean(VerificationCodeService.class)
     @ConditionalOnMissingBean
     public EmailCodeAuthStrategy emailCodeAuthStrategy(VerificationCodeService verificationCodeService,
@@ -218,6 +248,7 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "fastddd.security.code", name = "dev-mode", havingValue = "true")
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(name = "noopSmsVerificationCodeSender")
     public VerificationCodeSender noopSmsVerificationCodeSender() {
         return new NoopVerificationCodeSender(VerificationCodeType.SMS);
@@ -225,6 +256,7 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "fastddd.security.code", name = "dev-mode", havingValue = "true")
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(name = "noopEmailVerificationCodeSender")
     public VerificationCodeSender noopEmailVerificationCodeSender() {
         return new NoopVerificationCodeSender(VerificationCodeType.EMAIL);
@@ -250,6 +282,7 @@ public class FastDddSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = JWT_ENABLED_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnClass(name = "com.gallop.fastddd.web.response.ApiResponse")
     @ConditionalOnMissingBean(name = "authController")
     public AuthController frameworkAuthController(JwtTokenProvider jwtTokenProvider,
@@ -261,10 +294,23 @@ public class FastDddSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = LOCAL_AUTH_CONDITION_PREFIX, name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnClass(name = "com.gallop.fastddd.web.response.ApiResponse")
     @ConditionalOnBean(VerificationCodeService.class)
     @ConditionalOnMissingBean(name = "verificationCodeController")
     public VerificationCodeController verificationCodeController(VerificationCodeService verificationCodeService) {
         return new VerificationCodeController(verificationCodeService);
+    }
+
+    /**
+     * W1（评审 R1）：本地认证族配置冲突 fail-fast 守卫。
+     *
+     * <p>local-auth 显式关闭但 {@code fastddd.security.code.dev-mode} 显式开启时启动失败
+     * 并指名两个属性（见 {@link LocalAuthConfigurationGuard}）。identity.* 组合校验
+     * 随 W2 identity-starter 落地，本守卫只覆盖 security-starter 自身可判定的矛盾。</p>
+     */
+    @Bean
+    public LocalAuthConfigurationGuard localAuthConfigurationGuard(Environment environment) {
+        return new LocalAuthConfigurationGuard(environment);
     }
 }

@@ -1,0 +1,15 @@
+# W1 本地认证族显式关闭的消费者预设配置。
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+fastddd:
+  security:
+    jwt:
+      # 测试密钥（≥64 字节，仅消费者 harness 使用）：JWT 验证基础保持启用，与 local-auth 开关正交
+      secret: "fastddd-consumer-test-secret-please-not-use-in-production-0000000000000000"
+    local-auth:
+      # 显式关闭框架本地认证族（登录/验证码控制器、认证策略、默认用户名认证、验证码设施）
+      enabled: false
