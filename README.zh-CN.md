@@ -1,12 +1,12 @@
 # FastDDD Framework Community
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![Version](https://img.shields.io/badge/version-1.1.0-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
 [English](README.md) | **简体中文**
 
 FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行时基础框架。它提供通用领域模型、应用层契约、Web 与统一响应、安全认证、领域事件（含 Outbox）、缓存、搜索、监控和可选 AI 集成，不包含 FastDDD Studio Pro 的商业控制面能力。
 
-> **当前状态：1.0.0 GA**（2026-09-10，tag `v1.0.0`），Maven 坐标 `io.github.gallop.fastddd`。12 个模块纳入 1.0 稳定 API 承诺；`fast-ddd-ai-spring-boot-starter` 与 `fast-ddd-analyzer-spring-boot-starter` 保持 Incubating。
+> **当前状态：1.1.0 GA**（2026-10-24，tag `v1.1.0`），Maven 坐标 `io.github.gallop.fastddd`。1.0 稳定 API 承诺的 12 模块在 1.1.0 零变化；可选身份能力（四个 `fast-ddd-identity-*` 模块，默认关闭）纳入本线；`fast-ddd-ai-spring-boot-starter` 与 `fast-ddd-analyzer-spring-boot-starter` 保持 Incubating。
 
 ## 模块
 
@@ -42,14 +42,14 @@ FastDDD Framework Community 是面向 Java 21 与 Spring Boot 3.5 的 DDD 运行
 > **制品解析**：FastDDD 制品按坐标 `io.github.gallop.fastddd` 从你配置的 Maven 仓库解析（Java 包名保持 `com.gallop.fastddd` 不变）。源码安装为两步：先 framework 仓，后 tooling 仓（插件依赖 `fastddd-bom`）：
 >
 > ```bash
-> cd fastddd-framework && ./mvnw -B -Drevision=1.0.0 clean install -DskipTests
-> cd ../fastddd-tooling  && ./mvnw -B -Drevision=1.0.0 clean install -DskipTests
+> cd fastddd-framework && ./mvnw -B -Drevision=1.1.0 clean install -DskipTests
+> cd ../fastddd-tooling  && ./mvnw -B -Drevision=1.1.0 clean install -DskipTests
 > ```
 
 **新项目——用配套工具链插件一键生成脚手架**（充血模型 + PostgreSQL + 两个限界上下文）：
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.1.0:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=shop \
   -Dinit.package=com.example.shop \
@@ -91,7 +91,7 @@ mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.0.0:init-project \
 ./mvnw clean verify
 ```
 
-发布（GA）版本构建使用 `-Drevision=1.0.0`；reactor 默认保持 `-SNAPSHOT`。
+发布（GA）版本构建使用 `-Drevision=1.1.0`；reactor 默认保持 `-SNAPSHOT`。
 
 ## 文档
 

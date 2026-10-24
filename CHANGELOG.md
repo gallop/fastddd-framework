@@ -10,6 +10,25 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.1.0] - 2026-10-24
+
+### Added
+
+- **Optional identity capability — Feishu integration** (four new modules managed by `fastddd-bom`: `fast-ddd-identity-core`, `fast-ddd-identity-reference-pg`, `fast-ddd-identity-spring-boot-starter`, `fast-ddd-identity-feishu`): login (authorization-code flow with state/browser binding), worker tokens, directory mirror & incremental sync, and an audit actor bridge. Wholly gated by `fastddd.identity.enabled` (default **off**) — a consumer that imports no `fast-ddd-identity-*` dependency sees zero behavior change relative to 1.0.0 (compatibility note in [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)).
+- **Security-starter identity bridge** (`fast-ddd-security-starter`): optional `AuditActorProvider`, `LocalAuthConfigurationGuard`, and audit-log aspect/entity extension points — active only when the identity modules are present.
+- **AI field-design prompt contract: `defaultValue`** (`fast-ddd-ai-spring-boot-starter`): `ddd-fields-user.txt` now demonstrates and mandates a `defaultValue` key for fields carrying a business default (omitted otherwise — never `null`), completing the Studio consumption chain (projection → entity `default_value` → DDL `DEFAULT` in PostgreSQL/Oracle/MySQL/H2).
+- **Consumer-tests coverage**: `identity-*` and `security-*` invoker scenarios (directory, directory-sync, directory-feishu, feishu-login, host-security, session-postgres, worker, disabled; local-auth-off, minimal, nodb, custom-config, with-database) plus `bom-revision-isolation`.
+- **TCK harness artifacts** (`fast-ddd-identity-core`): a `test-jar` classifier is produced in source-build reactors for TCK dogfood; it is intentionally **not** part of the published GA artifact set (288-file candidate form preserved).
+
+### Compatibility
+
+- The BOM manages 18 artifacts (14 core + 4 identity); `FrameworkBomAllowlistTest` guards the set.
+- Core runtime lineage: 13 modules are byte-identical to v1.0.2 in `src/main`; `fast-ddd-security-starter` carries only the 5-file identity bridge face (W2-era, covered by the M2 gates). Pre-1.1.0 consumers see no core behavior change.
+
+### Migration
+
+- Identity adopters: the reference PG adapter requires host-owned schema migrations V1–V3 (+ V4 directory increment) and, optionally, `V1__sys_audit_log_actor_columns`; see `docs/identity/` (W4-d release notes, migration guide, config samples, recovery statement).
+
 ## [1.0.2] - 2026-10-12
 
 ### Added

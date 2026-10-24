@@ -10,6 +10,25 @@
 
 ---
 
+## [1.1.0] - 2026-10-24
+
+### Added
+
+- **可选身份能力——飞书集成**（`fastddd-bom` 新纳管四模块：`fast-ddd-identity-core`、`fast-ddd-identity-reference-pg`、`fast-ddd-identity-spring-boot-starter`、`fast-ddd-identity-feishu`）：登录（授权码流程，含 state/浏览器绑定）、worker 令牌、目录镜像与增量同步、审计 actor 桥。整体由 `fastddd.identity.enabled` 门控（默认**关闭**）——不引入任何 `fast-ddd-identity-*` 依赖的消费者相对 1.0.0 **零行为变化**（兼容性说明见 [docs/COMPATIBILITY_MATRIX.zh-CN.md](docs/COMPATIBILITY_MATRIX.zh-CN.md)）。
+- **security-starter 身份桥**（`fast-ddd-security-starter`）：可选 `AuditActorProvider`、`LocalAuthConfigurationGuard` 与审计日志切面/实体扩展点——仅在身份模块在場时激活。
+- **AI 字段设计提示词契约：`defaultValue`**（`fast-ddd-ai-spring-boot-starter`）：`ddd-fields-user.txt` 现为带业务默认值的字段示范并约定输出 `defaultValue` 键（无默认值则省略该键——不输出 `null`），补全 Studio 消费链（投影 → 实体 `default_value` → PostgreSQL/Oracle/MySQL/H2 四方言 DDL `DEFAULT`）。
+- **消费者测试覆盖**：`identity-*` 与 `security-*` invoker 场景（directory、directory-sync、directory-feishu、feishu-login、host-security、session-postgres、worker、disabled；local-auth-off、minimal、nodb、custom-config、with-database）另加 `bom-revision-isolation`。
+- **TCK 配套制品**（`fast-ddd-identity-core`）：源码构建 reactor 内产出 `test-jar` classifier 供 TCK dogfood；**有意不**纳入 GA 发布制品集（候选仓维持 288 文件形）。
+
+### Compatibility
+
+- BOM 纳管 18 制品（14 核心+4 身份）；`FrameworkBomAllowlistTest` 守卫该集合。
+- 核心运行时血统：13 模块 `src/main` 与 v1.0.2 字节一致；`fast-ddd-security-starter` 仅有 5 文件身份桥面（W2 时代交付，M2 门禁已覆盖）。1.1.0 前消费者核心行为零变化。
+
+### Migration
+
+- 身份能力采用方：reference PG 适配器需要宿主自持 schema 迁移 V1–V3（+V4 目录增量）与可选 `V1__sys_audit_log_actor_columns`；见 `docs/identity/`（W4-d 发布说明、迁移指南、配置样例、恢复声明）。
+
 ## [1.0.2] - 2026-10-12
 
 ### 新增

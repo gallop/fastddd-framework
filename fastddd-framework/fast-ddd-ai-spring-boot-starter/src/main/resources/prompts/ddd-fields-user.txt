@@ -28,6 +28,14 @@
       "comment": "主键",
       "primaryKey": true,
       "autoIncrement": true
+    }},
+    {{
+      "fieldName": "status",
+      "fieldType": "VARCHAR",
+      "length": 10,
+      "nullable": false,
+      "comment": "状态",
+      "defaultValue": "0"
     }}
   ]
 }}
@@ -39,3 +47,4 @@
 4. 每个字段有合理的类型、长度和注释
 5. 不要重复输出表元信息，只输出 fields 数组
 6. 只输出这一张表的字段，不要输出其他表的任何信息
+7. 为有业务默认值的字段输出 defaultValue（见上例 status 字段），无默认值省略该键（不输出 null）

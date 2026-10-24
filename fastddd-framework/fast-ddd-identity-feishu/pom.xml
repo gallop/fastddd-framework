@@ -29,16 +29,6 @@
             <groupId>io.github.gallop.fastddd</groupId>
             <artifactId>fast-ddd-identity-core</artifactId>
         </dependency>
-        <!-- W7-d TCK dogfood：reactor 内消费 core tests.jar（D-7 = (A) test-jar classifier；
-             dependencyManagement 按 G:A:type 匹配、jar 条目不覆盖 test-jar，故显式版本）。 -->
-        <dependency>
-            <groupId>io.github.gallop.fastddd</groupId>
-            <artifactId>fast-ddd-identity-core</artifactId>
-            <version>${revision}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-
         <!-- 自动配置 + 属性绑定 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -63,4 +53,29 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <!-- P-6（T8.98 拍板=条件化排除，联动根修）：core tests.jar 的 test 依赖随同款 profile
+         门控——默认（不传 skip-tests-jar）依赖在，reactor 内 W7-d TCK dogfood 照常；候选构建
+         传 -Dskip-tests-jar 时依赖消隐+core 不产 tests.jar，发布候选仓维持 M2 288 文件形。 -->
+    <profiles>
+        <profile>
+            <id>tests-jar-default</id>
+            <activation>
+                <property>
+                    <name>!skip-tests-jar</name>
+                </property>
+            </activation>
+            <dependencies>
+                <!-- W7-d TCK dogfood：reactor 内消费 core tests.jar（D-7 = (A) test-jar classifier；
+                     dependencyManagement 按 G:A:type 匹配、jar 条目不覆盖 test-jar，故显式版本）。 -->
+                <dependency>
+                    <groupId>io.github.gallop.fastddd</groupId>
+                    <artifactId>fast-ddd-identity-core</artifactId>
+                    <version>${revision}</version>
+                    <type>test-jar</type>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

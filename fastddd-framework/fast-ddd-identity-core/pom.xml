@@ -33,20 +33,33 @@
     </dependencies>
 
     <!-- W7-d / D-7 = (A)：TCK 以 test-jar classifier 附属于本坐标（版本继承父 pom pluginManagement，
-         不带版本号；现有测试类随 test-jar 一并打包属 (A) 形态正常）。 -->
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>test-jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+         不带版本号；现有测试类随 test-jar 一并打包属 (A) 形态正常）。
+         P-6（T8.98 拍板=条件化排除）：profile 默认激活（属性 skip-tests-jar 不在时）——reactor
+         内 TCK dogfood 照常产出；候选构建传 -Dskip-tests-jar 跳过 test-jar goal，发布候选仓
+         维持 M2 288 文件形（docs/identity/1.1.0 GA 窗设计与实施拆分.md §5-R1/§9-P-6）。 -->
+    <profiles>
+        <profile>
+            <id>tests-jar-default</id>
+            <activation>
+                <property>
+                    <name>!skip-tests-jar</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>test-jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
