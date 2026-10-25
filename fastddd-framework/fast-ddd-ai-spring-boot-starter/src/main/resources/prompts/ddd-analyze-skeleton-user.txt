@@ -26,7 +26,8 @@
 你只需要输出：
 1. summary - 设计决策总结
 2. boundedContexts - 限界上下文列表
-3. tables - 每张表的元信息：
+3. contextRelationships - 限界上下文间关系（from, to, pattern, description；可选，识别得出才输出）
+4. tables - 每张表的元信息：
    - tableName（snake_case，如 order_item）
    - comment（中文注释）
    - aggregateName（所属聚合名）
@@ -34,7 +35,7 @@
    - domainModelType（RICH / ANEMIC）
    - reasoning（设计推理过程）
    - fields：设为空数组 []
-4. relations - 表之间的所有关系（fromTable, toTable, relationType, foreignKeyColumn, comment）
-5. aggregates - 聚合分组（aggregateName, rootTable, memberTables, description）
+5. relations - 表之间的所有关系（fromTable, toTable, relationType, foreignKeyColumn, comment）
+6. aggregates - 聚合分组（aggregateName, rootTable, memberTables, description）
 
 稍后会逐表请求详细字段定义。请确保表之间的关系和聚合设计完整准确，这是后续字段生成的基础。

@@ -36,6 +36,14 @@
 {
   "summary": "自然语言总结本次设计的主要决策",
   "boundedContexts": ["限界上下文1", "限界上下文2"],
+  "contextRelationships": [
+    {
+      "from": "限界上下文1",
+      "to": "限界上下文2",
+      "pattern": "CUSTOMER_SUPPLIER",
+      "description": "限界上下文1作为下游客户，限界上下文2作为上游供应商"
+    }
+  ],
   "tables": [
     {
       "tableName": "order",
@@ -72,6 +80,7 @@
       "rootTable": "order",
       "memberTables": ["order", "order_item"],
       "description": "订单聚合，管理订单及其明细的完整生命周期"
+      "contexts": ["限界上下文1"]
     }
   ]
 }
