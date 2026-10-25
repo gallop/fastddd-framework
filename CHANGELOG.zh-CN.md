@@ -10,6 +10,20 @@
 
 ---
 
+## [1.1.1] - 2026-10-25
+
+### 修复
+
+- **审计日志脱敏加固**（`fast-ddd-security-starter`）：`AuditLogAspect.maskSensitiveJson` 改为后缀族匹配敏感键（`[A-Za-z0-9_]*(?:[pP]assword|[sS]ecret|[tT]oken)`）——原五个精确键漏掉的复合键（`oldPassword`/`newPassword`/`clientSecret` 等）全覆盖——且转义值整体遮蔽（原 `[^"]*` 在含 `\"` 的值上提前截断——尾部明文泄漏+产物 JSON 劈裂）。保护写审计参数的框架直接消费者；Studio 侧已全堵（`logParams=false`+`WRITE_ONLY` 载荷）。
+
+### 新增
+
+- **AI 上下文地图提示词契约（v3b 键族）**（`fast-ddd-ai-spring-boot-starter`）：analyze system prompt 的 JSON schema 样例新增限界上下文间 `contextRelationships`（`from`/`to`/`pattern`/`description`）与 `aggregates[].contexts`；refine prompt 增显式保留句（除非用户指令明确涉及，这些键必须原样保留在输出中）；skeleton prompt 输出清单列出 `contextRelationships`。只增不删：`boundedContexts` 平面字符串清单冻结、`content_schema` 恒 `v1`、不删任何键。Studio 消费链（typed 扩列、ER 地图视图、PlantUML 分组）随 Studio 侧发版列车落地。
+
+### 兼容性
+
+- BOM 制品集不变（18 员，`FrameworkBomAllowlistTest` 守卫）。零迁移；依赖基线不变（Java 21 / Spring Boot 3.5.16）。
+
 ## [1.1.0] - 2026-10-24
 
 ### Added

@@ -10,6 +10,20 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.1.1] - 2026-10-25
+
+### Fixed
+
+- **Audit-log masking hardening** (`fast-ddd-security-starter`): `AuditLogAspect.maskSensitiveJson` now matches sensitive keys by suffix family (`[A-Za-z0-9_]*(?:[pP]assword|[sS]ecret|[tT]oken)`) — compound keys such as `oldPassword`/`newPassword`/`clientSecret` that the previous five exact keys missed are covered — and masks escaped values as a whole (no early truncation on `\"`, which previously leaked tail plaintext and split the product JSON). Protects framework direct consumers writing audit params; Studio-side was already fully sealed (`logParams=false` + `WRITE_ONLY` payloads).
+
+### Added
+
+- **AI context-map prompt contract (v3b keys)** (`fast-ddd-ai-spring-boot-starter`): the analyze system prompt now demonstrates `contextRelationships` (`from`/`to`/`pattern`/`description`) between bounded contexts and `aggregates[].contexts` in its JSON schema sample; the refine prompt carries an explicit retention sentence (these keys are preserved verbatim unless the user instruction explicitly changes them); the skeleton prompt lists `contextRelationships` in its output checklist. Additive only: `boundedContexts` stays a flat string list, `content_schema` stays `v1`, no key is removed. The Studio consumption chain (typed columns, ER-map view, PlantUML grouping) lands with the Studio-side release train.
+
+### Compatibility
+
+- BOM artifact set unchanged (18 artifacts, `FrameworkBomAllowlistTest`-guarded). Zero migration; dependency baseline unchanged (Java 21 / Spring Boot 3.5.16).
+
 ## [1.1.0] - 2026-10-24
 
 ### Added
