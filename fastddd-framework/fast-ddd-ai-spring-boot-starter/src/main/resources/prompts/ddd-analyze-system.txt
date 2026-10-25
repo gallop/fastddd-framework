@@ -79,7 +79,7 @@
       "aggregateName": "Order",
       "rootTable": "order",
       "memberTables": ["order", "order_item"],
-      "description": "订单聚合，管理订单及其明细的完整生命周期"
+      "description": "订单聚合，管理订单及其明细的完整生命周期",
       "contexts": ["限界上下文1"]
     }
   ]
