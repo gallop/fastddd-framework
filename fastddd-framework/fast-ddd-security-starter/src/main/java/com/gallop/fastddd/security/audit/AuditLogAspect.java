@@ -109,11 +109,7 @@ public class AuditLogAspect {
                                 .toArray();
                         if (safeArgs.length > 0) {
                             String paramsJson = objectMapper.writeValueAsString(safeArgs);
-                            // 脱敏: 遮盖 password/secret/token 字段
-                            paramsJson = paramsJson.replaceAll(
-                                    "\"(password|secret|token|accessToken|refreshToken)\"\\s*:\\s*\"[^\"]*\"",
-                                    "\"$1\":\"***\"");
-                            logEntity.setRequestParams(paramsJson);
+                            logEntity.setRequestParams(maskSensitiveJson(paramsJson));
                         }
                     }
                 } catch (Throwable e) {
@@ -189,6 +185,23 @@ public class AuditLogAspect {
         }
 
         return ip;
+    }
+
+    /**
+     * 审计参数脱敏：password/secret/token 后缀族键值遮盖为 {@code ***}（键名保留）。
+     *
+     * <p>T8.112 根治（tracker §34 R-1 框架侧残留，2026-10-25）：1.0.0 起精确键名正则仅覆盖
+     * password/secret/token/accessToken/refreshToken 五字面量，复合键（oldPassword/newPassword
+     * 等）不匹配——明文经 JdbcTemplate 持久化入审计表（studio 侧已以 logParams=false+
+     * WRITE_ONLY 全堵；本修复保护框架直接消费者）。现改后缀匹配（键尾 {@code
+     * [pP]assword|[sS]ecret|[tT]oken}）自然覆盖原五键面+复合口令族；值面支持 JSON 转义
+     * （含 {@code \"} 形）——原 {@code [^\"]*} 在含转义引号的值上提前截断，尾部明文泄漏且
+     * 产物 JSON 劈裂。信息键过遮盖可接受——审计面宁失信息不失口令。</p>
+     */
+    static String maskSensitiveJson(String paramsJson) {
+        return paramsJson.replaceAll(
+                "\"([A-Za-z0-9_]*(?:[pP]assword|[sS]ecret|[tT]oken))\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"",
+                "\"$1\":\"***\"");
     }
 
     /**
