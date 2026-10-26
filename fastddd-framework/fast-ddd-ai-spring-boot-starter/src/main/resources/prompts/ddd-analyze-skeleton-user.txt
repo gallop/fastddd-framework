@@ -37,5 +37,6 @@
    - fields：设为空数组 []
 5. relations - 表之间的所有关系（fromTable, toTable, relationType, foreignKeyColumn, comment）
 6. aggregates - 聚合分组（aggregateName, rootTable, memberTables, description, contexts〔可选〕）
+7. commands/events/policies/behaviors - 行为面（可选，PRD 中识别得出才输出）
 
 稍后会逐表请求详细字段定义。请确保表之间的关系和聚合设计完整准确，这是后续字段生成的基础。

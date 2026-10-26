@@ -82,6 +82,26 @@
       "description": "订单聚合，管理订单及其明细的完整生命周期",
       "contexts": ["限界上下文1"]
     }
+  ],
+  "commands": [
+    { "name": "PlaceOrder", "aggregateName": "Order", "description": "提交订单命令" }
+  ],
+  "events": [
+    { "name": "OrderPlaced", "aggregateName": "Order", "description": "订单已提交事件" }
+  ],
+  "policies": [
+    { "triggerEvent": "OrderPlaced", "reactionCommand": "StartPayment", "description": "订单提交后发起支付" }
+  ],
+  "behaviors": [
+    {
+      "name": "下单流程",
+      "kind": "SEQUENCE",
+      "steps": [
+        { "from": "Order", "to": "Payment", "label": "PlaceOrder", "messageKind": "COMMAND" },
+        { "from": "Payment", "to": "Order", "label": "OrderPaid", "messageKind": "EVENT" }
+      ]
+    },
+    { "name": "订单履约流程", "kind": "PROCESS", "steps": [ { "label": "支付完成" }, { "label": "订单发货" } ] }
   ]
 }
 ```
