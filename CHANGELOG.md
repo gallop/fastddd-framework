@@ -10,6 +10,16 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.1.2] - 2026-10-26
+
+### Added
+
+- **AI behavior-view prompt contract (v3c keys)** (`fast-ddd-ai-spring-boot-starter`): the analyze system prompt now demonstrates the four behavior-face keys in its JSON schema sample — `commands` (`name`/`aggregateName`/`description`), `events` (`name`/`aggregateName`/`description`), `policies` (`triggerEvent`/`reactionCommand`/`description`) and `behaviors` (scenarios with `name`/`kind` `SEQUENCE`|`PROCESS` and `steps`: `from`/`to`/`label`/`messageKind` for sequence messages, label-only steps for process flows); the refine prompt retention sentence now covers all four keys (preserved verbatim unless the user instruction explicitly changes them); the skeleton prompt lists them as optional checklist item 7 (emit only when identifiable from the PRD). Additive only: `content_schema` stays `v1`, no key removed, canonical key order appends the four keys after the existing six.
+
+### Compatibility
+
+- BOM artifact set unchanged (18 artifacts, `FrameworkBomAllowlistTest`-guarded). Zero migration; dependency baseline unchanged (Java 21 / Spring Boot 3.5.16). The Studio consumption chain (typed columns, behavior view with sequence/process sub-views, PlantUML export) lands with the Studio-side release train.
+
 ## [1.1.1] - 2026-10-25
 
 ### Fixed

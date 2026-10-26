@@ -10,6 +10,16 @@
 
 ---
 
+## [1.1.2] - 2026-10-26
+
+### 新增
+
+- **AI 行为面提示词契约（v3c 键族）**（`fast-ddd-ai-spring-boot-starter`）：analyze system prompt 的 JSON schema 样例新增行为面四键——`commands`（`name`/`aggregateName`/`description`）、`events`（`name`/`aggregateName`/`description`）、`policies`（`triggerEvent`/`reactionCommand`/`description`）与 `behaviors`（场景：`name`/`kind` `SEQUENCE`|`PROCESS` 与 `steps`——时序消息步 `from`/`to`/`label`/`messageKind`，流程步仅 `label`）；refine prompt 保留句扩至四键（除非用户指令明确涉及，这些键必须原样保留在输出中）；skeleton prompt 输出清单第 7 条列为可选项（PRD 中识别得出才输出）。只增不删：`content_schema` 恒 `v1`、不删任何键、canonical 键序=存量六键后尾列追加四键。
+
+### 兼容性
+
+- BOM 制品集不变（18 员，`FrameworkBomAllowlistTest` 守卫）。零迁移；依赖基线不变（Java 21 / Spring Boot 3.5.16）。Studio 消费链（typed 扩列、行为视图时序/流程子面、PlantUML 导出）随 Studio 侧发版列车落地。
+
 ## [1.1.1] - 2026-10-25
 
 ### 修复
