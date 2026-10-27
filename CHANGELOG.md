@@ -10,6 +10,16 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ---
 
+## [1.1.3] - 2026-10-27
+
+### Added
+
+- **AI structured-interview prompt contract (v3d keys + interview templates)** (`fast-ddd-ai-spring-boot-starter`): the analysis and refine prompts now recognize the additive `interview`/`clarifications` keys — the refine retention sentence covers both (preserved verbatim unless the user instruction explicitly changes them), and the skeleton checklist lists them as optional item 8 (kept as-is when present in the input, never fabricated); the analyze prompt gains an optional clarifications-context section where clarified facts take precedence over ambiguous PRD wording. A new template pair `ddd-interview-system`/`ddd-interview-user` drives the multi-round structured interview: a strict two-form output contract — form 1 emits the next clarification questions (`question`/`expects` with the controlled values `text`/`select`/`multi`, optional `options`; at most 5 per round, no repeated questions), form 2 emits the complete ten-key proposal (schema sample byte-identical to the analyze template); mixing the two forms is forbidden and an empty questions array must not be emitted when clarification is already sufficient. Additive only: `content_schema` stays `v1`, no key removed, canonical key order appends the two keys after the existing ten.
+
+### Compatibility
+
+- BOM artifact set unchanged (18 artifacts, `FrameworkBomAllowlistTest`-guarded). Zero migration; dependency baseline unchanged (Java 21 / Spring Boot 3.5.16). The Studio consumption chain (interview wizard step, proposal regeneration from clarifications) lands with the Studio-side release train.
+
 ## [1.1.2] - 2026-10-26
 
 ### Added

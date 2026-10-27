@@ -10,6 +10,16 @@
 
 ---
 
+## [1.1.3] - 2026-10-27
+
+### 新增
+
+- **AI 结构化访谈提示词契约（v3d 双键+访谈模板对）**（`fast-ddd-ai-spring-boot-starter`）：分析与 refine prompt 识别只增的 `interview`/`clarifications` 双键——refine 保留句覆盖双键（除非用户指令明确涉及，必须原样保留在输出中），skeleton 输出清单列为可选第 8 条（输入已有则原样保留，不虚构生成）；analyze prompt 新增可选「澄清上下文」段（已澄清事实优先于 PRD 歧义表述，冲突以澄清为准）。新模板对 `ddd-interview-system`/`ddd-interview-user` 驱动多轮结构化访谈：严格二选一输出契约——形态一产出下一批澄清问题（`question`/`expects` 受控三值 `text`/`select`/`multi`，可选 `options`；每轮≤5 题、同题不重复），形态二产出完整十键方案（schema 样例与 analyze 模板逐字节同源）；禁混合输出、澄清已足禁空 questions 数组。只增不删：`content_schema` 恒 `v1`、不删任何键、canonical 键序=存量十键后尾列追加双键。
+
+### 兼容性
+
+- BOM 制品集不变（18 员，`FrameworkBomAllowlistTest` 守卫）。零迁移；依赖基线不变（Java 21 / Spring Boot 3.5.16）。Studio 消费链（向导访谈插步、按澄清重产方案）随 Studio 侧发版列车落地。
+
 ## [1.1.2] - 2026-10-26
 
 ### 新增

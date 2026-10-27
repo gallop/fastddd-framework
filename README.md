@@ -1,12 +1,12 @@
 # FastDDD Framework Community
 
-![Version](https://img.shields.io/badge/version-1.1.2-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![Version](https://img.shields.io/badge/version-1.1.3-blue) ![JDK](https://img.shields.io/badge/JDK-21-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
 **English** | [简体中文](README.zh-CN.md)
 
 FastDDD Framework Community is a DDD runtime foundation for Java 21 and Spring Boot 3.5. It provides the common domain model, application-layer contracts, web and unified response handling, security, domain events with Outbox, cache, search, monitoring, and optional AI integration. It does not include the commercial control-plane capabilities of FastDDD Studio Pro.
 
-> **Status: 1.1.2** (2026-10-26, tag `v1.1.2`) — patch on the 1.1.0 GA line: the AI behavior-view prompt contract (v3c keys) in `fast-ddd-ai-spring-boot-starter`. Maven coordinates `io.github.gallop.fastddd`. The twelve 1.0 stable-API modules are unchanged; the optional identity capability (four `fast-ddd-identity-*` modules, default off) joins the line; `fast-ddd-ai-spring-boot-starter` and `fast-ddd-analyzer-spring-boot-starter` remain Incubating.
+> **Status: 1.1.3** (2026-10-27, tag `v1.1.3`) — patch on the 1.1.0 GA line: the AI structured-interview prompt contract (v3d keys + `ddd-interview` template pair) in `fast-ddd-ai-spring-boot-starter`. Maven coordinates `io.github.gallop.fastddd`. The twelve 1.0 stable-API modules are unchanged; the optional identity capability (four `fast-ddd-identity-*` modules, default off) joins the line; `fast-ddd-ai-spring-boot-starter` and `fast-ddd-analyzer-spring-boot-starter` remain Incubating.
 
 ## Modules
 
@@ -42,14 +42,14 @@ Module sources live in [`fastddd-framework/`](fastddd-framework/); the single ve
 > **Artifact resolution**: FastDDD artifacts resolve from your configured Maven repositories under the coordinates `io.github.gallop.fastddd` (Java package names remain `com.gallop.fastddd`). To install from source, build the framework repo first, then the tooling repo (the plugin depends on `fastddd-bom`):
 >
 > ```bash
-> cd fastddd-framework && ./mvnw -B -Drevision=1.1.2 clean install -DskipTests
-> cd ../fastddd-tooling  && ./mvnw -B -Drevision=1.1.2 clean install -DskipTests
+> cd fastddd-framework && ./mvnw -B -Drevision=1.1.3 clean install -DskipTests
+> cd ../fastddd-tooling  && ./mvnw -B -Drevision=1.1.3 clean install -DskipTests
 > ```
 
 **New project — scaffold it with the companion tooling plugin** (RICH model, PostgreSQL, two bounded contexts):
 
 ```bash
-mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.1.2:init-project \
+mvn io.github.gallop.fastddd:fastddd-maven-plugin:1.1.3:init-project \
   -Dinit.groupId=com.example \
   -Dinit.artifactId=shop \
   -Dinit.package=com.example.shop \
@@ -91,7 +91,7 @@ Guides: [Quick start](docs/guides/QUICK_START.md) · [New business system develo
 ./mvnw clean verify
 ```
 
-Versioned (GA) artifacts build with `-Drevision=1.1.2`; the reactor default stays `-SNAPSHOT`.
+Versioned (GA) artifacts build with `-Drevision=1.1.3`; the reactor default stays `-SNAPSHOT`.
 
 ## Documentation
 
