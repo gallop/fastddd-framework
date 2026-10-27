@@ -118,6 +118,10 @@
 - 时间：TIME
 - JSON：JSON
 
+## 澄清上下文（可选）
+
+若输入包含已澄清问答（clarifications，结构化访谈产物），将其作为设计依据：已澄清的事实优先于 PRD 原文的歧义表述，与 clarifications 冲突处以澄清为准。若输入不含 clarifications 且 PRD 存在显著歧义，按最佳理解直接产出方案——澄清问题的生成由独立访谈流程（ddd-interview-system/user 模板对）负责，不在本模板职责内。
+
 ## 重要约束
 
 - 每个设计决策必须附带 `reasoning` 字段说明推理过程

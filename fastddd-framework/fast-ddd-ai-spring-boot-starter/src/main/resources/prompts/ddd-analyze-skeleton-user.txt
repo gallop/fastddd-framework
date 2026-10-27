@@ -38,5 +38,6 @@
 5. relations - 表之间的所有关系（fromTable, toTable, relationType, foreignKeyColumn, comment）
 6. aggregates - 聚合分组（aggregateName, rootTable, memberTables, description, contexts〔可选〕）
 7. commands/events/policies/behaviors - 行为面（可选，PRD 中识别得出才输出）
+8. interview/clarifications - 结构化访谈问题集与已澄清清单（可选，输入已有则原样保留，不虚构生成）
 
 稍后会逐表请求详细字段定义。请确保表之间的关系和聚合设计完整准确，这是后续字段生成的基础。
