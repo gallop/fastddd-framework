@@ -43,16 +43,9 @@ jobs:
         ./mvnw validate -B
         ./mvnw dependency:analyze -B
 
-    # VER-001 步骤 6 —— 版本一致性扫描（声明式；无 CI runner 时本地强制）。
-    # 守护：reactor 内模块 pom 的 <version>/<parent><version> 必须经 ${revision}，
-    # 不得硬编码版本字面量（UPG-010 + VER-001 不变量；-jdk21 限定符为拆仓前历史形态，
-    # 自 1.0.0 GA 起版本轴不带限定符）。
-    # <revision> 属性声明属合法唯一来源；根/BOM 两处同步为手工纪律（原 step7 守卫与
-    # VersionGovernanceContractTest 属拆仓前/Tooling 仓机制，未随拆仓迁入本仓；
-    # 本仓 BOM 制品清单由 FrameworkBomAllowlistTest 守护）。
-    - name: Verify version consistency (VER-001)
-      run: |
-        python scripts/verify-version-consistency.py
+    # VER-001 版本一致性扫描已移除：原 scripts/verify-version-consistency.py 属拆仓前/
+    # Tooling 仓机制，从未迁入本仓（步骤在本仓必红）。守护现状：${revision} 单一版本入口
+    # 由根 pom enforcer 与评审守护；BOM 制品清单由 FrameworkBomAllowlistTest 守护。
 
     - name: Compile and run tests
       run: |
@@ -61,10 +54,13 @@ jobs:
 
     # QA-002：该测试不依赖 MySQL、Redis 或消息中间件；必须在每个 PR 中失败即阻断，
     # 以守护 Outbox 多 dispatcher 的 claim、lease 回收和失败重试契约。
+    # -am：冷 runner 上单 -pl 无法从仓库解析兄弟 SNAPSHOT 构件，须连同上游模块入 reactor；
+    # failIfNoSpecifiedTests=false：上游模块无匹配测试类时不因 -Dtest 过滤而失败。
     - name: Run deterministic Outbox concurrency gate (QA-002)
       run: |
-        ./mvnw -B -pl fastddd-framework/fast-ddd-event test \
-          -Dtest=OutboxDispatcherConcurrencyTest
+        ./mvnw -B -pl fastddd-framework/fast-ddd-event -am test \
+          -Dtest=OutboxDispatcherConcurrencyTest \
+          -Dsurefire.failIfNoSpecifiedTests=false
     
     - name: Run code style checks
       run: |
@@ -80,11 +76,8 @@ jobs:
       run: |
         ./mvnw package -DskipTests -B
     
-    - name: Validate Docker build
-      run: |
-        docker build -t fastddd-test:pr-${{ github.event.number }} .
-        docker run --rm fastddd-test:pr-${{ github.event.number }} java -version
-    
+    # Validate Docker build 已移除：仓库不含 Dockerfile（Docker JDK 21 构建模板在消费者侧）。
+
     - name: Comment PR with results
       uses: actions/github-script@v7
       if: always()
@@ -100,17 +93,15 @@ jobs:
             comment.user.type === 'Bot' && comment.body.includes('PR Validation Results')
           );
           
+          const icon = '${{ job.status }}' === 'success' ? '✅' : '❌';
           const body = `## PR Validation Results
-          
-          ✅ **Build Status**: ${{ job.status }}
-          📊 **Tests**: All tests passed
-          🔍 **Code Quality**: Checkstyle validation completed
-          🐳 **Docker**: Image build successful
-          
+
+          ${icon} **Build Status**: ${{ job.status }}
+          📊 **Tests**: unit suite + deterministic Outbox concurrency gate
+          🔍 **Code Quality**: Checkstyle (non-blocking)
+
           **Commit**: ${{ github.sha }}
-          **Branch**: ${{ github.head_ref }}
-          
-          > This PR is ready for review!`;
+          **Branch**: ${{ github.head_ref }}`;
           
           if (botComment) {
             github.rest.issues.updateComment({
