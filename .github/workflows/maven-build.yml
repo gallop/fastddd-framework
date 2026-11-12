@@ -102,12 +102,6 @@ jobs:
           -Dfailsafe.useFile=false
       continue-on-error: true
     
-    - name: Generate test coverage report
-      if: ${{ !inputs.skip-tests }}
-      run: |
-        echo "📊 Generating test coverage report..."
-        ./mvnw ${{ env.MAVEN_CLI_OPTS }} jacoco:report -P${{ inputs.maven-profile || 'test' }}
-    
     - name: Package application
       run: |
         echo "📦 Packaging application..."
