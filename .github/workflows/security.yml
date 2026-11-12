@@ -15,9 +15,12 @@ env:
   MAVEN_OPTS: '-Dmaven.repo.local=.m2/repository -Xmx1024m'
 
 # Required for CodeQL / SARIF uploads to the Security tab (private repos default to read-only tokens).
+# pull-requests: read — gitleaks-action resolves the PR base sha via the Pulls API on
+# pull_request events (not needed on push events).
 permissions:
   contents: read
   actions: read
+  pull-requests: read
   security-events: write
 
 jobs:
