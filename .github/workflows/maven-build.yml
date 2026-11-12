@@ -215,17 +215,21 @@ jobs:
         cache: maven
     
     - name: Run OWASP Dependency Check
+      # dependency-check >= 12 requires an NVD API key — pass via the NVD_API_KEY secret
+      # once registered (the plugin reads the env var natively).
+      env:
+        NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
       run: |
         echo "🔒 Running OWASP Dependency Check..."
         ./mvnw ${{ env.MAVEN_CLI_OPTS }} org.owasp:dependency-check-maven:check \
-          -DfailBuildOnCVSS=7 \
-          -DsuppressionsLocation=.github/dependency-check-suppressions.xml
+          -DfailBuildOnCVSS=7
       continue-on-error: true
-    
+
     - name: Upload dependency check report
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: dependency-check-report
-        path: target/dependency-check-report.html
+        path: '**/target/dependency-check-report.html'
+        if-no-files-found: ignore
         retention-days: 30
