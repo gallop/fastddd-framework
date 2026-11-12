@@ -61,7 +61,7 @@ for business-system upgrade steps see [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE
 
 ### Migration
 
-- Identity adopters: the reference PG adapter requires host-owned schema migrations V1–V3 (+ V4 directory increment) and, optionally, `V1__sys_audit_log_actor_columns`; see `docs/identity/` (W4-d release notes, migration guide, config samples, recovery statement).
+- Identity adopters: the reference PG adapter requires host-owned schema migrations V1–V3 (+ V4 directory increment) and, optionally, `V1__sys_audit_log_actor_columns`; see the module configuration metadata and javadoc.
 
 ## [1.0.2] - 2026-10-12
 

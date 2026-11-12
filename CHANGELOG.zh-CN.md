@@ -61,7 +61,7 @@
 
 ### Migration
 
-- 身份能力采用方：reference PG 适配器需要宿主自持 schema 迁移 V1–V3（+V4 目录增量）与可选 `V1__sys_audit_log_actor_columns`；见 `docs/identity/`（W4-d 发布说明、迁移指南、配置样例、恢复声明）。
+- 身份能力采用方：reference PG 适配器需要宿主自持 schema 迁移 V1–V3（+V4 目录增量）与可选 `V1__sys_audit_log_actor_columns`；见模块配置元数据与 javadoc。
 
 ## [1.0.2] - 2026-10-12
 

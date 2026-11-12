@@ -36,8 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * W2-2 真实联调冒烟（opt-in；运行手册 L1/L2 层，完整分层见
- * docs/identity/W2-2 真实联调运行手册.md）。
+ * 真实联调冒烟（opt-in；运行手册 L1/L2 层；完整分层见维护者内部运行手册）。
  *
  * <p><b>门槛</b>：类级 {@code @EnabledIfEnvironmentVariable(FEISHU_LIVE_APP_ID)}——
  * 未设置时全部测试禁用（构建恒绿，<b>不算联调通过</b>）。凭据只经环境变量进入：
