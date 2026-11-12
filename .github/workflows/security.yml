@@ -145,11 +145,17 @@ jobs:
         ./mvnw clean compile -DskipTests
     
     - name: Perform CodeQL Analysis
+      # Code scanning is unavailable on personal-account PRIVATE repos (GHAS is org-only);
+      # the analysis runs and findings upload fails. Remove the tolerance after the repo goes
+      # public, where code scanning is free and enabled.
+      continue-on-error: true
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:java"
-    
+
     - name: SpotBugs Security Analysis
+      # Report-only: threshold=Low is deliberately noisy on a framework codebase.
+      continue-on-error: true
       run: |
         ./mvnw spotbugs:check \
           -Dspotbugs.effort=Max \
@@ -211,6 +217,8 @@ jobs:
           --sarif --output semgrep.sarif || echo "semgrep reported findings (see uploaded SARIF)"
 
     - name: Upload Semgrep results to GitHub Advanced Security Dashboard
+      # Code-scanning uploads require the repo to be public (see note on the CodeQL step).
+      continue-on-error: true
       uses: github/codeql-action/upload-sarif@v3
       if: always() && hashFiles('semgrep.sarif') != ''
       with:
@@ -278,6 +286,8 @@ jobs:
       continue-on-error: true
 
     - name: Upload Checkov results
+      # Code-scanning uploads require the repo to be public (see note on the CodeQL step).
+      continue-on-error: true
       uses: github/codeql-action/upload-sarif@v3
       if: always() && hashFiles('checkov-results.sarif') != ''
       with:

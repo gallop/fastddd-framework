@@ -2,6 +2,8 @@ package com.gallop.fastddd.web;
 
 import com.gallop.fastddd.web.response.ApiResponse;
 import com.gallop.fastddd.common.i18n.Messages;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,17 +15,38 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.util.Locale;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 异常处理集成测试
  * 验证GlobalExceptionHandler能正确处理各种异常并返回统一的ApiResponse格式
- * 
+ *
  * @author gallop
  * @since 2025-09-01
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class ExceptionHandlingIntegrationTest {
+
+    private static Locale originalDefaultLocale;
+
+    /**
+     * 消息束基名文件为中文且无 messages_zh.properties：JVM 默认 locale 为非中文时
+     * ResourceBundle 回退链会先命中 messages_en（如英文 CI runner 上的
+     * "Parameter validation failed"）。固定默认 locale 使下方中文断言在任何
+     * runner 上确定（服务器线程与测试同 JVM）。
+     */
+    @BeforeAll
+    static void pinChineseDefaultLocale() {
+        originalDefaultLocale = Locale.getDefault();
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
+    }
+
+    @AfterAll
+    static void restoreDefaultLocale() {
+        Locale.setDefault(originalDefaultLocale);
+    }
 
     @LocalServerPort
     private int port;
