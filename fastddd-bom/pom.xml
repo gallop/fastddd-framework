@@ -28,6 +28,13 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+    <!-- Maven Central 发布校验强制项（BOM 无 parent，元数据须自持，与根 pom 对齐） -->
+    <url>https://github.com/gallop/fastddd-framework</url>
+    <scm>
+        <connection>scm:git:https://github.com/gallop/fastddd-framework.git</connection>
+        <developerConnection>scm:git:git@github.com:gallop/fastddd-framework.git</developerConnection>
+        <url>https://github.com/gallop/fastddd-framework</url>
+    </scm>
     <organization>
         <name>gallop-group</name>
     </organization>

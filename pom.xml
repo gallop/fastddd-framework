@@ -390,7 +390,11 @@
         <version>${flatten-maven-plugin.version}</version>
         <configuration>
           <updatePomFile>true</updatePomFile>
-          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+          <!-- oss 模式：发布 POM 需 OSS 仓库（Maven Central）完整元数据——继承的 url/scm/
+               developers 展开落盘 + depMgmt 管理的依赖版本内联为显式版本（Central 校验
+               「Project URL / SCM / Developers / Dependency version missing」四类硬项）。
+               BOM 模块例外：其自带 flatten 配置（bom 模式）独立保留 depMgmt。 -->
+          <flattenMode>oss</flattenMode>
         </configuration>
         <executions>
           <execution>
@@ -592,7 +596,8 @@
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
-              <autoRelease>false</autoRelease>
+              <!-- 0.12.0 参数名（旧名 autoRelease 已移除，显式 false 留人工核对门） -->
+              <autoPublish>false</autoPublish>
             </configuration>
           </plugin>
         </plugins>
