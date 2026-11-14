@@ -14,7 +14,7 @@ env:
   JAVA_VERSION: '21'
   MAVEN_OPTS: '-Dmaven.repo.local=.m2/repository -Xmx1024m'
 
-# Required for CodeQL / SARIF uploads to the Security tab (private repos default to read-only tokens).
+# Required for CodeQL / SARIF uploads to the Security tab.
 # pull-requests: read — gitleaks-action resolves the PR base sha via the Pulls API on
 # pull_request events (not needed on push events).
 permissions:
@@ -88,8 +88,10 @@ jobs:
           target/dependency-check-report.json
     
     - name: Snyk Security Scan
+      # Skip cleanly when no SNYK_TOKEN is configured (same gating pattern as FOSSA below)
+      # instead of fail-plus-tolerate, so the step never shows a false failure.
+      if: env.SNYK_TOKEN != ''
       uses: snyk/actions/maven@master
-      continue-on-error: true
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
@@ -149,10 +151,6 @@ jobs:
         ./mvnw clean compile -DskipTests
     
     - name: Perform CodeQL Analysis
-      # Code scanning is unavailable on personal-account PRIVATE repos (GHAS is org-only);
-      # the analysis runs and findings upload fails. Remove the tolerance after the repo goes
-      # public, where code scanning is free and enabled.
-      continue-on-error: true
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:java"
@@ -225,8 +223,6 @@ jobs:
           --sarif --output semgrep.sarif || echo "semgrep reported findings (see uploaded SARIF)"
 
     - name: Upload Semgrep results to GitHub Advanced Security Dashboard
-      # Code-scanning uploads require the repo to be public (see note on the CodeQL step).
-      continue-on-error: true
       uses: github/codeql-action/upload-sarif@v3
       if: always() && hashFiles('semgrep.sarif') != ''
       with:
@@ -291,11 +287,8 @@ jobs:
         output_file_path: checkov-results.sarif
         quiet: true
         soft_fail: true
-      continue-on-error: true
 
     - name: Upload Checkov results
-      # Code-scanning uploads require the repo to be public (see note on the CodeQL step).
-      continue-on-error: true
       uses: github/codeql-action/upload-sarif@v3
       if: always() && hashFiles('checkov-results.sarif') != ''
       with:
