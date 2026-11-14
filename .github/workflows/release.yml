@@ -68,3 +68,7 @@ jobs:
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          # setup-java 的 gpg-passphrase 输入只声明环境变量名；真正的口令值
+          # 由本步骤导出该变量，Maven 在 settings.xml 的 gpg.passphrase 服务条目
+          # 中经 ${env.GPG_PASSPHRASE} 运行时解析——缺此行则 gpg 拿空口令签名失败
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
