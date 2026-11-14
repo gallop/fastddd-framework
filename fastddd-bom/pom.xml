@@ -72,6 +72,9 @@
         <zip4j.version>2.11.5</zip4j.version>
         <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
         <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
+        <!-- Central 发布链插件版本自持（BOM 无 parent，继承不到根 pom properties；与根 pom 对齐） -->
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -376,5 +379,51 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- Central 发布链自持（BOM 无 parent，继承不到根 pom 的 central profile）：
+         与根 pom 同名同款 profile，由 CI 统一 -Pcentral 激活。
+         gpg：为 BOM pom 产出 .asc 签名（Portal 校验每件构件均须签名）；
+         central-publishing（extensions=true）：使 BOM 获得 injected-central-publishing
+         deploy 执行——BOM 为 reactor 最后一个带该插件的模块，bundle 打包+上传在此发生，
+         BOM 由此进入发布 bundle。autoPublish=false 保持人工发布核对门。 -->
+    <profiles>
+        <profile>
+            <id>central</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven-gpg-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>${central-publishing-maven-plugin.version}</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>false</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
