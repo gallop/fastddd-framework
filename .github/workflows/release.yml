@@ -44,18 +44,24 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
-      # 门禁轮：与既有 CI 同一套 1066 测试全量跑（内网 T8.125 基线逐数对齐口径）
+      # 门禁轮：与既有 CI 同一套 1066 测试全量跑（内网 T8.125 基线逐数对齐口径）。
+      # 不带 -Dskip-tests-jar：identity-feishu 的 dogfood TCK 测试源码依赖 core test-jar
+      # （W7-d D-7 (A) 形态），必须照常产出方能通过编译；本轮不 deploy，test-jar 不外发。
       - name: Build and verify
-        run: ./mvnw -B clean verify -Drevision=${{ inputs.revision }} -Dskip-tests-jar
+        run: ./mvnw -B clean verify -Drevision=${{ inputs.revision }}
 
-      # 发布轮：verify 已绿，不再重复跑测试；-Pcentral 激活 GPG 签名与 Portal 上传，
-      # -P release-artifacts 附带 sources/javadoc；-Dskip-tests-jar 维持 GA 制品形；
-      # fastddd-consumer-tests 双保险排除（pom 侧已有 maven.deploy.skip=true）。
+      # 发布轮：verify 已绿（同一份源码、同一 revision），测试编译+运行全跳
+      # （-Dmaven.test.skip=true 连 test-compile 一起跳过——identity-feishu dogfood
+      # 依赖 core test-jar，跳过测试编译即无需该制品）；-Dskip-tests-jar 再保险
+      # （profile 双条件：test-jar goal 被 maven.test.skip 跳过 + profile 不激活）；
+      # -Pcentral 激活 GPG 签名与 Portal 上传，-P release-artifacts 附带 sources/javadoc，
+      # GA 制品形（无 tests.jar）维持；fastddd-consumer-tests 双保险排除
+      # （pom 侧已有 maven.deploy.skip=true）。
       - name: Deploy to Central Portal (staging)
         run: >-
           ./mvnw -B deploy
           -Drevision=${{ inputs.revision }}
-          -DskipTests
+          -Dmaven.test.skip=true
           -Pcentral,release-artifacts
           -Dskip-tests-jar
           -pl '!fastddd-consumer-tests'
