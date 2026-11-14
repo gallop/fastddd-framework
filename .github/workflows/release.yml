@@ -1,0 +1,64 @@
+name: Central Release
+
+# Maven Central 发布工作流：workflow_dispatch 手动触发（只发最新版，Central 不可逆）。
+# 构建自 main（携带最新测试修复），版本由 -Drevision 注入（CI-friendly 版本入口）。
+# 发布链路：verify 门禁 → GPG 签名 → Portal 暂存区（autoRelease=false，人工核对后 Publish）。
+# 凭证：仓库 secrets（CENTRAL_USERNAME/CENTRAL_PASSWORD/GPG_PRIVATE_KEY/GPG_PASSPHRASE），
+# 经 setup-java 注入 settings.xml（server-id=central 与 pom publishingServerId 对应），
+# 明文不落仓不落日志。
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 'Release version, plain X.Y.Z (no -SNAPSHOT suffix)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Guard revision format
+        run: |
+          if ! [[ "${{ inputs.revision }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::revision must be a plain X.Y.Z release version (no -SNAPSHOT)"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21, Central credentials and GPG key
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      # 门禁轮：与既有 CI 同一套 1066 测试全量跑（内网 T8.125 基线逐数对齐口径）
+      - name: Build and verify
+        run: ./mvnw -B clean verify -Drevision=${{ inputs.revision }} -Dskip-tests-jar
+
+      # 发布轮：verify 已绿，不再重复跑测试；-Pcentral 激活 GPG 签名与 Portal 上传，
+      # -P release-artifacts 附带 sources/javadoc；-Dskip-tests-jar 维持 GA 制品形；
+      # fastddd-consumer-tests 双保险排除（pom 侧已有 maven.deploy.skip=true）。
+      - name: Deploy to Central Portal (staging)
+        run: >-
+          ./mvnw -B deploy
+          -Drevision=${{ inputs.revision }}
+          -DskipTests
+          -Pcentral,release-artifacts
+          -Dskip-tests-jar
+          -pl '!fastddd-consumer-tests'
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}

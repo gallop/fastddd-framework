@@ -24,10 +24,14 @@
       <email>39100782@qq.com</email>
     </developer>
   </developers>
-  <!--
-    Community 发布物不得泄漏内网 SCM 地址。公开 project URL / SCM 将在公开仓库
-    创建后补入；ECO-004 执行记录将其保留为发布前唯一 Owner 输入项。
-  -->
+  <!-- 项目主页与 SCM 指向公开仓库（Maven Central 发布校验强制项）；
+       内网 SCM 地址不得出现（ECO-004 口径维持）。 -->
+  <url>https://github.com/gallop/fastddd-framework</url>
+  <scm>
+    <connection>scm:git:https://github.com/gallop/fastddd-framework.git</connection>
+    <developerConnection>scm:git:git@github.com:gallop/fastddd-framework.git</developerConnection>
+    <url>https://github.com/gallop/fastddd-framework</url>
+  </scm>
   <properties>
     <!-- CI-friendly 版本：reactor 唯一版本入口，发布时由 flatten-maven-plugin 解析为字面量 -->
     <revision>1.1.0-SNAPSHOT</revision>
@@ -85,6 +89,9 @@
     <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     <maven-javadoc-plugin.version>3.10.1</maven-javadoc-plugin.version>
     <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
+    <!-- Maven Central 发布插件（仅 central profile 使用：GPG 签名 + Portal 暂存上传） -->
+    <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+    <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
     <!-- 消费者测试隔离 harness（FRM-002），显式 pin 满足 enforcer requirePluginVersions -->
     <maven-invoker-plugin.version>3.9.0</maven-invoker-plugin.version>
     <!-- Profile-specific properties (defaults) -->
@@ -542,6 +549,50 @@
               <encoding>${project.build.sourceEncoding}</encoding>
               <charset>${project.build.sourceEncoding}</charset>
               <docencoding>${project.build.sourceEncoding}</docencoding>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <!-- Maven Central 发布 profile：仅经 -P 显式激活（deploy 命令形如
+           ./mvnw -B deploy -Drevision=X.Y.Z -DskipTests -Pcentral,release-artifacts）。
+           GPG 签名于 verify 阶段执行；central-publishing 以 extensions 接管 deploy，
+           上传 Portal 暂存区，autoRelease=false 留人工核对后 Publish。
+           凭证经 publishingServerId=central 对应 setup-java 注入的 server 凭据，
+           明文不落仓（仓库 secrets：CENTRAL_USERNAME/CENTRAL_PASSWORD/GPG_*）。 -->
+      <id>central</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>${maven-gpg-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- 无头环境签名：CI 中 passphrase 经 setup-java → settings.xml(server-id=gpg.passphrase) 提供 -->
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${central-publishing-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoRelease>false</autoRelease>
             </configuration>
           </plugin>
         </plugins>
